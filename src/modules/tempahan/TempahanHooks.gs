@@ -362,26 +362,30 @@ const TempahanHooks = {
     if (hingga < dari) throw Errors.validation('Julat tarikh tidak sah.');
     if (TempahanHooks.daysBetween(dari, hingga) >= TempahanHooks.MAX_JULAT_JADUAL) throw Errors.validation('Julat maksimum ' + TempahanHooks.MAX_JULAT_JADUAL + ' hari.');
     const admin = CrudEngine.isAdmin(ctx);
-    const ruangDef = CrudEngine.get('ruang');
-    const ruang = Repo.of('RUANG').all()
-      .filter(function (r) { return CrudEngine.isSelectable(ruangDef, r); })
-      .map(function (r) {
-        return { id: r.id, nama: r.nama, blok: r.blok, jenis: r.jenis, aras: r.aras, kodRuang: r.kod_ruang, kapasiti: parseInt(r.kapasiti, 10) || 0, pic: r.pic };
-      })
-      .sort(function (a, b) { return (a.blok + ' ' + a.nama).localeCompare(b.blok + ' ' + b.nama, 'ms', { numeric: true }); });
-    const tempahan = Repo.of('TEMPAHAN').all().filter(function (r) {
-      return r.state === RECORD_STATE.ACTIVE && TempahanHooks.SHOWN.indexOf(r.status) >= 0 && (!p.ruang || r.ruang === p.ruang) &&
-        r.tarikh <= hingga && TempahanHooks.endDate(r) >= dari;
-    }).map(function (r) {
-      const o = { ruang: r.ruang, tarikh: r.tarikh, tarikhTamat: TempahanHooks.endDate(r), masaMula: r.masa_mula, masaTamat: r.masa_tamat, status: r.status };
-      if (admin) Object.assign(o, { id: r.id, refNo: r.ref_no, nama: r.nama, tujuan: r.tujuan, bilanganPeserta: parseInt(r.bilangan_peserta, 10) || 0 });
-      else if (showPurpose && r.status !== 'MENUNGGU') o.tujuan = r.tujuan; // Papan Paparan: tujuan sahaja, tiada nama
-      return o;
+    /* Dicache (kalendar & papan dibuka ramai serentak); dibatalkan serta-merta bila TEMPAHAN/RUANG ditulis */
+    const out = AppCache.rememberFor(['TEMPAHAN', 'RUANG'], 'jadual:' + [dari, hingga, p.ruang || '', admin ? 1 : 0, showPurpose ? 1 : 0].join('|'), 300, function () {
+      const ruangDef = CrudEngine.get('ruang');
+      const ruang = Repo.of('RUANG').all()
+        .filter(function (r) { return CrudEngine.isSelectable(ruangDef, r); })
+        .map(function (r) {
+          return { id: r.id, nama: r.nama, blok: r.blok, jenis: r.jenis, aras: r.aras, kodRuang: r.kod_ruang, kapasiti: parseInt(r.kapasiti, 10) || 0, pic: r.pic };
+        })
+        .sort(function (a, b) { return (a.blok + ' ' + a.nama).localeCompare(b.blok + ' ' + b.nama, 'ms', { numeric: true }); });
+      const tempahan = Repo.of('TEMPAHAN').all().filter(function (r) {
+        return r.state === RECORD_STATE.ACTIVE && TempahanHooks.SHOWN.indexOf(r.status) >= 0 && (!p.ruang || r.ruang === p.ruang) &&
+          r.tarikh <= hingga && TempahanHooks.endDate(r) >= dari;
+      }).map(function (r) {
+        const o = { ruang: r.ruang, tarikh: r.tarikh, tarikhTamat: TempahanHooks.endDate(r), masaMula: r.masa_mula, masaTamat: r.masa_tamat, status: r.status };
+        if (admin) Object.assign(o, { id: r.id, refNo: r.ref_no, nama: r.nama, tujuan: r.tujuan, bilanganPeserta: parseInt(r.bilangan_peserta, 10) || 0 });
+        else if (showPurpose && r.status !== 'MENUNGGU') o.tujuan = r.tujuan; // Papan Paparan: tujuan sahaja, tiada nama
+        return o;
+      });
+      return {
+        dari: dari, hingga: hingga, maxHari: TempahanHooks.MAX_HARI, admin: admin, ruang: ruang, tempahan: tempahan,
+        jam: { mula: TempahanHooks.JAM_MULA, tamat: TempahanHooks.JAM_TAMAT }
+      };
     });
-    return {
-      dari: dari, hingga: hingga, hariIni: today, jam: { mula: TempahanHooks.JAM_MULA, tamat: TempahanHooks.JAM_TAMAT },
-      maxHari: TempahanHooks.MAX_HARI, admin: admin, ruang: ruang, tempahan: tempahan, sekarang: TempahanHooks.nowHM()
-    };
+    return Object.assign({}, out, { hariIni: today, sekarang: TempahanHooks.nowHM() });
   },
 
   semak: function (payload) {

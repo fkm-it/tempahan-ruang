@@ -10,7 +10,11 @@
     constructor(message, code, meta) { super(message); this.code = code; this.meta = meta || {}; }
   }
 
-  function call(action, payload) {
+  /** Tindakan baca sahaja: selamat diulang jika sambungan gagal (Apps Script kadangkala lambat bangun / sibuk). */
+  const SAFE = /^(public\.(config|bootstrap|categories)|crud\.(meta|list|get|summary|publicForm|refOptions)|auth\.me|notification\.list|user\.dashboard|push\.status|admin\.(stats|dashboard|users|settings|audit|health)|[a-z]+\.(jadual|semak))$/;
+  const RETRY_MS = [700, 2000];
+
+  function once(action, payload) {
     return new Promise((resolve, reject) => {
       if (!window.google || !google.script || !google.script.run) {
         reject(new ApiError('Aplikasi mesti dibuka melalui pautan Web App.', 'NO_RUNTIME'));
@@ -32,11 +36,22 @@
     });
   }
 
+  async function call(action, payload) {
+    const retries = SAFE.test(action) ? RETRY_MS.length : 0;
+    for (let i = 0; ; i++) {
+      try { return await once(action, payload); } catch (err) {
+        if (err.code !== 'NETWORK' || i >= retries) throw err;
+        await new Promise((r) => setTimeout(r, RETRY_MS[i]));
+      }
+    }
+  }
+
   KD.api = {
     call,
     ApiError,
     // Awam
     getConfig: () => call('public.config'),
+    bootstrap: () => call('public.bootstrap'),
     getCategories: () => call('public.categories'),
     sendFeedback: (p) => call('public.feedback', p),
     // Auth

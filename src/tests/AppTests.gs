@@ -303,6 +303,18 @@ const TestSuiteTempahan = {
       t.eq(ScriptApp.getProjectTriggers().filter(function (x) { return x.getHandlerFunction() === 'hourlyMaintenance'; }).length, after);
     }, { nodeOnly: true }],
 
+    ['Kalendar dicache tetapi segar serta-merta selepas tempahan baharu', function (t) {
+      const room = AppFixtures.room();
+      const q = { dari: AppFixtures.day(30), ruang: room.id };
+      t.eq(TestAssert.apiOk(api({ action: 'tempahan.jadual', payload: q })).tempahan.length, 0);
+      Database.resetRequestCache();
+      const reads = Database.open().reads || 0;
+      TestAssert.apiOk(api({ action: 'tempahan.jadual', payload: q }));
+      if (Database.open().reads !== undefined) t.eq(Database.open().reads, reads, 'bacaan kedua dari cache (tiada bacaan sheet)');
+      AppFixtures.booking({ ruang: room.id, tarikh: AppFixtures.day(30), tarikh_tamat: AppFixtures.day(30), status: 'DILULUSKAN' });
+      t.eq(TestAssert.apiOk(api({ action: 'tempahan.jadual', payload: q })).tempahan.length, 1, 'cache dibatalkan oleh tulisan');
+    }],
+
     ['Import data lama: pemetaan & idempoten', function (t) {
       const ss = SpreadsheetApp.create('LEGACY_TEST_' + Date.now());
       const put = function (name, rows) {

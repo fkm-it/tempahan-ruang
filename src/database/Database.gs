@@ -121,6 +121,25 @@ const AppCache = {
     try { AppCache.store().remove(AppCache.PREFIX + key); } catch (e) { /* abaikan */ }
   },
 
+  /** Versi data sesuatu sheet (berubah pada setiap tulisan melalui repository). */
+  version: function (sheet) {
+    const k = 'ver:' + sheet;
+    let v = AppCache.get(k);
+    if (!v) { v = Utilities.getUuid().slice(0, 8); AppCache.put(k, v, 21600); }
+    return v;
+  },
+
+  bump: function (sheet) { AppCache.put('ver:' + sheet, Utilities.getUuid().slice(0, 8), 21600); },
+
+  /**
+   * Cache hasil bacaan yang bergantung pada sheet tertentu: dibatalkan serta-merta apabila mana-mana sheet itu ditulis
+   * melalui repository (kunci mengandungi versi data). Suntingan terus dalam Google Sheets dikesan selepas `ttlSeconds`.
+   */
+  rememberFor: function (sheets, key, ttlSeconds, compute) {
+    const vers = sheets.map(function (s) { return AppCache.version(s); }).join('.');
+    return AppCache.remember('rf:' + key + ':' + vers, ttlSeconds, compute);
+  },
+
   /** Ambil daripada cache atau kira & simpan. */
   remember: function (key, ttlSeconds, compute) {
     const hit = AppCache.get(key);

@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.1.1 — 2026-10-06
+Prestasi & kebolehpercayaan.
+- App dibuka dengan **satu** panggilan pelayan (`public.bootstrap`, sebelum ini dua), dan lawatan seterusnya dipapar serta-merta daripada salinan simpanan pelayar (dikemas kini di latar).
+- Kalendar & papan paparan **dicache di pelayan**; cache dibatalkan serta-merta apabila tempahan/ruang berubah (versi data per sheet).
+- Permintaan baca **dicuba semula automatik** (2 kali) jika sambungan ke Apps Script gagal; had masa permintaan biasa 45 saat (bukan 120).
+
+
 ## 1.1.0 — 2026-10-06
 Ciri sistem lama yang diputuskan untuk dikekalkan (hasil tally sistem lama vs baharu).
 - **Slip tempahan**: cetak / simpan PDF dari "Semak / batal" (pemohon) dan halaman butiran tempahan (admin), untuk tempahan Diluluskan/Selesai.

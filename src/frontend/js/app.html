@@ -341,10 +341,23 @@
         });
       } catch (e) { /* abaikan */ }
 
-      const tasks = [
-        KD.api.getConfig().then((c) => { KD.config = c; }).catch(() => { KD.config = {}; }),
-        KD.api.getModules().then((m) => { KD.modules = m; }).catch(() => { KD.modules = []; })
-      ];
+      /*
+       * Config + metadata modul: satu panggilan (public.bootstrap), disimpan dalam storan pelayar.
+       * Lawatan seterusnya dipapar SERTA-MERTA daripada salinan simpanan dan dikemas kini di latar.
+       */
+      const BOOT_KEY = 'kd.boot';
+      const ver = (document.body && document.body.getAttribute('data-version')) || '';
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem(KD.utils.nsKey(BOOT_KEY)) || 'null'); } catch (e) { cached = null; }
+      if (cached && (cached.v !== ver || !cached.config || !cached.modules)) cached = null;
+      const fresh = KD.api.bootstrap()
+        .catch(() => Promise.all([KD.api.getConfig(), KD.api.getModules()]).then((r) => ({ config: r[0], modules: r[1] })))
+        .then((b) => {
+          KD.config = b.config; KD.modules = b.modules;
+          try { localStorage.setItem(KD.utils.nsKey(BOOT_KEY), JSON.stringify({ v: ver, at: Date.now(), config: b.config, modules: b.modules })); } catch (e) { /* storan penuh / mod peribadi */ }
+        });
+      if (cached) { KD.config = cached.config; KD.modules = cached.modules; fresh.catch(() => {}); }
+      const tasks = [cached ? Promise.resolve() : fresh.catch(() => { KD.config = KD.config || {}; KD.modules = KD.modules || []; })];
       if (auth.loggedIn()) {
         tasks.push(KD.api.getCurrentUser().then((me) => { auth.updateUser(me.user); app.unread = me.unreadNotifications; }).catch((e) => { if (e.code === 'UNAUTHENTICATED') auth.clear(); }));
       }

@@ -100,6 +100,7 @@ class RepositoryBase {
 
   invalidate() {
     Database.invalidate(this.rowsCacheKey());
+    AppCache.bump(this.def.sheet); // cache AppCache.rememberFor yang bergantung pada sheet ini menjadi lapuk
   }
 
   /** Semua rekod (cache permintaan). Anggap READ-ONLY — salin sebelum mengubah. */

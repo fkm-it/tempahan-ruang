@@ -7,6 +7,8 @@
 
 const PublicController = {
   config: function () { return SettingsService.publicConfig(); },
+  /** Satu panggilan semasa app dibuka (config + metadata modul) — kurang eksekusi Apps Script = lebih pantas. */
+  bootstrap: function () { return { config: SettingsService.publicConfig(), modules: CrudEngine.meta() }; },
   categories: function () { return CategoryService.listActive(); },
   feedback: function (p, ctx) { return FeedbackService.submit(ctx, p); }
 };

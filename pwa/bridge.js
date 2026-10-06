@@ -15,6 +15,7 @@
   var VALID = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(API) ||
     /^http:\/\/(localhost|127\.0\.0\.1):\d+\/__api$/.test(API);
   var TIMEOUT_MS = 120000; // muat naik lampiran boleh mengambil masa
+  var TIMEOUT_SMALL_MS = 45000; // permintaan biasa: gagal lebih awal supaya KD.api boleh cuba semula
 
   function post(request, onOk, onFail) {
     if (!VALID) {
@@ -22,11 +23,12 @@
       return;
     }
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, TIMEOUT_MS);
+    var body = JSON.stringify(request);
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, body.length > 100000 ? TIMEOUT_MS : TIMEOUT_SMALL_MS);
     fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(request),
+      body: body,
       credentials: 'omit',
       cache: 'no-store',
       redirect: 'follow',

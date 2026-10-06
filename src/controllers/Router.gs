@@ -18,6 +18,7 @@ const Router = {
     // allowInMaintenance: laluan yang tetap dibenarkan semasa mod penyelenggaraan
     Router.routes = {
       'public.config': { role: P, fn: PublicController.config, allowInMaintenance: true },
+      'public.bootstrap': { role: P, fn: PublicController.bootstrap, allowInMaintenance: true },
       'public.categories': { role: P, fn: PublicController.categories },
       'public.feedback': { role: P, fn: PublicController.feedback },
 
