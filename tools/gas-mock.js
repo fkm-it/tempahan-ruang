@@ -297,7 +297,7 @@ function createGasEnvironment(options = {}) {
     getProjectTriggers: () => state.triggers.slice(),
     deleteTrigger: (t) => { state.triggers = state.triggers.filter((x) => x !== t); },
     newTrigger: (fn) => {
-      const b = { timeBased: () => b, everyDays: () => b, everyHours: () => b, atHour: () => b, create: () => { const t = { getHandlerFunction: () => fn }; state.triggers.push(t); return t; } };
+      const b = { timeBased: () => b, everyDays: () => b, everyHours: () => b, everyMinutes: () => b, atHour: () => b, create: () => { const t = { getHandlerFunction: () => fn }; state.triggers.push(t); return t; } };
       return b;
     }
   };

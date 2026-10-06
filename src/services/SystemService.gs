@@ -52,6 +52,8 @@ const HealthService = {
 const BackupService = {
   /** Salin keseluruhan spreadsheet ke "<APP_NAME> Backup/YYYY". Simpan N salinan terkini. */
   run: function (ctx) {
+    /* Di Supabase: sandaran harian dibuat oleh pekerja Apps Script (WorkerService.backup → Google Sheets). */
+    if (typeof EDGE_RUNTIME !== 'undefined' && EDGE_RUNTIME) return { via: 'worker', note: 'Sandaran harian dibuat oleh pekerja Apps Script ke Google Drive.' };
     const folderId = Env.get('BACKUP_FOLDER_ID');
     if (!folderId) throw new AppError(ERROR_CODES.CONFIG_ERROR, 'Folder backup belum dikonfigurasi.');
     const root = DriveApp.getFolderById(folderId);

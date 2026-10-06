@@ -10,3 +10,6 @@ web/
 e2e-shots/
 *firebase-adminsdk*.json
 build/
+supabase/functions/api/backend.mjs
+supabase/functions/api/config.json
+supabase/.temp/

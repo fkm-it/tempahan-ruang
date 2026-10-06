@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.2.0 — 2026-10-06
+- **Backend berpindah ke Supabase** (Postgres, Singapura) untuk kelajuan & kebolehpercayaan. Kod Apps Script yang SAMA dijalankan dalam Supabase Edge Function (`supabase/functions/api`): `tools/build-edge.js` menghimpun `src/**/*.gs` menjadi satu modul; `runtime.mjs` membekalkan SpreadsheetApp/CacheService/PropertiesService/MailApp di atas Postgres. Semua 86 ujian GAS lulus dalam himpunan itu.
+- Konkurensi optimistik (versi setiap sheet + kunci nasihat): dua tempahan serentak untuk slot sama → hanya satu berjaya (diuji). Idempotensi `meta.rid` disimpan dalam transaksi yang sama dengan tulisan.
+- Apps Script kini **pekerja**: `workerTick` (setiap minit) menghantar email yang dibaris gilir, mencetus penyelenggaraan (peringatan, auto-selesai), dan membuat sandaran harian ke Google Sheets. Pelayan "mengejut" pekerja selepas setiap tindakan yang menghasilkan email.
+- `pindahKeSupabase()` (sekali, dari editor): pindah semua data + Script Properties (kata laluan kekal sah). Sebelum itu, pelayan Supabase meneruskan permintaan ke Apps Script; selepas itu, URL `/exec` lama meneruskan ke Supabase.
+- CI: ujian himpunan Edge, ujian integrasi Postgres, deploy fungsi (`SUPABASE_ACCESS_TOKEN`).
+
 ## 1.1.5 — 2026-10-06
 - **Mod `/exec` (dihos terus oleh Apps Script) dibaiki.** HtmlService merosakkan satu komen dalam `ui.html` (komen dengan `/*` bersarang) → `SyntaxError` dan app tidak dimuat. Kini `tools/build-gas.js` membuang semua komen daripada skrip frontend sebelum `clasp push` (CI menolak `build/gas`), dan `npm run check` melarang `/*` bersarang dalam komen.
 - Web GitHub Pages juga dihantar tanpa komen skrip (muatan lebih kecil).

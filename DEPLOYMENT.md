@@ -99,6 +99,20 @@ npm run build:web -- --api https://script.google.com/macros/s/<ID>/exec
 # muat naik KANDUNGAN folder web/ ke repo GitHub Pages
 ```
 
+## 5A. Backend Supabase (pilihan, lebih pantas)
+
+Jika `backend.json` wujud, frontend memanggil Supabase Edge Function `api` (kod Apps Script yang sama, data dalam Postgres).
+Apps Script kekal sebagai pekerja (email, penyelenggaraan, sandaran).
+
+Sekali sahaja:
+1. Cipta projek Supabase (wilayah Singapura) dan isi `backend.json` (`projectRef`, `apiUrl`, `gasUrl`).
+2. Jalankan migrasi `supabase/migrations/*.sql` (SQL Editor atau MCP).
+3. GitHub Secret `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens). CI deploy fungsi pada setiap push.
+4. Selepas deploy: editor Apps Script → jalankan **`pindahKeSupabase`**. Semak dengan `statusSupabase`.
+
+Nota: sebelum langkah 4, fungsi Supabase meneruskan permintaan ke Apps Script; selepasnya, `/exec` meneruskan ke Supabase.
+Untuk membuka semula import (cth. ulang pemindahan): `update private.meta set v = '1' where k = 'import_open';` dan padam Script Property `SUPABASE_ACTIVE`.
+
 ## 6. Penyelesaian masalah
 
 | Gejala | Punca & penyelesaian |

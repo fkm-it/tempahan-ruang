@@ -13,6 +13,7 @@
   var cfg = window.APP_CONFIG || {};
   var API = String(cfg.webAppUrl || '');
   var VALID = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(API) ||
+    /^https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/[a-z0-9_-]+$/.test(API) ||
     /^http:\/\/(localhost|127\.0\.0\.1):\d+\/__api$/.test(API);
   var TIMEOUT_MS = 120000; // muat naik lampiran boleh mengambil masa
   /* Permintaan biasa: had masa meningkat setiap cubaan (meta.attempt) — sambungan yang tersangkut dicuba semula lebih awal.

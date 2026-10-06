@@ -15,7 +15,7 @@ const CONFIG = Object.freeze({
   APP_SLUG: 'TempahanRuangFKM', // @init:slug
   /** Warna jenama (email, dsb.). */
   BRAND_COLOR: '#7A0019', // @init:brandColor
-  VERSION: '1.1.5',
+  VERSION: '1.2.0',
   TIMEZONE_FALLBACK: 'Asia/Kuala_Lumpur',
 
   DEFAULT_PAGE_SIZE: 20,

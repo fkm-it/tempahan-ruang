@@ -48,6 +48,10 @@ const Database = (function () {
     }
     lockDepth = 1;
     try {
+      /* Apps Script: data mungkin sedang/telah dipindahkan ke Supabase → tolak tulisan ke Google Sheets (baca segar, bukan cache) */
+      if (!(typeof EDGE_RUNTIME !== 'undefined' && EDGE_RUNTIME) && PropertiesService.getScriptProperties().getProperty('SUPABASE_ACTIVE')) {
+        throw new AppError(ERROR_CODES.MAINTENANCE, 'Sistem sedang dinaik taraf. Sila cuba semula dalam seminit.');
+      }
       const result = fn();
       SpreadsheetApp.flush();
       return result;

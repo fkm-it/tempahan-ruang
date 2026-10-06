@@ -29,6 +29,9 @@ const OUT = path.resolve(argVal('--out') || path.join(ROOT, 'web'));
 
 const PROD_URL = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
 const DEV_URL = /^http:\/\/(localhost|127\.0\.0\.1):\d+\/__api$/;
+/* Backend Supabase Edge Function (lihat backend.json & supabase/functions/api) */
+const EDGE_URL = /^https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/[a-z0-9_-]+$/;
+const backendJson = fs.existsSync(path.join(ROOT, 'backend.json')) ? JSON.parse(fs.readFileSync(path.join(ROOT, 'backend.json'), 'utf8')) : {};
 
 function fail(msg) { console.error('✖ ' + msg); process.exit(1); }
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 10);
@@ -38,9 +41,10 @@ const cfgFile = fs.existsSync(path.join(PWA, 'config.js')) ? 'config.js' : 'conf
 let configJs = fs.readFileSync(path.join(PWA, cfgFile), 'utf8');
 const m = configJs.match(/webAppUrl:\s*'([^']*)'/);
 if (!m) fail('pwa/config.js: medan webAppUrl tidak dijumpai.');
-let apiUrl = argVal('--api') || process.env.WEB_APP_URL || m[1];
+/* backend.json webUsesEdge=true → web memanggil Supabase terus (tukar SELEPAS pindahKeSupabase()) */
+let apiUrl = argVal('--api') || (backendJson.webUsesEdge ? backendJson.apiUrl : '') || process.env.WEB_APP_URL || m[1];
 if (/\s/.test(apiUrl)) apiUrl = apiUrl.trim();
-if (/GANTIKAN/i.test(apiUrl) || (!PROD_URL.test(apiUrl) && !DEV_URL.test(apiUrl))) {
+if (/GANTIKAN/i.test(apiUrl) || (!PROD_URL.test(apiUrl) && !DEV_URL.test(apiUrl) && !EDGE_URL.test(apiUrl))) {
   fail('URL Web App tidak sah: "' + apiUrl + '"\n  Jangkaan: https://script.google.com/macros/s/<ID>/exec\n' +
     '  Salin daripada Apps Script → Deploy → Manage deployments, kemudian edit pwa/config.js (atau guna --api).');
 }
@@ -96,7 +100,7 @@ const cssName = 'assets/app.' + hash(bundleCss) + '.css';
 
 // ---------------------------------------------------------------- CSP & head
 const apiOrigin = new URL(apiUrl).origin;
-const connect = DEV_URL.test(apiUrl) ? [apiOrigin] : ['https://script.google.com', 'https://script.googleusercontent.com'];
+const connect = DEV_URL.test(apiUrl) || EDGE_URL.test(apiUrl) ? [apiOrigin] : ['https://script.google.com', 'https://script.googleusercontent.com'];
 const csp = [
   "default-src 'self'",
   "script-src 'self'" + (PUSH ? ' https://www.gstatic.com' : ''),

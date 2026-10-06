@@ -48,6 +48,37 @@ const ctx = gas.context;
 ctx.setupDatabase();
 if (args.includes('--seed')) require('./seed-demo')(ctx, gas);
 
+/*
+ * --edge <postgres-url>: layan /__api melalui runtime Supabase (supabase/functions/api) dengan Postgres sebenar —
+ * data demo di atas dipindahkan seperti pindahKeSupabase(). Pemacu postgres: env POSTGRES_JS atau node_modules/postgres.
+ */
+const ei = args.indexOf('--edge');
+let edgeRuntime = null;
+const edgeReady = ei < 0 ? Promise.resolve() : (async () => {
+  const { pathToFileURL } = require('url');
+  require('child_process').execFileSync(process.execPath, [path.join(__dirname, 'build-edge.js')], { stdio: 'inherit' });
+  const FN = path.join(__dirname, '..', 'supabase', 'functions', 'api');
+  const imp = (f) => import(pathToFileURL(path.join(FN, f)).href);
+  const postgres = (await import(pathToFileURL(path.join(process.env.POSTGRES_JS || path.join(__dirname, '..', 'node_modules', 'postgres'), 'src', 'index.js')).href)).default;
+  const [{ createBackend }, { createRuntime }, { createPgStore }, { createWorkerApi }] = await Promise.all([imp('backend.mjs'), imp('runtime.mjs'), imp('store-pg.mjs'), imp('worker.mjs')]);
+  const sql = postgres(args[ei + 1], { prepare: false, max: 8, onnotice: () => {} });
+  await sql.unsafe('drop schema if exists private cascade');
+  const MIG = path.join(__dirname, '..', 'supabase', 'migrations');
+  for (const f of fs.readdirSync(MIG).sort()) await sql.unsafe(fs.readFileSync(path.join(MIG, f), 'utf8'));
+  const store = createPgStore(sql);
+  edgeRuntime = createRuntime({ store, createBackend, log: { log() {}, info() {}, warn() {}, error: (...a) => console.error('[edge]', ...a) } });
+  const ssObj = gas.env.state.spreadsheets[Object.keys(gas.env.state.spreadsheets)[0]];
+  const sheets = ssObj.getSheets().map((sh) => {
+    const lr = sh.getLastRow(); const lc = sh.getLastColumn();
+    const v = lr && lc ? sh.getRange(1, 1, lr, lc).getValues() : [];
+    return { name: sh.getName(), header: v[0] || [], rows: v.slice(1) };
+  });
+  const nonce = 'dev'.repeat(11);
+  const r = await createWorkerApi({ store, runtime: edgeRuntime, verifyImport: async (n) => n === nonce }).handle({ action: 'system.import', payload: { sheets, props: Object.assign({}, gas.env.state.props), nonce } });
+  if (!r.success) throw new Error('Import edge gagal: ' + r.message);
+  console.log('Mod EDGE: /__api dilayan oleh runtime Supabase + Postgres (' + r.data.rows + ' baris diimport)');
+})();
+
 function renderTemplate(file, vars) {
   return tpl.renderTemplate(file, vars, { processInclude: (h) => gasProcessHtml(stripHtmlScripts(h)) } /* sama seperti build-gas + Apps Script */);
 }
@@ -79,9 +110,12 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && url.pathname === '/__api') {
     let body = '';
     req.on('data', (c) => { body += c; if (body.length > 40e6) req.destroy(); });
-    req.on('end', () => {
+    req.on('end', async () => {
       let out;
-      try { out = ctx.api(JSON.parse(body)); } catch (e) { out = { success: false, code: 'BAD_REQUEST', message: String(e) }; }
+      try {
+        const request = JSON.parse(body);
+        if (ei >= 0) { await edgeReady; out = (await edgeRuntime.handle(request)).result; } else out = ctx.api(request);
+      } catch (e) { out = { success: false, code: 'BAD_REQUEST', message: String(e) }; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(out));
     });

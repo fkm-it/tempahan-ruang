@@ -30,6 +30,32 @@ jobs:
         run: node tools/check-frontend.js && node tools/scan-secrets.js
       - name: Binaan web (percubaan)
         run: node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
+      - name: Himpunan Supabase Edge setara dengan kod GAS (semua ujian dalam modul ES)
+        run: node tools/test-edge-bundle.mjs
+
+  edge:
+    name: Runtime Supabase + Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Pemacu postgres (ujian sahaja)
+        run: npm install --no-save --no-audit --no-fund postgres@3.4.5
+      - name: Ujian integrasi (import, konkurensi, idempotensi, pekerja)
+        env:
+          EDGE_TEST_PG: postgres://postgres:postgres@localhost:5432/postgres
+        run: node tools/test-edge-pg.mjs
 
   e2e:
     name: E2E pelayar

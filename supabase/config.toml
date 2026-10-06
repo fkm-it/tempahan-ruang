@@ -1,0 +1,6 @@
+# Konfigurasi minimum Supabase CLI (deploy fungsi oleh CI: .github/workflows/deploy.yml → job edge)
+project_id = "emgnfldfzyccgytbmdrh"
+
+[functions.api]
+# Pengesahan dibuat oleh aplikasi sendiri (token sesi dalam badan permintaan), bukan JWT Supabase.
+verify_jwt = false

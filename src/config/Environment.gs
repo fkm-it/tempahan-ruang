@@ -80,5 +80,10 @@ const Env = (function () {
     cache = null;
   }
 
-  return { get: get, set: set, name: name, isProduction: isProduction, secret: secret, bool: bool, useOverrides: useOverrides, reset: reset };
+  /** Salinan tindihan semasa (ujian: tambah tindihan sementara tanpa membuang tindihan sedia ada). */
+  function currentOverrides() {
+    return overrides ? Object.assign({}, overrides) : null;
+  }
+
+  return { get: get, set: set, name: name, isProduction: isProduction, secret: secret, bool: bool, useOverrides: useOverrides, currentOverrides: currentOverrides, reset: reset };
 })();

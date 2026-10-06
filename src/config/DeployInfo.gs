@@ -5,6 +5,7 @@
  */
 const DEPLOY_INFO = Object.freeze({
   publicBaseUrl: '',
+  apiUrl: '',
   commit: '',
   builtAt: ''
 });

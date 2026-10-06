@@ -8,7 +8,7 @@
 const TestRunner = {
   /** Senarai suite — diselesaikan semasa panggilan (tiada kebergantungan susunan muat). */
   suites: function () {
-    return [TestSuiteUtils, TestSuiteSecurity, TestSuiteRepository, TestSuiteAuth, TestSuiteCrud, TestSuitePush, TestSuiteAdmin]
+    return [TestSuiteUtils, TestSuiteSecurity, TestSuiteRepository, TestSuiteAuth, TestSuiteCrud, TestSuitePush, TestSuiteAdmin, TestSuiteWorker]
       .concat(TestRunner.appSuites());
   },
 
@@ -27,7 +27,7 @@ const TestRunner = {
     1: ['Utils', 'Security', 'Repository'],
     2: ['Auth'],
     3: ['Modul (CrudEngine)'],
-    4: ['Kategori & Notifikasi telefon', 'Admin & API']
+    4: ['Kategori & Notifikasi telefon', 'Admin & API', 'Pekerja Supabase']
   },
 
   /**
