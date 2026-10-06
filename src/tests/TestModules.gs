@@ -303,6 +303,22 @@ const TestSuiteCrud = {
       t.eq(Repo.of('T_TIKET').findById(h.id).status, 'BARU', 'status tidak berubah');
       TestFixtures.uninstall();
       TestAssert.apiFail(api({ action: 'tiket.ping' }), ERROR_CODES.BAD_REQUEST);
-    }]
+    }],
+    ['Idempotensi meta.rid: cubaan semula memulangkan jawapan asal tanpa menjalankan tindakan dua kali', function (t) {
+      TestFixtures.install();
+      try {
+        const rid = 'rtest' + Utilities.getUuid().replace(/-/g, '');
+        const req = { action: 'crud.publicCreate', meta: { rid: rid }, payload: { module: 'tiket', tajuk: 'Sekali sahaja', email: 'rid@test.local',
+          formToken: SecurityUtils.signFormToken('crud:tiket', Date.now() - 5000) } };
+        const a = TestAssert.apiOk(api(req));
+        const b = TestAssert.apiOk(api(req));
+        t.eq(b.refNo, a.refNo, 'jawapan sama');
+        Database.resetRequestCache();
+        t.eq(Repo.of('T_TIKET').all().filter(function (r) { return r.tajuk === 'Sekali sahaja'; }).length, 1, 'satu rekod sahaja');
+        const c = TestAssert.apiOk(api({ action: req.action, meta: { rid: rid + 'x' }, payload: Object.assign({}, req.payload, { tajuk: 'Sekali sahaja' }) }));
+        t.ok(c.refNo !== a.refNo, 'rid lain = tindakan baharu');
+        TestAssert.apiOk(api({ action: 'public.config', meta: { rid: 'pendek' } })); /* rid tidak sah → diabaikan */
+      } finally { TestFixtures.uninstall(); }
+    }, { nodeOnly: true }]
   ]
 };

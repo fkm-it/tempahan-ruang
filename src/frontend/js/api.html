@@ -10,11 +10,15 @@
     constructor(message, code, meta) { super(message); this.code = code; this.meta = meta || {}; }
   }
 
-  /** Tindakan baca sahaja: selamat diulang jika sambungan gagal (Apps Script kadangkala lambat bangun / sibuk). */
-  const SAFE = /^(auth\.login|public\.(config|bootstrap|categories)|crud\.(meta|list|get|summary|publicForm|refOptions)|auth\.me|notification\.list|user\.dashboard|push\.status|admin\.(stats|dashboard|users|settings|audit|health)|[a-z]+\.(jadual|semak))$/;
-  const RETRY_MS = [700, 2000];
+  /*
+   * Cuba semula jika sambungan gagal: Google kadangkala tidak menghantar jawapan (HTTP 404 pada URL echo, tamat masa)
+   * walaupun skrip telah berjalan. Setiap tindakan membawa meta.rid yang sama merentas cubaan, dan pelayan
+   * (Router.dispatch) memulangkan jawapan asal untuk rid yang telah diproses — jadi tulisan juga selamat diulang.
+   */
+  const RETRY_MS = [800, 2500];
+  const newRid = () => (KD.utils && KD.utils.requestId ? KD.utils.requestId() : String(Date.now()) + Math.random().toString(36).slice(2, 12));
 
-  function once(action, payload) {
+  function once(action, payload, rid) {
     return new Promise((resolve, reject) => {
       if (!window.google || !google.script || !google.script.run) {
         reject(new ApiError('Aplikasi mesti dibuka melalui pautan Web App.', 'NO_RUNTIME'));
@@ -33,15 +37,15 @@
           const detail = String((e && e.message) || e || '').slice(0, 60);
           reject(new ApiError('Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.', 'NETWORK', { detail: detail }));
         })
-        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent, lang: KD.i18n ? KD.i18n.lang() : 'ms' } });
+        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent, lang: KD.i18n ? KD.i18n.lang() : 'ms', rid: rid } });
     });
   }
 
   async function call(action, payload) {
-    const retries = SAFE.test(action) ? RETRY_MS.length : 0;
+    const rid = newRid();
     for (let i = 0; ; i++) {
-      try { return await once(action, payload); } catch (err) {
-        if (err.code !== 'NETWORK' || i >= retries) throw err;
+      try { return await once(action, payload, rid); } catch (err) {
+        if (err.code !== 'NETWORK' || i >= RETRY_MS.length) throw err;
         await new Promise((r) => setTimeout(r, RETRY_MS[i]));
       }
     }

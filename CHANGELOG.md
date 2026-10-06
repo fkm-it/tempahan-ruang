@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.3 — 2026-10-06
+- **Idempotensi semua tindakan** (`meta.rid`): Google kadangkala tidak menghantar jawapan walaupun skrip telah siap (HTTP 404 pada URL `…/echo`, atau tamat masa). Klien kini mencuba semula SEMUA tindakan (termasuk hantar tempahan, lulus, batal) dengan ID permintaan yang sama; pelayan memulangkan jawapan asal tanpa menjalankan tindakan dua kali.
+
+
 ## 1.1.2 — 2026-10-06
 - Log masuk turut dicuba semula automatik jika sambungan gagal.
 - Mesej "Sambungan ke pelayan gagal" kini menyertakan punca ringkas (cth. `HTTP 500`, `bukan JSON`, `tamat masa`, `Failed to fetch`) untuk diagnosis.

@@ -15,7 +15,7 @@
   var VALID = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(API) ||
     /^http:\/\/(localhost|127\.0\.0\.1):\d+\/__api$/.test(API);
   var TIMEOUT_MS = 120000; // muat naik lampiran boleh mengambil masa
-  var TIMEOUT_SMALL_MS = 45000; // permintaan biasa: gagal lebih awal supaya KD.api boleh cuba semula
+  var TIMEOUT_SMALL_MS = 40000; // permintaan biasa: gagal lebih awal supaya KD.api boleh cuba semula
 
   function post(request, onOk, onFail) {
     if (!VALID) {

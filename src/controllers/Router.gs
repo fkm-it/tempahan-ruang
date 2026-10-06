@@ -102,10 +102,29 @@ const Router = {
   },
 
   /**
-   * @param {{action:string, payload?:Object, token?:string, meta?:{userAgent?:string, lang?:string}}} request
+   * @param {{action:string, payload?:Object, token?:string, meta?:{userAgent?:string, lang?:string, rid?:string}}} request
    * @return {Object} ApiResponse
    */
   dispatch: function (request) {
+    /*
+     * Idempotensi: klien menghantar meta.rid unik bagi setiap tindakan (sama untuk setiap cubaan semula).
+     * Google kadangkala gagal menghantar jawapan walaupun skrip telah siap (cth. HTTP 404 pada URL echo),
+     * jadi klien mencuba semula — permintaan berulang mendapat jawapan asal, tindakan tidak dijalankan dua kali.
+     */
+    const rid = request && request.meta && typeof request.meta.rid === 'string' && /^[A-Za-z0-9_-]{12,64}$/.test(request.meta.rid) ? request.meta.rid : '';
+    if (!rid) return Router.run(request);
+    const key = 'rid:' + rid;
+    let hit = AppCache.get(key);
+    for (let i = 0; hit && hit.pending && i < 40; i++) { Utilities.sleep(500); hit = AppCache.get(key); } // cubaan asal masih berjalan
+    if (hit && hit.res) return hit.res;
+    if (hit && hit.pending) return ApiResponse.fail(ERROR_CODES.BUSY, 'Permintaan anda sedang diproses. Sila tunggu sebentar.');
+    AppCache.put(key, { pending: true }, 120);
+    const res = Router.run(request);
+    AppCache.put(key, { res: res }, 600);
+    return res;
+  },
+
+  run: function (request) {
     const started = Date.now();
     let action = '';
     try {
