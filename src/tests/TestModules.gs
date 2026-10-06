@@ -45,6 +45,7 @@ const TestFixtures = {
     },
     beforeSave: function (row) { if (row.tajuk) row.tajuk = row.tajuk.replace(/\s+$/, ''); },
     afterCreate: function (row) { TestFixtures.hookLog.push('create:' + row.ref_no); },
+    hourly: function () { TestFixtures.hookLog.push('hourly'); return { ok: 1 }; },
     afterStatus: function (row, prev) { TestFixtures.hookLog.push('status:' + prev + '>' + row.status); },
     visible: function (row) { return row.tajuk !== 'TERSEMBUNYI'; },
     beforeStatus: function (row, next) { if (row.tajuk === 'HALANG' && next === 'SELESAI') throw Errors.conflict('Dihalang oleh hook.'); },
@@ -318,6 +319,26 @@ const TestSuiteCrud = {
         const c = TestAssert.apiOk(api({ action: req.action, meta: { rid: rid + 'x' }, payload: Object.assign({}, req.payload, { tajuk: 'Sekali sahaja' }) }));
         t.ok(c.refNo !== a.refNo, 'rid lain = tindakan baharu');
         TestAssert.apiOk(api({ action: 'public.config', meta: { rid: 'pendek' } })); /* rid tidak sah → diabaikan */
+      } finally { TestFixtures.uninstall(); }
+    }, { nodeOnly: true }],
+    ['Hook hourly: dijalankan setiap jam; pencetus dipasang automatik & idempoten; bahasa peminta (meta.lang) sampai ke ctx', function (t) {
+      TestFixtures.install();
+      try {
+      t.ok(CrudEngine.hasHook('hourly'));
+      t.eq(MaintenanceService.hourly().modules.tiket.ok, 1);
+      t.ok(TestFixtures.hookLog.indexOf('hourly') >= 0);
+      MaintenanceService.ensureTriggers();
+      MaintenanceService.ensureTriggers();
+      const n = ScriptApp.getProjectTriggers().filter(function (x) { return x.getHandlerFunction() === 'hourlyMaintenance'; }).length;
+      t.eq(n, 1, 'satu pencetus setiap jam');
+      t.ok(ScriptApp.getProjectTriggers().some(function (x) { return x.getHandlerFunction() === 'dailyMaintenance'; }));
+      let seen = '';
+      const orig = TestFixtures.hooks.validate;
+      TestFixtures.hooks.validate = function (data, info) { seen = info.ctx.lang; };
+      try {
+        api({ action: 'crud.publicCreate', meta: { lang: 'en' }, payload: { module: 'tiket', tajuk: 'Lang', email: 'l@test.local', formToken: SecurityUtils.signFormToken('crud:tiket', Date.now() - 5000) } });
+      } finally { TestFixtures.hooks.validate = orig; }
+      t.eq(seen, 'en');
       } finally { TestFixtures.uninstall(); }
     }, { nodeOnly: true }]
   ]
