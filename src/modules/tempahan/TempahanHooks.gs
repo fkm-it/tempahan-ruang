@@ -147,6 +147,7 @@ const TempahanHooks = {
     }
     if (info.mode !== 'update') {
       if (!row.tarikh_tamat) row.tarikh_tamat = row.tarikh;
+      row.bahasa = info.ctx && info.ctx.lang === 'en' ? 'en' : 'ms'; // bahasa emel kepada pemohon
       return;
     }
     const cur = info.current;
@@ -164,11 +165,12 @@ const TempahanHooks = {
   },
 
   afterCreate: function (row) {
-    TempahanHooks.mail(row.emel, 'Permohonan diterima: ' + row.ref_no, [
-      'Salam ' + row.nama + ',',
-      'Permohonan tempahan anda telah diterima dan sedang menunggu kelulusan.'
+    const en = row.bahasa === 'en';
+    TempahanHooks.mail(row.emel, (en ? 'Application received: ' : 'Permohonan diterima: ') + row.ref_no, [
+      (en ? 'Dear ' : 'Salam ') + row.nama + ',',
+      en ? 'Your booking application has been received and is awaiting approval.' : 'Permohonan tempahan anda telah diterima dan sedang menunggu kelulusan.'
     ].concat(TempahanHooks.details(row), [
-      'Untuk menyemak status atau membatalkan, gunakan No. Rujukan di atas bersama No. Staf anda.'
+      en ? 'To check the status or cancel, use the Reference No. above with your Staff No.' : 'Untuk menyemak status atau membatalkan, gunakan No. Rujukan di atas bersama No. Staf anda.'
     ]), row);
   },
 
@@ -177,6 +179,7 @@ const TempahanHooks = {
   toDTO: function (dto, row) {
     const parts = [dto.labels && dto.labels.ruang, TempahanHooks.dateText(row), row.masa_mula && row.masa_mula + '–' + row.masa_tamat];
     dto.subtitle = parts.filter(Boolean).join(' · ');
+    dto.statusChangedBy = row.status_changed_by || '';
     return dto;
   },
 
@@ -208,15 +211,19 @@ const TempahanHooks = {
     return out;
   },
 
-  // ================================================================== Email
+  // ================================================================== Email (BM / EN ikut bahasa pemohon)
+
+  /** Teks ikut bahasa baris. */
+  L: function (row, ms, en) { return row && row.bahasa === 'en' ? en : ms; },
 
   details: function (row) {
+    const L = function (ms, en) { return TempahanHooks.L(row, ms, en); };
     return [
-      'No. rujukan: ' + row.ref_no,
-      'Ruang: ' + TempahanHooks.ruangText(row),
-      'Tarikh: ' + TempahanHooks.dateText(row),
-      'Masa: ' + row.masa_mula + ' – ' + row.masa_tamat,
-      'Tujuan: ' + StringUtils.truncate(String(row.tujuan || ''), 200)
+      L('No. rujukan: ', 'Reference No.: ') + row.ref_no,
+      L('Ruang: ', 'Room: ') + TempahanHooks.ruangText(row),
+      L('Tarikh: ', 'Date: ') + TempahanHooks.dateText(row),
+      L('Masa: ', 'Time: ') + row.masa_mula + ' – ' + row.masa_tamat,
+      L('Tujuan: ', 'Purpose: ') + StringUtils.truncate(String(row.tujuan || ''), 200)
     ];
   },
 
@@ -224,42 +231,78 @@ const TempahanHooks = {
 
   mail: function (to, subject, lines, row) {
     if (!to) return false;
-    return NotificationService.email(to, subject, lines, { path: TempahanHooks.semakPath(row) });
+    return NotificationService.email(to, subject, lines, { path: TempahanHooks.semakPath(row), lang: row && row.bahasa === 'en' ? 'en' : 'ms' });
   },
 
   /** Email pemohon (dan PIC ruang bila berkaitan) selepas status berubah. */
   notifyStatus: function (row, prev) {
-    const salam = 'Salam ' + (row.nama || '') + ',';
+    const L = function (ms, en) { return TempahanHooks.L(row, ms, en); };
+    const salam = L('Salam ', 'Dear ') + (row.nama || '') + ',';
     const note = row.status_note ? String(row.status_note) : '';
     if (row.status === 'DILULUSKAN') {
-      TempahanHooks.mail(row.emel, 'Tempahan diluluskan: ' + row.ref_no, [salam, 'Tempahan anda telah DILULUSKAN.']
-        .concat(TempahanHooks.details(row), note ? ['Catatan: ' + note] : [], ['Peringatan akan dihantar sehari sebelum tarikh tempahan.']), row);
+      TempahanHooks.mail(row.emel, L('Tempahan diluluskan: ', 'Booking approved: ') + row.ref_no, [salam, L('Tempahan anda telah DILULUSKAN.', 'Your booking has been APPROVED.')]
+        .concat(TempahanHooks.details(row), note ? [L('Catatan: ', 'Note: ') + note] : [],
+          [L('Slip tempahan boleh dicetak melalui butang di bawah. Peringatan akan dihantar sebelum tarikh tempahan.', 'You can print the booking slip using the button below. Reminders will be sent before the booking date.')]), row);
       TempahanHooks.mailPic(row, 'Tempahan diluluskan untuk ruang anda', 'Tempahan berikut telah diluluskan:');
     } else if (row.status === 'DITOLAK') {
-      TempahanHooks.mail(row.emel, 'Tempahan ditolak: ' + row.ref_no, [salam, 'Harap maaf, tempahan anda TIDAK DILULUSKAN.']
-        .concat(TempahanHooks.details(row), ['Sebab: ' + (note || '-')]), row);
+      TempahanHooks.mail(row.emel, L('Tempahan ditolak: ', 'Booking not approved: ') + row.ref_no, [salam, L('Harap maaf, tempahan anda TIDAK DILULUSKAN.', 'We regret that your booking was NOT APPROVED.')]
+        .concat(TempahanHooks.details(row), [L('Sebab: ', 'Reason: ') + (note || '-')]), row);
     } else if (row.status === 'DIBATALKAN') {
-      TempahanHooks.mail(row.emel, 'Tempahan dibatalkan: ' + row.ref_no, [salam, 'Tempahan anda telah DIBATALKAN.']
-        .concat(TempahanHooks.details(row), note ? ['Catatan: ' + note] : []), row);
+      TempahanHooks.mail(row.emel, L('Tempahan dibatalkan: ', 'Booking cancelled: ') + row.ref_no, [salam, L('Tempahan anda telah DIBATALKAN.', 'Your booking has been CANCELLED.')]
+        .concat(TempahanHooks.details(row), note ? [L('Catatan: ', 'Note: ') + note] : []), row);
       if (prev === 'DILULUSKAN') TempahanHooks.mailPic(row, 'Tempahan dibatalkan', 'Tempahan yang telah diluluskan berikut DIBATALKAN:');
     }
   },
 
+  /** PIC ruang ialah staf FKM: email dalam BM. */
   mailPic: function (row, subject, intro) {
     const ruang = TempahanHooks.ruangOf(row);
     if (!ruang || !ruang.emel_pic) return false;
+    const bm = Object.assign({}, row, { bahasa: 'ms' });
     return NotificationService.email(ruang.emel_pic, subject + ': ' + ruang.nama, [
       'Salam ' + (ruang.pic || 'PIC') + ',', intro
-    ].concat(TempahanHooks.details(row), ['Pemohon: ' + row.nama + (row.no_telefon ? ' · ' + row.no_telefon : '')]),
-    { path: '#/jadual?ruang=' + encodeURIComponent(ruang.id) + '&tarikh=' + row.tarikh });
+    ].concat(TempahanHooks.details(bm), ['Pemohon: ' + row.nama + (row.no_telefon ? ' · ' + row.no_telefon : '')]),
+    { path: '#/jadual?mode=ruang&ruang=' + encodeURIComponent(ruang.id) + '&tarikh=' + row.tarikh });
   },
 
   sendReminder: function (row) {
-    return TempahanHooks.mail(row.emel, 'Peringatan tempahan esok: ' + TempahanHooks.ruangText(row), [
-      'Salam ' + row.nama + ',',
-      'Peringatan: anda mempunyai tempahan ruang yang telah diluluskan bermula esok.'
-    ].concat(TempahanHooks.details(row), ['Jika tidak lagi diperlukan, sila batalkan supaya ruang boleh digunakan oleh orang lain.']), row);
+    const L = function (ms, en) { return TempahanHooks.L(row, ms, en); };
+    return TempahanHooks.mail(row.emel, L('Peringatan tempahan esok: ', 'Reminder, booking tomorrow: ') + TempahanHooks.ruangText(row), [
+      L('Salam ', 'Dear ') + row.nama + ',',
+      L('Peringatan: anda mempunyai tempahan ruang yang telah diluluskan bermula esok.', 'Reminder: you have an approved room booking starting tomorrow.')
+    ].concat(TempahanHooks.details(row), [L('Jika tidak lagi diperlukan, sila batalkan supaya ruang boleh digunakan oleh orang lain.', 'If it is no longer needed, please cancel it so others can use the room.')]), row);
   },
+
+  /** Peringatan beberapa jam sebelum slot bermula (setiap hari bagi tempahan berbilang hari). */
+  sendHourReminder: function (row, today) {
+    const L = function (ms, en) { return TempahanHooks.L(row, ms, en); };
+    return TempahanHooks.mail(row.emel, L('Peringatan: tempahan hari ini ', 'Reminder: booking today at ') + row.masa_mula + ' · ' + TempahanHooks.ruangText(row), [
+      L('Salam ', 'Dear ') + row.nama + ',',
+      L('Tempahan anda bermula hari ini (' + TempahanHooks.fmtDate(today) + ') pada ' + row.masa_mula + '.', 'Your booking starts today (' + TempahanHooks.fmtDate(today) + ') at ' + row.masa_mula + '.')
+    ].concat(TempahanHooks.details(row)), row);
+  },
+
+  /** Setiap jam: peringatan N jam sebelum masa mula (tetapan PERINGATAN_JAM; 0 = tutup). */
+  hourly: function () {
+    const hours = Number(SettingsService.get('PERINGATAN_JAM')) || 0;
+    const out = { peringatanJam: 0 };
+    if (hours <= 0) return out;
+    const today = TempahanHooks.today();
+    const nowMin = TempahanHooks.toMin(TempahanHooks.nowHM());
+    const repo = Repo.of('TEMPAHAN');
+    const patch = {};
+    repo.all().forEach(function (r) {
+      if (r.state !== RECORD_STATE.ACTIVE || r.status !== 'DILULUSKAN') return;
+      if (r.tarikh > today || TempahanHooks.endDate(r) < today || r.peringatan_jam_dihantar === today) return;
+      const until = TempahanHooks.toMin(r.masa_mula) - nowMin;
+      if (until <= 0 || until > hours * 60) return;
+      if (TempahanHooks.sendHourReminder(r, today)) { patch[r.id] = { peringatan_jam_dihantar: today }; out.peringatanJam++; }
+    });
+    if (Object.keys(patch).length) repo.updateMany(patch);
+    return out;
+  },
+
+  toMin: function (hm) { const p = String(hm || '0:0').split(':'); return Number(p[0]) * 60 + Number(p[1]); },
 
   // ================================================================== Laluan awam (kalendar, semak, batal)
 
@@ -294,7 +337,10 @@ const TempahanHooks = {
       tarikh: row.tarikh, tarikhTamat: TempahanHooks.endDate(row), masaMula: row.masa_mula, masaTamat: row.masa_tamat,
       bilanganPeserta: parseInt(row.bilangan_peserta, 10) || 0, tujuan: row.tujuan,
       status: row.status, statusLabel: CrudEngine.statusLabel(def, row.status), statusNote: row.status_note || '',
-      createdAt: row.created_at, bolehBatal: TempahanHooks.canCancel(row)
+      createdAt: row.created_at, bolehBatal: TempahanHooks.canCancel(row),
+      ruangAras: ruang ? ruang.aras : '', ruangKod: ruang ? ruang.kod_ruang : '', ruangPic: ruang ? ruang.pic : '',
+      noStaf: row.no_staf, noTelefon: row.no_telefon, bahasa: row.bahasa === 'en' ? 'en' : 'ms',
+      statusOleh: row.status_changed_by || '', statusPada: row.status_changed_at || ''
     };
   },
 
@@ -306,8 +352,10 @@ const TempahanHooks = {
     const p = Validator.validate(payload, {
       dari: { type: 'date', label: 'Dari' },
       hingga: { type: 'date', label: 'Hingga' },
-      ruang: { type: 'string', max: 40, pattern: /^[A-Z]{1,3}-[0-9A-F]{16}$/, label: 'Ruang' }
+      ruang: { type: 'string', max: 40, pattern: /^[A-Z]{1,3}-[0-9A-F]{16}$/, label: 'Ruang' },
+      papan: { type: 'boolean', default: false }
     });
+    const showPurpose = p.papan && SettingsService.get('PAPAN_TUNJUK_TUJUAN');
     const today = TempahanHooks.today();
     const dari = p.dari || today;
     const hingga = p.hingga || dari;
@@ -327,11 +375,12 @@ const TempahanHooks = {
     }).map(function (r) {
       const o = { ruang: r.ruang, tarikh: r.tarikh, tarikhTamat: TempahanHooks.endDate(r), masaMula: r.masa_mula, masaTamat: r.masa_tamat, status: r.status };
       if (admin) Object.assign(o, { id: r.id, refNo: r.ref_no, nama: r.nama, tujuan: r.tujuan, bilanganPeserta: parseInt(r.bilangan_peserta, 10) || 0 });
+      else if (showPurpose && r.status !== 'MENUNGGU') o.tujuan = r.tujuan; // Papan Paparan: tujuan sahaja, tiada nama
       return o;
     });
     return {
       dari: dari, hingga: hingga, hariIni: today, jam: { mula: TempahanHooks.JAM_MULA, tamat: TempahanHooks.JAM_TAMAT },
-      maxHari: TempahanHooks.MAX_HARI, admin: admin, ruang: ruang, tempahan: tempahan
+      maxHari: TempahanHooks.MAX_HARI, admin: admin, ruang: ruang, tempahan: tempahan, sekarang: TempahanHooks.nowHM()
     };
   },
 

@@ -111,12 +111,12 @@ const NotificationService = {
       const esc = StringUtils.escapeHtml;
       const base = PushService.baseUrl();
       const button = base ? '<p><a href="' + esc(base + (o.path || '#/notifikasi')) + '" style="display:inline-block;background:' + esc(CONFIG.BRAND_COLOR || '#4F46E5') + ';color:#fff;' +
-        'padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Buka ' + esc(name) + '</a></p>' : '';
+        'padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">' + (o.lang === 'en' ? 'Open ' : 'Buka ') + esc(name) + '</a></p>' : '';
       MailApp.sendEmail({
         to: to,
         subject: name + ' — ' + subject,
         htmlBody: (lines || []).map(function (l) { return '<p>' + esc(l) + '</p>'; }).join('') + button +
-          '<p style="color:#888;font-size:12px">Email automatik daripada ' + esc(name) + '. Jangan balas email ini.</p>',
+          '<p style="color:#888;font-size:12px">' + (o.lang === 'en' ? 'Automated email from ' + esc(name) + '. Please do not reply.' : 'Email automatik daripada ' + esc(name) + '. Jangan balas email ini.') + '</p>',
         name: name
       });
       return true;

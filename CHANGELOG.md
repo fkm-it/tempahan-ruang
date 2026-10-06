@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 1.1.0 — 2026-10-06
+Ciri sistem lama yang diputuskan untuk dikekalkan (hasil tally sistem lama vs baharu).
+- **Slip tempahan**: cetak / simpan PDF dari "Semak / batal" (pemohon) dan halaman butiran tempahan (admin), untuk tempahan Diluluskan/Selesai.
+- **Bahasa Inggeris**: butang BM/EN di halaman awam (landing, borang, kalendar, semak, slip, papan); bahasa pemohon disimpan dan semua emel kepada pemohon dihantar dalam bahasa itu. Panel admin kekal BM.
+- **Peringatan beberapa jam sebelum** slot bermula (setiap hari bagi tempahan berbilang hari), selain peringatan sehari sebelum. Tetapan `PERINGATAN_JAM` (lalai 2; 0 = tutup). Pencetus setiap jam dipasang automatik selepas deploy.
+- **Papan paparan** `#/papan` untuk TV/lobi: tempahan diluluskan hari ini (sedang berlangsung & seterusnya), jam, kemas kini setiap minit, penapis `?blok=E07`. Tujuan dipapar (tetapan `PAPAN_TUNJUK_TUJUAN`), nama pemohon tidak pernah dipapar.
+- Landing: butang utama "Mohon tempahan" & "Kalendar" (pemohon tidak perlu log masuk).
+- Import data lama: lajur Bahasa dan Peringatan Jam Dihantar kini dipetakan.
+
+
 ## 1.0.0 — 2026-10-06 · Sistem Tempahan Ruang & Fasiliti FKM
 Dibina semula di atas templat `gas-pwa-starter` 0.2.0 (menggantikan sistem lama berasaskan spreadsheet).
 

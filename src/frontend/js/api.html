@@ -28,7 +28,7 @@
           console.error('[api]', action, e);
           reject(new ApiError('Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.', 'NETWORK'));
         })
-        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent } });
+        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent, lang: KD.i18n ? KD.i18n.lang() : 'ms' } });
     });
   }
 

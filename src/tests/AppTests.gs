@@ -226,6 +226,83 @@ const TestSuiteTempahan = {
       t.ok(__mails.slice(mid2).some(function (m) { return m.to === room.emel_pic && /dibatalkan/i.test(m.subject); }), 'PIC dimaklumkan pembatalan');
     }, { nodeOnly: true }],
 
+    ['Peringatan beberapa jam sebelum: sekali sehari, dalam tetingkap PERINGATAN_JAM', function (t) {
+      const adm = TestHelpers.admin();
+      AppFixtures.emailOn(adm);
+      TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.settings.update', { changes: { PERINGATAN_JAM: 2 } }));
+      const room = AppFixtures.room();
+      const now = TempahanHooks.toMin(TempahanHooks.nowHM());
+      const hm = function (m) { m = Math.max(0, Math.min(23 * 60 + 59, m)); return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); };
+      const today = AppFixtures.day(0);
+      const soon = AppFixtures.booking({ ruang: room.id, tarikh: AppFixtures.day(-1), tarikh_tamat: AppFixtures.day(1), status: 'DILULUSKAN', masa_mula: hm(now + 60), masa_tamat: hm(now + 61), emel: 'jam@test.local' });
+      const far = AppFixtures.booking({ ruang: room.id, tarikh: today, tarikh_tamat: today, status: 'DILULUSKAN', masa_mula: hm(now + 300), masa_tamat: hm(now + 301), emel: 'jauh@test.local' });
+      const pending = AppFixtures.booking({ ruang: room.id, tarikh: today, tarikh_tamat: today, status: 'MENUNGGU', masa_mula: hm(now + 30), masa_tamat: hm(now + 31), emel: 'tunggu@test.local' });
+      if (now + 61 > 23 * 60 + 59) return; /* lewat malam: tiada tetingkap untuk diuji */
+      const before = typeof __mails !== 'undefined' ? __mails.length : 0;
+      const r1 = TempahanHooks.hourly();
+      t.ok(r1.peringatanJam >= 1, JSON.stringify(r1));
+      Database.resetRequestCache();
+      t.eq(Repo.of('TEMPAHAN').findById(soon.id).peringatan_jam_dihantar, today);
+      t.eq(Repo.of('TEMPAHAN').findById(far.id).peringatan_jam_dihantar, '', 'di luar tetingkap');
+      t.eq(Repo.of('TEMPAHAN').findById(pending.id).peringatan_jam_dihantar, '', 'belum diluluskan');
+      if (typeof __mails !== 'undefined') t.eq(__mails.slice(before).filter(function (m) { return m.to === 'jam@test.local'; }).length, 1);
+      t.eq(TempahanHooks.hourly().peringatanJam, 0, 'tidak berganda');
+      TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.settings.update', { changes: { PERINGATAN_JAM: 0 } }));
+      t.eq(TempahanHooks.hourly().peringatanJam, 0, '0 = tutup');
+      t.ok(CrudEngine.hasHook('hourly'), 'pencetus setiap jam diperlukan');
+    }],
+
+    ['Bahasa Inggeris: bahasa pemohon disimpan & email dalam EN', function (t) {
+      const adm = TestHelpers.admin();
+      AppFixtures.emailOn(adm);
+      const room = AppFixtures.room();
+      const staf = AppFixtures.staf();
+      const before = typeof __mails !== 'undefined' ? __mails.length : 0;
+      const res = api({ action: 'crud.publicCreate', meta: { lang: 'en' }, payload: {
+        module: 'tempahan', formToken: SecurityUtils.signFormToken('crud:tempahan', Date.now() - 5000), noTelefon: '012-3456789', tujuan: 'Workshop',
+        noStaf: staf.no_staf, ruang: room.id, tarikh: AppFixtures.day(20), masaMula: '10:00', masaTamat: '11:00' } });
+      const r = TestAssert.apiOk(res);
+      const row = AppFixtures.rowByRef(r.refNo);
+      t.eq(row.bahasa, 'en');
+      const bm = TestAssert.apiOk(AppFixtures.pub({ noStaf: staf.no_staf, ruang: room.id, tarikh: AppFixtures.day(21), masaMula: '10:00', masaTamat: '11:00' }));
+      t.eq(AppFixtures.rowByRef(bm.refNo).bahasa, 'ms', 'lalai BM');
+      if (typeof __mails !== 'undefined') {
+        const m = __mails.slice(before).filter(function (x) { return x.to === staf.emel && /Application received/.test(x.subject); });
+        t.eq(m.length, 1, 'email pengesahan EN');
+        t.ok(/Reference No\./.test(m[0].htmlBody) && /Automated email/.test(m[0].htmlBody));
+      }
+      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { refNo: r.refNo, noStaf: staf.no_staf } }));
+      t.eq(v.bahasa, 'en');
+      t.eq(v.noStaf, staf.no_staf);
+    }],
+
+    ['Papan paparan: tujuan untuk tempahan diluluskan sahaja, tanpa nama; boleh ditutup', function (t) {
+      const adm = TestHelpers.admin();
+      const room = AppFixtures.room();
+      AppFixtures.booking({ ruang: room.id, tarikh: AppFixtures.day(25), tarikh_tamat: AppFixtures.day(25), status: 'DILULUSKAN', nama: 'Nama Sulit', tujuan: 'Seminar Awam' });
+      AppFixtures.booking({ ruang: room.id, tarikh: AppFixtures.day(25), tarikh_tamat: AppFixtures.day(25), status: 'MENUNGGU', masa_mula: '14:00', masa_tamat: '15:00', tujuan: 'Belum Lulus' });
+      const p = TestAssert.apiOk(api({ action: 'tempahan.jadual', payload: { dari: AppFixtures.day(25), papan: true, ruang: room.id } }));
+      const s = JSON.stringify(p);
+      t.ok(s.indexOf('Seminar Awam') >= 0, 'tujuan diluluskan dipapar');
+      t.ok(s.indexOf('Belum Lulus') < 0, 'tujuan menunggu disembunyikan');
+      t.ok(s.indexOf('Nama Sulit') < 0, 'nama tidak pernah dipapar');
+      t.ok(/^\d{2}:\d{2}$/.test(p.sekarang));
+      const biasa = JSON.stringify(TestAssert.apiOk(api({ action: 'tempahan.jadual', payload: { dari: AppFixtures.day(25), ruang: room.id } })));
+      t.ok(biasa.indexOf('Seminar Awam') < 0, 'kalendar biasa tanpa tujuan');
+      TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.settings.update', { changes: { PAPAN_TUNJUK_TUJUAN: false } }));
+      t.ok(JSON.stringify(TestAssert.apiOk(api({ action: 'tempahan.jadual', payload: { dari: AppFixtures.day(25), papan: true, ruang: room.id } }))).indexOf('Seminar Awam') < 0, 'tetapan ditutup');
+      TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.settings.update', { changes: { PAPAN_TUNJUK_TUJUAN: true } }));
+    }],
+
+    ['Pencetus setiap jam dipasang automatik', function (t) {
+      const before = ScriptApp.getProjectTriggers().filter(function (x) { return x.getHandlerFunction() === 'hourlyMaintenance'; }).length;
+      MaintenanceService.ensureTriggers();
+      const after = ScriptApp.getProjectTriggers().filter(function (x) { return x.getHandlerFunction() === 'hourlyMaintenance'; }).length;
+      t.ok(after >= 1 && after <= Math.max(1, before), 'tepat satu, idempoten');
+      MaintenanceService.ensureTriggers();
+      t.eq(ScriptApp.getProjectTriggers().filter(function (x) { return x.getHandlerFunction() === 'hourlyMaintenance'; }).length, after);
+    }, { nodeOnly: true }],
+
     ['Import data lama: pemetaan & idempoten', function (t) {
       const ss = SpreadsheetApp.create('LEGACY_TEST_' + Date.now());
       const put = function (name, rows) {

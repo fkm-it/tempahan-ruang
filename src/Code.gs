@@ -154,10 +154,16 @@ function runBackup() {
 function installTriggers() {
   requireOwner_();
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'dailyMaintenance') ScriptApp.deleteTrigger(t);
+    if (t.getHandlerFunction() === 'dailyMaintenance' || t.getHandlerFunction() === 'hourlyMaintenance') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('dailyMaintenance').timeBased().everyDays(1).atHour(2).create();
-  console.log('Pencetus dailyMaintenance dipasang (setiap hari ~02:00).');
+  const added = MaintenanceService.ensureTriggers();
+  console.log('Pencetus dipasang: ' + added.join(', ') + ' (harian ~02:00' + (added.indexOf('hourlyMaintenance') >= 0 ? ', setiap jam' : '') + ').');
+}
+
+/** Dipanggil oleh pencetus setiap jam (dipasang automatik jika ada modul dengan hook hourly). */
+function hourlyMaintenance(e) {
+  if (!(e && e.triggerUid)) requireOwner_();
+  return MaintenanceService.hourly();
 }
 
 /** Dipanggil oleh pencetus masa (juga boleh dijalankan manual oleh pemilik). */

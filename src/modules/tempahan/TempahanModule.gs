@@ -172,6 +172,32 @@ const TempahanModule = Object.freeze(Object.assign(
         "readonly": true,
         "adminOnly": true,
         "column": "peringatan_dihantar"
+      },
+      {
+        "key": "bahasa",
+        "label": "Bahasa emel",
+        "type": "enum",
+        "readonly": true,
+        "default": "ms",
+        "options": [
+          {
+            "value": "ms",
+            "label": "Bahasa Melayu"
+          },
+          {
+            "value": "en",
+            "label": "English"
+          }
+        ],
+        "column": "bahasa"
+      },
+      {
+        "key": "peringatanJamDihantar",
+        "label": "Peringatan jam dihantar",
+        "type": "string",
+        "readonly": true,
+        "adminOnly": true,
+        "column": "peringatan_jam_dihantar"
       }
     ],
     "path": "/tempahan",

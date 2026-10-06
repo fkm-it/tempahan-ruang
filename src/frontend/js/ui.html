@@ -25,7 +25,8 @@
   /** Papar ralat API dengan errorId (jika ada) untuk rujukan sokongan. */
   function toastError(err) {
     const id = err && err.meta && err.meta.errorId;
-    toast((err && err.message ? err.message : 'Maaf, berlaku masalah.') + (id ? ' (Rujukan: ' + id + ')' : ''), 'error');
+    const t = KD.t || ((s) => s);
+    toast(t(err && err.message ? err.message : 'Maaf, berlaku masalah.') + (id ? ' (' + t('Rujukan') + ': ' + id + ')' : ''), 'error');
   }
 
   // ---------------------------------------------------------------- Modal
@@ -125,7 +126,7 @@
       field.classList.add('has-error');
       const p = document.createElement('div');
       p.className = 'field-error';
-      p.textContent = fields[name];
+      p.textContent = KD.t ? KD.t(fields[name]) : fields[name];
       field.appendChild(p);
       if (!first) first = input;
     });

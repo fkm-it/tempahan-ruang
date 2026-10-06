@@ -181,6 +181,7 @@
           <h1 class="mt-2">${d.title}</h1>
           <div class="row row-wrap mt-2"><span class="rec-ref">${d.refNo}</span>${statusBadge(m, d.status)}${d.state === 'DELETED' ? html`<span class="badge badge-danger">Dipadam</span>` : ''}</div></div>
         <div class="row row-wrap">
+          ${KD.detailActions && KD.detailActions[m.key] ? KD.detailActions[m.key](d, m) : ''}
           ${d.canSetStatus ? html`<button class="btn btn-primary" data-act="status">${icon('refresh')}Tukar status</button>` : ''}
           ${d.canEdit ? html`<a class="btn btn-outline" href="#${basePath(m, r)}/${d.id}/sunting">${icon('edit')}Sunting</a>` : ''}
           ${d.canDelete ? html`<button class="btn btn-outline" data-act="delete" aria-label="Padam">${icon('trash')}</button>` : ''}
@@ -265,10 +266,10 @@
       case 'bool':
         return html`<div class="field"><label class="check" for="${id}"><input type="checkbox" id="${id}" name="${f.key}" ${v === true || v === 'true' ? raw('checked') : ''}>${f.label}</label>${hint}</div>`;
       case 'enum':
-        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}>${f.required && v ? '' : html`<option value="">— Pilih —</option>`}${f.options.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}</option>`)}</select>${hint}</div>`;
+        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}>${f.required && v ? '' : html`<option value="">${KD.t('— Pilih —')}</option>`}${f.options.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}</option>`)}</select>${hint}</div>`;
       case 'ref': {
         const opts = (o.refOptions && o.refOptions[f.key]) || [];
-        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}><option value="">— Pilih —</option>${opts.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}${op.hint ? ' — ' + op.hint : ''}</option>`)}</select>${hint}</div>`;
+        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}><option value="">${KD.t('— Pilih —')}</option>${opts.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}${op.hint ? ' — ' + op.hint : ''}</option>`)}</select>${hint}</div>`;
       }
       case 'category': {
         const cats = o.cats || [];
@@ -396,17 +397,20 @@
         return;
       }
       const m = data.module;
+      const t = (s) => KD.t(s);
       const pf = m.publicForm || {};
       const cats = m.fields.some((f) => f.type === 'category') ? await categories().catch(() => []) : [];
-      const fields = m.fields;
+      /* Label, petunjuk & pilihan diterjemah melalui kamus projek (KD.i18n) jika bahasa EN dipilih */
+      const fields = m.fields.map((f) => Object.assign({}, f, { label: t(f.label), hint: t(f.hint), placeholder: t(f.placeholder),
+        options: f.options ? f.options.map((o) => Object.assign({}, o, { label: t(o.label) })) : f.options }));
       const render = () => {
         el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card" style="width:min(640px,100%)">
-          <div class="auth-card__head">${icon(m.icon, 'i-lg')}<h2 class="mt-2">${pf.title || m.label}</h2>${pf.intro ? html`<p>${pf.intro}</p>` : ''}</div>
+          <div class="auth-card__head">${icon(m.icon, 'i-lg')}<h2 class="mt-2">${t(pf.title || m.label)}</h2>${pf.intro ? html`<p>${t(pf.intro)}</p>` : ''}</div>
           <form data-public-form novalidate>
             <div class="form-grid">${fields.map((f) => fieldInput(f, { cats, refOptions: data.refOptions || {}, value: prefill(f), idPrefix: 'pf-' }))}</div>
             <div class="sr-only" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
-            <button class="btn btn-primary btn-block mt-6" type="submit">${icon('send')}Hantar</button>
-            ${KD.auth.loggedIn() || (KD.config || {}).ALLOW_REGISTRATION === false ? '' : html`<p class="xs muted mt-4" style="text-align:center">Ada akaun? <a href="#/log-masuk">Log masuk</a> untuk menjejak status dalam aplikasi.</p>`}
+            <button class="btn btn-primary btn-block mt-6" type="submit">${icon('send')}${t('Hantar')}</button>
+            ${KD.auth.loggedIn() || (KD.config || {}).ALLOW_REGISTRATION === false ? '' : html`<p class="xs muted mt-4" style="text-align:center">${t('Ada akaun?')} <a href="#/log-masuk">${t('Log masuk')}</a> ${t('untuk menjejak status dalam aplikasi.')}</p>`}
           </form></div></div>`.s;
         const form = qs('[data-public-form]', el);
         form.addEventListener('submit', (e) => {
@@ -418,11 +422,11 @@
               p.website = form.elements.website.value;
               const res = await api.publicCreate(m.key, p);
               el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card success-card">${icon('check', 'i-lg')}
-                <h2>Berjaya dihantar</h2><p class="muted">${pf.successMessage || 'Terima kasih.'}</p>
-                ${res.refNo ? html`<div class="rec-ref">${res.refNo}</div><p class="xs muted mt-2">Simpan nombor rujukan ini.</p>` : ''}
+                <h2>${t('Berjaya dihantar')}</h2><p class="muted">${t(pf.successMessage || 'Terima kasih.')}</p>
+                ${res.refNo ? html`<div class="rec-ref">${res.refNo}</div><p class="xs muted mt-2">${t('Simpan nombor rujukan ini.')}</p>` : ''}
                 <div class="row row-wrap mt-6" style="justify-content:center">
-                  ${pf.successLink && res.refNo ? html`<a class="btn btn-primary" href="${pf.successLink.href.replace('{refNo}', encodeURIComponent(res.refNo))}">${pf.successLink.label || 'Semak status'}</a>` : ''}
-                  <a class="btn btn-outline" href="#/">Kembali ke laman utama</a></div></div></div>`.s;
+                  ${pf.successLink && res.refNo ? html`<a class="btn btn-primary" href="${pf.successLink.href.replace('{refNo}', encodeURIComponent(res.refNo))}">${t(pf.successLink.label || 'Semak status')}</a>` : ''}
+                  <a class="btn btn-outline" href="#/">${t('Kembali ke laman utama')}</a></div></div></div>`.s;
             } catch (err) {
               if (!fieldErrors(form, err)) toastError(err);
               if (err.code === 'VALIDATION_ERROR' && /tamat tempoh|terlalu cepat/.test(err.message)) {

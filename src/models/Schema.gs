@@ -78,7 +78,7 @@ const SCHEMA = Object.freeze({
   // @generator:schema:start
   TEMPAHAN: {
     sheet: 'TEMPAHAN', id: 'id', prefix: 'TP', module: 'tempahan',
-    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'no_staf', 'nama', 'emel', 'no_telefon', 'ruang', 'tarikh', 'tarikh_tamat', 'masa_mula', 'masa_tamat', 'bilangan_peserta', 'tujuan', 'peringatan_dihantar', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'no_staf', 'nama', 'emel', 'no_telefon', 'ruang', 'tarikh', 'tarikh_tamat', 'masa_mula', 'masa_tamat', 'bilangan_peserta', 'tujuan', 'peringatan_dihantar', 'bahasa', 'peringatan_jam_dihantar', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
     types: {'bilangan_peserta': 'int'}
   },
   RUANG: {

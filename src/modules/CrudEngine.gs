@@ -18,6 +18,7 @@
  *   selectable(row)                 → false untuk sembunyikan rekod daripada pilihan medan `ref` modul lain (lalai: visible)
  *   beforeStatus(row, newStatus, ctx) → lontar ralat untuk menghalang perubahan status (cth. semak semula pertindihan semasa lulus)
  *   maintenance()                   → kerja harian (cth. auto-tutup rekod lama); pulangkan ringkasan
+ *   hourly()                        → kerja setiap jam (pencetus dipasang automatik jika ada modul mentakrifnya)
  *   info = { ctx, mode, current }
  */
 const CrudEngine = {
@@ -628,7 +629,7 @@ const CrudEngine = {
     const logged = ctx && ctx.userId;
     const nameField = def.publicForm && def.publicForm.nameField;
     const publicName = nameField && payload && typeof payload[nameField] === 'string' ? StringUtils.truncate(StringUtils.singleLine(StringUtils.stripTags(payload[nameField])), CONFIG.NAME_MAX) : '';
-    const dto = CrudEngine.insert(def, logged ? ctx : { role: ROLES.PUBLIC }, payload, 'public',
+    const dto = CrudEngine.insert(def, logged ? ctx : { role: ROLES.PUBLIC, lang: ctx && ctx.lang }, payload, 'public',
       logged ? { userId: ctx.userId, name: ctx.user ? ctx.user.full_name : '' } : { userId: '', name: publicName ? publicName + ' (awam)' : '' });
     return { submitted: true, refNo: dto.refNo };
   },
@@ -731,6 +732,22 @@ const CrudEngine = {
         if (r.state !== RECORD_STATE.ACTIVE) return;
         cols.forEach(function (c) { if (r[c]) out[r[c]] = (out[r[c]] || 0) + 1; });
       });
+    });
+    return out;
+  },
+
+  /** Ada modul yang mentakrif hook ini? (cth. 'hourly' → pencetus setiap jam dipasang). */
+  hasHook: function (name) {
+    return CrudEngine.modules().some(function (def) { return typeof CrudEngine.hooks(def)[name] === 'function'; });
+  },
+
+  /** Kerja setiap jam: hooks.hourly() setiap modul (cth. peringatan beberapa jam sebelum). */
+  hourly: function () {
+    const out = {};
+    CrudEngine.modules().forEach(function (def) {
+      const h = CrudEngine.hooks(def);
+      if (!h.hourly) return;
+      try { out[def.key] = h.hourly(); } catch (e) { out[def.key] = 'ralat'; ErrorHandler.record(e, { action: def.key + '.hourly' }); }
     });
     return out;
   },

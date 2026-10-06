@@ -28,7 +28,7 @@ const Migration = {
     },
     // Migrasi modul (cipta sheet / tambah lajur) — DIJANA oleh `npm run gen`. ID berubah apabila medan berubah.
     // @generator:migrations:start
-    { id: 'MODULE_TEMPAHAN_099EB1D5', description: 'Modul Tempahan: sheet TEMPAHAN & lajur', up: function () { return SheetManager.ensure('TEMPAHAN'); } },
+    { id: 'MODULE_TEMPAHAN_CE3B266E', description: 'Modul Tempahan: sheet TEMPAHAN & lajur', up: function () { return SheetManager.ensure('TEMPAHAN'); } },
     { id: 'MODULE_RUANG_3B65EE16', description: 'Modul Ruang: sheet RUANG & lajur', up: function () { return SheetManager.ensure('RUANG'); } },
     { id: 'MODULE_STAF_7A3C3D95', description: 'Modul Staf: sheet STAF & lajur', up: function () { return SheetManager.ensure('STAF'); } },
     // @generator:migrations:end
@@ -103,6 +103,7 @@ const Migration = {
       if (Env.get('MIGRATED_FOR') === hash) return null; // proses lain telah menjalankannya
       const r = Migration.run({});
       Env.set('MIGRATED_FOR', hash);
+      try { MaintenanceService.ensureTriggers(); } catch (e) { AppLogger.warn('Pencetus tidak dapat dipasang automatik', { error: String(e) }); }
       if (r.applied.length) AppLogger.info('Migrasi automatik selepas deploy', { applied: r.applied });
       return r;
     });

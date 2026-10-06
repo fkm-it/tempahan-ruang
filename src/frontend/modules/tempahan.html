@@ -51,38 +51,139 @@
   .jd-kv dd { margin-bottom: 8px; }
 }
 </style>
+<style>
+/* ===== Slip tempahan (cetak) ===== */
+#tp-print { display: none; }
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body.tp-printing > *:not(#tp-print) { display: none !important; }
+  body.tp-printing #tp-print { display: block; }
+  body.tp-printing { background: #fff !important; }
+}
+.slip { font-family: var(--font-ui); color: #0F172A; max-width: 720px; margin: 0 auto; border: 1px solid #CBD5E1; border-radius: 10px; overflow: hidden; }
+.slip__head { background: var(--brand); color: #fff; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.slip__head h1 { font-size: 18px; margin: 0; color: #fff; }
+.slip__head p { margin: 2px 0 0; font-size: 12px; opacity: .9; }
+.slip__body { padding: 20px 24px; }
+.slip__title { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #64748B; margin: 0 0 6px; }
+.slip__ref { font-size: 26px; font-weight: 700; letter-spacing: .02em; margin: 0; }
+.slip__status { display: inline-block; margin-top: 8px; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.slip table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
+.slip th { text-align: left; width: 34%; color: #64748B; font-weight: 500; padding: 7px 10px 7px 0; vertical-align: top; border-top: 1px solid #E2E8F0; }
+.slip td { padding: 7px 0; border-top: 1px solid #E2E8F0; font-weight: 500; }
+.slip__note { margin-top: 18px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; color: #334155; }
+.slip__foot { padding: 10px 24px 16px; font-size: 11px; color: #64748B; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* ===== Papan paparan (skrin TV / lobi) ===== */
+.pp { min-height: 100vh; background: var(--brand-900); color: #fff; padding: clamp(16px, 2.5vw, 40px); display: flex; flex-direction: column; gap: clamp(16px, 2vw, 28px); }
+.pp__top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.pp__brand { font-size: clamp(14px, 1.3vw, 20px); opacity: .8; font-weight: 600; }
+.pp__title { color: #fff; font-size: clamp(24px, 3vw, 48px); font-weight: 700; line-height: 1.1; margin-top: 4px; }
+.pp__date { font-size: clamp(14px, 1.4vw, 22px); opacity: .85; margin-top: 6px; }
+.pp__clock { font-size: clamp(40px, 6vw, 96px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.pp__sec h2 { color: #fff; font-size: clamp(14px, 1.3vw, 20px); text-transform: uppercase; letter-spacing: .1em; opacity: .75; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+.pp__dot { width: 12px; height: 12px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 4px rgba(74, 222, 128, .25); }
+.pp__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: clamp(10px, 1.2vw, 18px); }
+.pp__card { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; padding: clamp(14px, 1.4vw, 22px); min-width: 0; }
+.pp__card.is-now { background: #fff; color: var(--brand-900); border-color: #fff; }
+.pp__time { font-size: clamp(20px, 2vw, 32px); font-weight: 700; font-variant-numeric: tabular-nums; }
+.pp__room { font-size: clamp(16px, 1.5vw, 24px); font-weight: 600; margin-top: 6px; overflow-wrap: anywhere; }
+.pp__what { font-size: clamp(13px, 1.1vw, 18px); opacity: .85; margin-top: 4px; overflow-wrap: anywhere; }
+.pp__empty { font-size: clamp(16px, 1.5vw, 24px); opacity: .7; padding: 24px 0; }
+.pp__body { display: flex; flex-direction: column; gap: clamp(16px, 2vw, 28px); }
+.pp__foot { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: clamp(12px, 1vw, 16px); opacity: .7; }
+.pp__foot a { color: #fff; }
+</style>
 <script>
 /*
- * Paparan khas modul tempahan: Kalendar ketersediaan (awam + admin) dan Semak / batal tempahan (awam).
+ * Paparan khas modul tempahan:
+ *   Kalendar ketersediaan (awam + admin), Semak / batal (awam), Slip tempahan (cetak), Papan paparan (TV / lobi).
  * Data: laluan tempahan.jadual / tempahan.semak / tempahan.batal (TempahanHooks.routes).
+ * Halaman awam dwibahasa: teks BM ialah kunci kamus KD.i18n (kamus EN di hujung fail ini).
  */
 (function (KD) {
   'use strict';
   const { html, qs, on, todayKey } = KD.utils;
   const { icon, toast, toastError, busy, fieldErrors, modal, skeletonList, errorState, empty, toneBadge } = KD.ui;
+  const t = (s) => KD.t(s);
+  const en = () => KD.i18n.lang() === 'en';
 
-  const DAYS = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
-  const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+  const DAYS = { ms: ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] };
+  const DAYS_LONG = { ms: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
+  const MONTHS = { ms: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'], en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] };
+  const L = () => (en() ? 'en' : 'ms');
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const parseKey = (k) => { const p = String(k).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
   const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return keyOf(d); };
   const isKey = (k) => /^\d{4}-\d{2}-\d{2}$/.test(String(k || ''));
-  const dayLabel = (k) => { const d = parseKey(k); return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); };
-  const shortDay = (k) => { const d = parseKey(k); return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; };
+  const dayLabel = (k) => { const d = parseKey(k); return DAYS[L()][d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[L()][d.getMonth()] + ' ' + d.getFullYear(); };
+  const longDay = (k) => { const d = parseKey(k); return DAYS_LONG[L()][d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[L()][d.getMonth()] + ' ' + d.getFullYear(); };
+  const shortDay = (k) => { const d = parseKey(k); return DAYS[L()][d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[L()][d.getMonth()]; };
   const fmtKey = (k) => { const p = String(k || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
+  const fmtIso = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? fmtKey(keyOf(d)) + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : ''; };
   const mins = (hm) => { const p = String(hm || '0:0').split(':'); return Number(p[0]) * 60 + Number(p[1]); };
   const hm = (m) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
   const STATUS_CLASS = { DILULUSKAN: 'is-ok', MENUNGGU: 'is-wait', SELESAI: 'is-done' };
   const STATUS_TEXT = { DILULUSKAN: 'Ditempah', MENUNGGU: 'Menunggu kelulusan', SELESAI: 'Selesai' };
   const isAdminLayout = () => !!(KD.router.current && KD.router.current.route.layout === 'admin');
   const top = () => (isAdminLayout() ? '' : (KD.views.publicTop ? KD.views.publicTop() : ''));
+  const cfg = () => KD.config || {};
 
   /** Pautan borang tempahan berisi awal (admin → borang dalaman). */
   function bookHref(q) {
     const s = Object.keys(q).filter((k) => q[k]).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
     return '#' + (isAdminLayout() ? '/admin/tempahan/baru' : '/borang/tempahan') + '?' + s;
   }
+
+  // ================================================================== Slip tempahan (cetak / simpan PDF)
+
+  /** @param {Object} s { refNo, statusLabel, nama, noStaf, noTelefon, ruang, blok, aras, kod, pic, tarikh, tarikhTamat, masaMula, masaTamat, peserta, tujuan, oleh, pada } */
+  function printSlip(s) {
+    const rows = [
+      ['Pemohon', s.nama], ['No. Staf', s.noStaf], ['No. telefon', s.noTelefon],
+      ['Ruang', s.ruang + (s.blok && String(s.ruang).indexOf('(' + s.blok + ')') < 0 ? ' (' + s.blok + ')' : '')],
+      ['Lokasi', [s.aras ? t('Aras') + ' ' + s.aras : '', s.kod].filter(Boolean).join(' · ')],
+      ['Tarikh', s.tarikhTamat && s.tarikhTamat !== s.tarikh ? longDay(s.tarikh) + ' – ' + longDay(s.tarikhTamat) : longDay(s.tarikh)],
+      ['Masa', s.masaMula + ' – ' + s.masaTamat + (s.tarikhTamat && s.tarikhTamat !== s.tarikh ? ' (' + t('setiap hari') + ')' : '')],
+      ['Bilangan peserta', s.peserta ? s.peserta + ' ' + t('orang') : ''], ['Tujuan', s.tujuan], ['PIC ruang', s.pic],
+      ['Diluluskan oleh', [s.oleh, fmtIso(s.pada)].filter(Boolean).join(' · ')]
+    ].filter((r) => r[1]);
+    let box = qs('#tp-print');
+    if (!box) { box = document.createElement('div'); box.id = 'tp-print'; document.body.appendChild(box); }
+    box.innerHTML = html`<div class="slip">
+      <div class="slip__head"><div><h1>${t(cfg().SYSTEM_NAME || '')}</h1><p>${t(cfg().ORG_NAME || '')}</p></div></div>
+      <div class="slip__body">
+        <p class="slip__title">${t('Slip pengesahan tempahan ruang')}</p>
+        <p class="slip__ref">${s.refNo}</p><span class="slip__status">${t(s.statusLabel)}</span>
+        <table>${rows.map((r) => html`<tr><th>${t(r[0])}</th><td>${r[1]}</td></tr>`)}</table>
+        <div class="slip__note">${t('Sila bawa slip ini (cetak atau di telefon) dan tunjukkan kepada PIC ruang jika diminta. Tempahan tertakluk kepada peraturan penggunaan ruang FKM.')}</div>
+      </div>
+      <div class="slip__foot"><span>${t('Dicetak pada')} ${fmtIso(new Date().toISOString())}</span><span>${t('Semak status')}: ${t('No. Rujukan')} + ${t('No. Staf')}</span></div>
+    </div>`.s;
+    document.body.classList.add('tp-printing');
+    const done = () => { document.body.classList.remove('tp-printing'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { window.print(); setTimeout(done, 1000); }, 50);
+  }
+  const printable = (status) => status === 'DILULUSKAN' || status === 'SELESAI';
+
+  /* Butang "Cetak slip" pada halaman butiran tempahan (admin) */
+  let lastDetail = null;
+  KD.detailActions.tempahan = (d) => {
+    lastDetail = d;
+    return printable(d.status) ? html`<button class="btn btn-outline" type="button" data-tp-slip>${icon('download')}Cetak slip</button>` : '';
+  };
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest || !e.target.closest('[data-tp-slip]') || !lastDetail) return;
+    const d = lastDetail;
+    const v = d.values || {};
+    printSlip({
+      refNo: d.refNo, statusLabel: d.statusLabel, nama: v.nama, noStaf: v.noStaf, noTelefon: v.noTelefon,
+      ruang: (d.labels && d.labels.ruang) || '', tarikh: v.tarikh, tarikhTamat: v.tarikhTamat, masaMula: v.masaMula, masaTamat: v.masaTamat,
+      peserta: v.bilanganPeserta, tujuan: v.tujuan, oleh: d.statusChangedBy, pada: d.statusChangedAt
+    });
+  });
 
   // ================================================================== Kalendar ketersediaan
 
@@ -102,23 +203,23 @@
 
       const shell = () => {
         el.innerHTML = html`${top()}<main class="jd-page">
-          <div class="jd-head"><div><h1>Kalendar ketersediaan</h1>
-            <p>Bar hijau = kosong. Klik pada ruang kosong dalam bar, atau butang <b>Tempah</b>, untuk membuka borang yang telah diisi.</p></div>
-            ${isAdminLayout() ? '' : html`<div class="row row-wrap"><a class="btn btn-outline" href="#/semak">${icon('search')}Semak / batal</a><a class="btn btn-primary" href="#/borang/tempahan">${icon('send')}Mohon tempahan</a></div>`}</div>
+          <div class="jd-head"><div><h1>${t('Kalendar ketersediaan')}</h1>
+            <p>${t('Bar hijau = kosong. Klik pada ruang kosong dalam bar, atau butang Tempah, untuk membuka borang yang telah diisi.')}</p></div>
+            ${isAdminLayout() ? html`<a class="btn btn-outline" href="#/papan" target="_blank" rel="noopener">${icon('grid')}Papan paparan</a>` : html`<div class="row row-wrap"><a class="btn btn-outline" href="#/semak">${icon('search')}${t('Semak / batal')}</a><a class="btn btn-primary" href="#/borang/tempahan">${icon('send')}${t('Mohon tempahan')}</a></div>`}</div>
           <div class="jd-bar">
-            <div class="segmented" role="group" aria-label="Paparan">
-              <button type="button" data-mode="tarikh" aria-pressed="${String(st.mode === 'tarikh')}">Ikut tarikh</button>
-              <button type="button" data-mode="ruang" aria-pressed="${String(st.mode === 'ruang')}">Ikut ruang</button>
+            <div class="segmented" role="group" aria-label="${t('Paparan')}">
+              <button type="button" data-mode="tarikh" aria-pressed="${String(st.mode === 'tarikh')}">${t('Ikut tarikh')}</button>
+              <button type="button" data-mode="ruang" aria-pressed="${String(st.mode === 'ruang')}">${t('Ikut ruang')}</button>
             </div>
             <div class="jd-date">
-              <button type="button" class="icon-btn" data-act="prev" aria-label="Sebelum">${icon('chev-left')}</button>
-              <input class="input" type="date" name="tarikh" value="${st.tarikh}" aria-label="Tarikh">
-              <button type="button" class="icon-btn" data-act="next" aria-label="Seterusnya">${icon('chev-right')}</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-act="today">Hari ini</button>
+              <button type="button" class="icon-btn" data-act="prev" aria-label="${t('Sebelum')}">${icon('chev-left')}</button>
+              <input class="input" type="date" name="tarikh" value="${st.tarikh}" aria-label="${t('Tarikh')}">
+              <button type="button" class="icon-btn" data-act="next" aria-label="${t('Seterusnya')}">${icon('chev-right')}</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-act="today">${t('Hari ini')}</button>
             </div>
           </div>
           <div class="jd-bar" data-filters></div>
-          <div class="jd-legend"><span><i class="jd-lg-free"></i>Kosong</span><span><i class="jd-lg-ok"></i>Ditempah</span><span><i class="jd-lg-wait"></i>Menunggu kelulusan</span><span class="muted">Waktu operasi 07:00–23:00</span></div>
+          <div class="jd-legend"><span><i class="jd-lg-free"></i>${t('Kosong')}</span><span><i class="jd-lg-ok"></i>${t('Ditempah')}</span><span><i class="jd-lg-wait"></i>${t('Menunggu kelulusan')}</span><span class="muted">${t('Waktu operasi')} 07:00–23:00</span></div>
           <div data-body>${skeletonList(3)}</div>
         </main>`.s;
       };
@@ -128,11 +229,11 @@
         const bloks = Array.from(new Set(rooms.map((r) => r.blok).filter(Boolean))).sort();
         const jenis = Array.from(new Set(rooms.map((r) => r.jenis).filter(Boolean))).sort();
         if (st.mode === 'ruang') {
-          return html`<select class="select" name="ruang" aria-label="Ruang">${rooms.map((r) => html`<option value="${r.id}" ${r.id === st.ruang ? 'selected' : ''}>${r.nama}${r.blok ? ' · ' + r.blok : ''}</option>`)}</select>`;
+          return html`<select class="select" name="ruang" aria-label="${t('Ruang')}">${rooms.map((r) => html`<option value="${r.id}" ${r.id === st.ruang ? 'selected' : ''}>${r.nama}${r.blok ? ' · ' + r.blok : ''}</option>`)}</select>`;
         }
-        return html`<input class="input" type="search" name="q" value="${st.q}" placeholder="Cari nama ruang" aria-label="Cari ruang">
-          <select class="select" name="blok" aria-label="Blok"><option value="">Semua blok</option>${bloks.map((b) => html`<option ${b === st.blok ? 'selected' : ''}>${b}</option>`)}</select>
-          <select class="select" name="jenis" aria-label="Jenis"><option value="">Semua jenis</option>${jenis.map((j) => html`<option ${j === st.jenis ? 'selected' : ''}>${j}</option>`)}</select>`;
+        return html`<input class="input" type="search" name="q" value="${st.q}" placeholder="${t('Cari nama ruang')}" aria-label="${t('Cari nama ruang')}">
+          <select class="select" name="blok" aria-label="${t('Blok')}"><option value="">${t('Semua blok')}</option>${bloks.map((b) => html`<option ${b === st.blok ? 'selected' : ''}>${b}</option>`)}</select>
+          <select class="select" name="jenis" aria-label="${t('Jenis')}"><option value="">${t('Semua jenis')}</option>${jenis.map((j) => html`<option value="${j}" ${j === st.jenis ? 'selected' : ''}>${t(j)}</option>`)}</select>`;
       };
 
       const axis = (range) => {
@@ -143,58 +244,58 @@
 
       const track = (roomId, day, list, range, past) => {
         const segs = list.slice().sort((a, b) => (a.masaMula < b.masaMula ? -1 : 1));
-        const label = segs.length ? segs.map((b) => b.masaMula + '–' + b.masaTamat + (b.status === 'MENUNGGU' ? ' (menunggu)' : '')).join(' · ') : '';
+        const label = segs.length ? segs.map((b) => b.masaMula + '–' + b.masaTamat + (b.status === 'MENUNGGU' ? ' (' + t('menunggu') + ')' : '')).join(' · ') : '';
         return {
-          bar: html`<div class="jd-track ${past ? 'is-past' : ''}" data-ruang="${roomId}" data-tarikh="${day}" ${past ? '' : html`tabindex="0" role="button"`} aria-label="${dayLabel(day)}: ${label || 'kosong'}">
+          bar: html`<div class="jd-track ${past ? 'is-past' : ''}" data-ruang="${roomId}" data-tarikh="${day}" ${past ? '' : html`tabindex="0" role="button"`} aria-label="${dayLabel(day)}: ${label || t('kosong')}">
             ${segs.map((b) => {
               const g = segOf(b, range);
-              const tip = b.masaMula + '–' + b.masaTamat + ' · ' + (STATUS_TEXT[b.status] || b.status) + (b.refNo ? ' · ' + b.refNo + ' · ' + b.nama + ' · ' + b.tujuan : '');
+              const tip = b.masaMula + '–' + b.masaTamat + ' · ' + t(STATUS_TEXT[b.status] || b.status) + (b.refNo ? ' · ' + b.refNo + ' · ' + b.nama + ' · ' + b.tujuan : '');
               const style = 'left:' + g.left.toFixed(3) + '%;width:' + g.width.toFixed(3) + '%';
               return b.id
                 ? html`<a class="jd-seg ${STATUS_CLASS[b.status] || ''}" style="${style}" title="${tip}" href="#/admin/tempahan/${b.id}">${b.masaMula}</a>`
                 : html`<span class="jd-seg ${STATUS_CLASS[b.status] || ''}" style="${style}" title="${tip}">${g.width > 9 ? b.masaMula : ''}</span>`;
             })}</div>`,
-          text: label ? html`Ditempah: ${label}` : (past ? html`Tiada tempahan` : html`<span class="jd-free">Kosong sepanjang hari</span>`)
+          text: label ? html`${t('Ditempah')}: ${label}` : (past ? html`${t('Tiada tempahan')}` : html`<span class="jd-free">${t('Kosong sepanjang hari')}</span>`)
         };
       };
 
       const bodyByDate = (range, today) => {
         const q = st.q.trim().toLowerCase();
         const rooms = data.ruang.filter((r) => (!st.blok || r.blok === st.blok) && (!st.jenis || r.jenis === st.jenis) && (!q || (r.nama + ' ' + (r.kodRuang || '')).toLowerCase().indexOf(q) >= 0));
-        if (!rooms.length) return empty('Tiada ruang', 'Tiada ruang sepadan dengan penapis.');
+        if (!rooms.length) return empty(t('Tiada ruang'), t('Tiada ruang sepadan dengan penapis.'));
         const groups = {};
         rooms.forEach((r) => { (groups[r.blok || '-'] = groups[r.blok || '-'] || []).push(r); });
         const past = st.tarikh < today;
-        return html`<p class="small mb-2" style="font-weight:600">${dayLabel(st.tarikh)}${st.tarikh === today ? ' (hari ini)' : ''}</p>
-          ${Object.keys(groups).sort().map((g) => html`<section class="panel jd-group"><div class="jd-group__head"><span>Blok ${g}</span><span class="xs muted">${groups[g].length} ruang</span></div>
+        return html`<p class="small mb-2" style="font-weight:600">${dayLabel(st.tarikh)}${st.tarikh === today ? ' (' + t('hari ini') + ')' : ''}</p>
+          ${Object.keys(groups).sort().map((g) => html`<section class="panel jd-group"><div class="jd-group__head"><span>${t('Blok')} ${g}</span><span class="xs muted">${groups[g].length} ${t('ruang')}</span></div>
           <div class="jd-row" aria-hidden="true"><span class="jd-axis-spacer"></span>${axis(range)}<span></span></div>
           ${groups[g].map((r) => {
-            const t = track(r.id, st.tarikh, data.tempahan.filter((b) => b.ruang === r.id && b.tarikh <= st.tarikh && b.tarikhTamat >= st.tarikh), range, past);
+            const tr = track(r.id, st.tarikh, data.tempahan.filter((b) => b.ruang === r.id && b.tarikh <= st.tarikh && b.tarikhTamat >= st.tarikh), range, past);
             return html`<div class="jd-row">
-              <div class="jd-room"><b>${r.nama}</b><span class="xs muted">${[r.jenis, r.aras ? 'Aras ' + r.aras : '', r.kapasiti ? r.kapasiti + ' orang' : ''].filter(Boolean).join(' · ')}</span></div>
-              ${t.bar}
-              ${past ? html`<span></span>` : html`<a class="btn btn-sm btn-outline jd-book" href="${bookHref({ ruang: r.id, tarikh: st.tarikh })}">Tempah</a>`}
-              <div class="jd-slots">${t.text}</div>
+              <div class="jd-room"><b>${r.nama}</b><span class="xs muted">${[t(r.jenis), r.aras ? t('Aras') + ' ' + r.aras : '', r.kapasiti ? r.kapasiti + ' ' + t('orang') : ''].filter(Boolean).join(' · ')}</span></div>
+              ${tr.bar}
+              ${past ? html`<span></span>` : html`<a class="btn btn-sm btn-outline jd-book" href="${bookHref({ ruang: r.id, tarikh: st.tarikh })}">${t('Tempah')}</a>`}
+              <div class="jd-slots">${tr.text}</div>
             </div>`;
           })}</section>`)}`;
       };
 
       const bodyByRoom = (range, today) => {
         const r = data.ruang.filter((x) => x.id === st.ruang)[0];
-        if (!r) return empty('Pilih ruang', 'Pilih ruang untuk melihat jadual 14 hari.');
+        if (!r) return empty(t('Pilih ruang'), t('Pilih ruang untuk melihat jadual 14 hari.'));
         const days = [];
         for (let i = 0; i < 14; i++) days.push(addDays(st.tarikh, i));
-        return html`<section class="panel jd-group"><div class="jd-group__head"><span>${r.nama}</span><span class="xs muted">${[r.blok, r.jenis, r.kapasiti ? r.kapasiti + ' orang' : ''].filter(Boolean).join(' · ')}</span></div>
+        return html`<section class="panel jd-group"><div class="jd-group__head"><span>${r.nama}</span><span class="xs muted">${[r.blok, t(r.jenis), r.kapasiti ? r.kapasiti + ' ' + t('orang') : ''].filter(Boolean).join(' · ')}</span></div>
           <div class="jd-row" aria-hidden="true"><span class="jd-axis-spacer"></span>${axis(range)}<span></span></div>
           ${days.map((d) => {
             const past = d < today;
             const dow = parseKey(d).getDay();
-            const t = track(r.id, d, data.tempahan.filter((b) => b.ruang === r.id && b.tarikh <= d && b.tarikhTamat >= d), range, past);
+            const tr = track(r.id, d, data.tempahan.filter((b) => b.ruang === r.id && b.tarikh <= d && b.tarikhTamat >= d), range, past);
             return html`<div class="jd-row">
-              <div class="jd-room"><b class="jd-day ${d === today ? 'is-today' : ''} ${dow === 5 || dow === 6 ? 'is-weekend' : ''}">${shortDay(d)}${d === today ? ' · hari ini' : ''}</b></div>
-              ${t.bar}
-              ${past ? html`<span></span>` : html`<a class="btn btn-sm btn-outline jd-book" href="${bookHref({ ruang: r.id, tarikh: d })}">Tempah</a>`}
-              <div class="jd-slots">${t.text}</div>
+              <div class="jd-room"><b class="jd-day ${d === today ? 'is-today' : ''} ${dow === 5 || dow === 6 ? 'is-weekend' : ''}">${shortDay(d)}${d === today ? ' · ' + t('hari ini') : ''}</b></div>
+              ${tr.bar}
+              ${past ? html`<span></span>` : html`<a class="btn btn-sm btn-outline jd-book" href="${bookHref({ ruang: r.id, tarikh: d })}">${t('Tempah')}</a>`}
+              <div class="jd-slots">${tr.text}</div>
             </div>`;
           })}</section>`;
       };
@@ -258,20 +359,20 @@
           const nowM = Math.ceil((now.getHours() * 60 + now.getMinutes() + 1) / 30) * 30;
           if (start < nowM) start = nowM;
         }
-        if (start >= range[1]) { toast('Tiada slot kosong selepas masa ini pada hari tersebut.', 'error'); return; }
+        if (start >= range[1]) { toast(t('Tiada slot kosong selepas masa ini pada hari tersebut.'), 'error'); return; }
         const next = list.filter((x) => x[0] >= start)[0];
         const end = Math.min(start + 60, range[1], next ? next[0] : range[1]);
-        if (end <= start) { toast('Slot ini telah ditempah.', 'error'); return; }
+        if (end <= start) { toast(t('Slot ini telah ditempah.'), 'error'); return; }
         location.hash = bookHref({ ruang: roomId, tarikh: day, masaMula: hm(start), masaTamat: hm(end) }).slice(1);
       };
-      on(el, 'click', '.jd-track', (e, t) => { if (e.target.closest('a.jd-seg')) return; pick(t, e.clientX); });
-      on(el, 'keydown', '.jd-track', (e, t) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(t, null); } });
+      on(el, 'click', '.jd-track', (e, tr) => { if (e.target.closest('a.jd-seg')) return; pick(tr, e.clientX); });
+      on(el, 'keydown', '.jd-track', (e, tr) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(tr, null); } });
 
       await load();
     }
   };
 
-  // ================================================================== Semak / batal (pemohon, tanpa akaun)
+  // ================================================================== Semak / batal / cetak slip (pemohon, tanpa akaun)
 
   KD.views.semakTempahan = {
     async render(el, params, query) {
@@ -279,55 +380,68 @@
       const tones = {};
       ((m && m.statuses) || []).forEach((s) => { tones[s.value] = s.tone; });
       el.innerHTML = html`${top()}<main class="auth"><div class="auth-card" style="width:min(580px,100%)">
-        <div class="auth-card__head">${icon('search', 'i-lg')}<h2 class="mt-2">Semak / batal tempahan</h2><p>Masukkan No. Rujukan (dalam emel pengesahan) dan No. Staf anda.</p></div>
+        <div class="auth-card__head">${icon('search', 'i-lg')}<h2 class="mt-2">${t('Semak / batal tempahan')}</h2><p>${t('Masukkan No. Rujukan (dalam emel pengesahan) dan No. Staf anda.')}</p></div>
         <form data-form="semak" novalidate>
-          <div class="field"><label class="label" for="sk-ref">No. rujukan</label><input class="input" id="sk-ref" name="refNo" required maxlength="30" value="${query.ref || ''}" placeholder="cth. TP-2026-0001" autocapitalize="characters"></div>
-          <div class="field"><label class="label" for="sk-staf">No. Staf</label><input class="input" id="sk-staf" name="noStaf" required maxlength="20" inputmode="text" autocomplete="off"></div>
-          <button class="btn btn-primary btn-block mt-6" type="submit">${icon('search')}Semak</button>
+          <div class="field"><label class="label" for="sk-ref">${t('No. rujukan')}</label><input class="input" id="sk-ref" name="refNo" required maxlength="30" value="${query.ref || ''}" placeholder="${t('cth.')} TP-2026-0001" autocapitalize="characters"></div>
+          <div class="field"><label class="label" for="sk-staf">${t('No. Staf')}</label><input class="input" id="sk-staf" name="noStaf" required maxlength="20" inputmode="text" autocomplete="off"></div>
+          <button class="btn btn-primary btn-block mt-6" type="submit">${icon('search')}${t('Semak')}</button>
         </form>
         <div data-result></div>
-        <p class="xs muted mt-6" style="text-align:center"><a href="#/jadual">Kalendar ketersediaan</a> · <a href="#/borang/tempahan">Mohon tempahan baharu</a></p>
+        <p class="xs muted mt-6" style="text-align:center"><a href="#/jadual">${t('Kalendar ketersediaan')}</a> · <a href="#/borang/tempahan">${t('Mohon tempahan baharu')}</a></p>
       </div></main>`.s;
       const form = qs('[data-form="semak"]', el);
       const out = qs('[data-result]', el);
       let creds = null;
+      let current = null;
 
       const show = (v) => {
+        current = v;
         out.innerHTML = html`<div class="panel mt-6" style="padding:var(--sp-5)">
-          <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><span class="rec-ref" style="margin:0">${v.refNo}</span>${toneBadge(v.statusLabel, tones[v.status])}</div>
+          <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><span class="rec-ref" style="margin:0">${v.refNo}</span>${toneBadge(t(v.statusLabel), tones[v.status])}</div>
           <dl class="jd-kv">
-            <dt>Ruang</dt><dd>${v.ruang}${v.ruangBlok && v.ruang.indexOf('(' + v.ruangBlok + ')') < 0 ? ' (' + v.ruangBlok + ')' : ''}</dd>
-            <dt>Tarikh</dt><dd>${fmtKey(v.tarikh)}${v.tarikhTamat && v.tarikhTamat !== v.tarikh ? ' – ' + fmtKey(v.tarikhTamat) : ''}</dd>
-            <dt>Masa</dt><dd>${v.masaMula} – ${v.masaTamat}</dd>
-            ${v.bilanganPeserta ? html`<dt>Peserta</dt><dd>${v.bilanganPeserta} orang</dd>` : ''}
-            <dt>Tujuan</dt><dd>${v.tujuan}</dd>
-            <dt>Pemohon</dt><dd>${v.nama}${v.emel ? html`<br><span class="xs muted">${v.emel}</span>` : ''}</dd>
-            ${v.statusNote ? html`<dt>Catatan</dt><dd>${v.statusNote}</dd>` : ''}
+            <dt>${t('Ruang')}</dt><dd>${v.ruang}${v.ruangBlok && v.ruang.indexOf('(' + v.ruangBlok + ')') < 0 ? ' (' + v.ruangBlok + ')' : ''}</dd>
+            <dt>${t('Tarikh')}</dt><dd>${fmtKey(v.tarikh)}${v.tarikhTamat && v.tarikhTamat !== v.tarikh ? ' – ' + fmtKey(v.tarikhTamat) : ''}</dd>
+            <dt>${t('Masa')}</dt><dd>${v.masaMula} – ${v.masaTamat}</dd>
+            ${v.bilanganPeserta ? html`<dt>${t('Peserta')}</dt><dd>${v.bilanganPeserta} ${t('orang')}</dd>` : ''}
+            <dt>${t('Tujuan')}</dt><dd>${v.tujuan}</dd>
+            <dt>${t('Pemohon')}</dt><dd>${v.nama}${v.emel ? html`<br><span class="xs muted">${v.emel}</span>` : ''}</dd>
+            ${v.statusNote ? html`<dt>${t('Catatan')}</dt><dd>${v.statusNote}</dd>` : ''}
           </dl>
-          ${v.bolehBatal ? html`<button class="btn btn-outline btn-block mt-6" type="button" data-act="batal" style="color:var(--danger)">${icon('x')}Batalkan tempahan ini</button>` : ''}
+          ${printable(v.status) ? html`<button class="btn btn-primary btn-block mt-6" type="button" data-act="slip">${icon('download')}${t('Cetak / simpan slip')}</button>` : ''}
+          ${v.bolehBatal ? html`<button class="btn btn-outline btn-block mt-3" type="button" data-act="batal" style="color:var(--danger)">${icon('x')}${t('Batalkan tempahan ini')}</button>` : ''}
         </div>`.s;
       };
 
       const semak = async (btn) => {
         const p = { refNo: form.elements.refNo.value.trim(), noStaf: form.elements.noStaf.value.trim() };
         fieldErrors(form, null);
-        if (!p.refNo || !p.noStaf) { toast('Isi No. Rujukan dan No. Staf.', 'error'); return; }
+        if (!p.refNo || !p.noStaf) { toast(t('Isi No. Rujukan dan No. Staf.'), 'error'); return; }
         await busy(btn, async () => {
           try { show(await KD.api.call('tempahan.semak', p)); creds = p; } catch (err) { out.innerHTML = ''; if (!fieldErrors(form, err)) toastError(err); }
         });
       };
       form.addEventListener('submit', (e) => { e.preventDefault(); semak(qs('button[type="submit"]', form)); });
 
+      on(out, 'click', '[data-act="slip"]', () => {
+        const v = current;
+        if (!v) return;
+        printSlip({
+          refNo: v.refNo, statusLabel: v.statusLabel, nama: v.nama, noStaf: v.noStaf, noTelefon: v.noTelefon, ruang: v.ruang, blok: v.ruangBlok,
+          aras: v.ruangAras, kod: v.ruangKod, pic: v.ruangPic, tarikh: v.tarikh, tarikhTamat: v.tarikhTamat, masaMula: v.masaMula, masaTamat: v.masaTamat,
+          peserta: v.bilanganPeserta, tujuan: v.tujuan, oleh: v.statusOleh, pada: v.statusPada
+        });
+      });
+
       on(out, 'click', '[data-act="batal"]', () => {
         if (!creds) return;
         const dlg = modal({
-          title: 'Batalkan tempahan?',
-          body: html`<p class="small">Tempahan <b>${creds.refNo}</b> akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.</p>
+          title: t('Batalkan tempahan?'),
+          body: html`<p class="small">${t('Tempahan ini akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.')} <b>${creds.refNo}</b></p>
             <form data-form="batal" novalidate>
-              <div class="field mt-4"><label class="label" for="bt-emel">Emel staf anda (untuk pengesahan)</label><input class="input" id="bt-emel" name="emel" type="email" required autocomplete="email"></div>
-              <div class="field"><label class="label" for="bt-sebab">Sebab (pilihan)</label><input class="input" id="bt-sebab" name="sebab" maxlength="300"></div>
+              <div class="field mt-4"><label class="label" for="bt-emel">${t('Emel staf anda (untuk pengesahan)')}</label><input class="input" id="bt-emel" name="emel" type="email" required autocomplete="email"></div>
+              <div class="field"><label class="label" for="bt-sebab">${t('Sebab (pilihan)')}</label><input class="input" id="bt-sebab" name="sebab" maxlength="300"></div>
             </form>`,
-          foot: html`<button class="btn btn-outline" data-close>Tidak</button><button class="btn btn-danger" data-ok>${icon('x')}Ya, batalkan</button>`
+          foot: html`<button class="btn btn-outline" data-close>${t('Tidak')}</button><button class="btn btn-danger" data-ok>${icon('x')}${t('Ya, batalkan')}</button>`
         });
         const f = qs('[data-form="batal"]', dlg.el);
         const submit = async () => {
@@ -336,7 +450,7 @@
               const v = await KD.api.call('tempahan.batal', Object.assign({}, creds, { emel: f.elements.emel.value.trim(), sebab: f.elements.sebab.value.trim() }));
               dlg.close();
               show(v);
-              toast('Tempahan telah dibatalkan. Pengesahan dihantar ke emel anda.');
+              toast(t('Tempahan telah dibatalkan. Pengesahan dihantar ke emel anda.'));
             } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
           });
         };
@@ -348,18 +462,159 @@
     }
   };
 
-  // ================================================================== Laluan, menu & kad landing
+  // ================================================================== Papan paparan (TV / lobi): tempahan diluluskan hari ini
+
+  KD.views.papanTempahan = {
+    async render(el, params, query) {
+      let data = null;
+      let lastLoad = 0;
+      const blok = query.blok || '';
+      const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+      el.innerHTML = html`<div class="pp"><div class="pp__top"><div>
+          <div class="pp__brand">${t(cfg().SYSTEM_NAME || '')}${blok ? ' · ' + t('Blok') + ' ' + blok : ''}</div>
+          <div class="pp__title">${t('Tempahan ruang hari ini')}</div><div class="pp__date" data-date></div></div>
+          <div class="pp__clock" data-clock aria-live="off"></div></div>
+        <div class="pp__body" data-body><div class="pp__empty">${t('Memuatkan…')}</div></div>
+        <div class="pp__foot"><span>${t('Tempah ruang')}: ${location.host}${location.pathname}</span><span data-updated></span></div></div>`.s;
+
+      const card = (b, room, now) => html`<div class="pp__card ${now ? 'is-now' : ''}">
+        <div class="pp__time">${b.masaMula} – ${b.masaTamat}</div>
+        <div class="pp__room">${room ? room.nama : ''}</div>
+        <div class="pp__what">${b.tujuan || t('Ditempah')}${room && room.aras ? ' · ' + t('Aras') + ' ' + room.aras : ''}</div></div>`;
+
+      const draw = () => {
+        if (!data) return;
+        const n = nowMin();
+        const rooms = {};
+        data.ruang.forEach((r) => { rooms[r.id] = r; });
+        const today = data.hariIni;
+        const list = data.tempahan
+          .filter((b) => b.status === 'DILULUSKAN' && b.tarikh <= today && b.tarikhTamat >= today && rooms[b.ruang] && (!blok || rooms[b.ruang].blok === blok))
+          .sort((a, b) => (a.masaMula + (rooms[a.ruang].nama || '')).localeCompare(b.masaMula + (rooms[b.ruang].nama || '')));
+        const live = list.filter((b) => mins(b.masaMula) <= n && mins(b.masaTamat) > n);
+        const next = list.filter((b) => mins(b.masaMula) > n);
+        const done = list.length - live.length - next.length;
+        qs('[data-body]', el).innerHTML = html`
+          <section class="pp__sec"><h2><span class="pp__dot"></span>${t('Sedang berlangsung')} (${live.length})</h2>
+            ${live.length ? html`<div class="pp__grid">${live.map((b) => card(b, rooms[b.ruang], true))}</div>` : html`<div class="pp__empty">${t('Tiada tempahan sedang berlangsung.')}</div>`}</section>
+          <section class="pp__sec"><h2>${t('Seterusnya hari ini')} (${next.length})</h2>
+            ${next.length ? html`<div class="pp__grid">${next.map((b) => card(b, rooms[b.ruang], false))}</div>` : html`<div class="pp__empty">${t('Tiada tempahan lagi hari ini.')}</div>`}</section>
+          ${done ? html`<div class="pp__empty" style="padding:0">${done} ${t('tempahan telah selesai hari ini.')}</div>` : ''}`.s;
+      };
+
+      const tick = () => {
+        if (!el.isConnected) { clearInterval(timer); return; }
+        const d = new Date();
+        qs('[data-clock]', el).textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+        qs('[data-date]', el).textContent = longDay(keyOf(d));
+        if (Date.now() - lastLoad > 60000) load(); else if (d.getSeconds() === 0) draw();
+      };
+      const load = async () => {
+        lastLoad = Date.now();
+        try {
+          data = await KD.api.call('tempahan.jadual', { dari: todayKey(), hingga: todayKey(), papan: true });
+          draw();
+          const d = new Date();
+          qs('[data-updated]', el).textContent = t('Dikemas kini') + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        } catch (err) {
+          if (!data) qs('[data-body]', el).innerHTML = errorState(err).s;
+        }
+      };
+      const timer = setInterval(tick, 1000);
+      tick();
+    }
+  };
+
+  // ================================================================== Laluan, menu, landing
 
   KD.extraRoutes.push(
     { path: '/jadual', view: 'jadual', access: 'public', layout: 'public', title: 'Kalendar ketersediaan' },
     { path: '/semak', view: 'semakTempahan', access: 'public', layout: 'public', title: 'Semak tempahan' },
+    { path: '/papan', view: 'papanTempahan', access: 'public', layout: 'public', title: 'Papan paparan' },
     { path: '/admin/jadual', view: 'jadual', access: 'admin', layout: 'admin', title: 'Kalendar' }
   );
   KD.extraNav.admin.push(['/admin/jadual', 'calendar', 'Kalendar']);
   KD.landingCards.push(
     { href: '/jadual', icon: 'calendar', title: 'Kalendar ketersediaan', text: 'Lihat slot kosong setiap ruang mengikut tarikh atau mengikut ruang.' },
     { href: '/borang/tempahan', icon: 'send', title: 'Mohon tempahan', text: 'Isi borang dengan No. Staf anda. Tiada akaun atau kata laluan diperlukan.' },
-    { href: '/semak', icon: 'search', title: 'Semak / batal tempahan', text: 'Guna No. Rujukan dan No. Staf untuk menyemak status atau membatalkan.' }
+    { href: '/semak', icon: 'search', title: 'Semak / batal tempahan', text: 'Guna No. Rujukan dan No. Staf untuk menyemak status, mencetak slip atau membatalkan.' }
   );
+  /* Pemohon tidak perlu akaun: tindakan utama di landing ialah memohon & melihat kalendar */
+  KD.heroCta = () => html`<a class="btn btn-light btn-lg" href="#/borang/tempahan">${icon('send')}${t('Mohon tempahan')}</a><a class="btn btn-outline btn-lg" href="#/jadual">${icon('calendar')}${t('Kalendar')}</a>`;
+
+  // ================================================================== Kamus Bahasa Inggeris (halaman awam)
+
+  KD.i18n.add('en', {
+    'Sistem Tempahan Ruang & Fasiliti FKM': 'FKM Room & Facility Booking System',
+    'Tempahan FKM': 'FKM Booking',
+    'Tempah ruang kuliah, makmal dan studio FKM dengan mudah': 'Book FKM lecture rooms, labs and studios with ease',
+    'Semak kekosongan ruang dan hantar permohonan tempahan secara dalam talian. Keputusan dimaklumkan melalui emel.': 'Check room availability and submit booking requests online. Decisions are sent by email.',
+    'Fakulti Kejuruteraan Mekanikal, UTM': 'Faculty of Mechanical Engineering, UTM',
+    'Log Masuk': 'Log In', 'Log masuk': 'Log in', 'Daftar': 'Register', 'Daftar Baru': 'Register', 'Buka aplikasi': 'Open app',
+    'Ciri-ciri': 'Features', 'Maklum Balas': 'Feedback', 'Maklum balas': 'Feedback', 'Ada cadangan atau masalah? Beritahu kami.': 'Have a suggestion or a problem? Let us know.',
+    'Nama': 'Name', 'Email': 'Email', 'Mesej': 'Message', 'Hantar maklum balas': 'Send feedback', 'Terima kasih. Maklum balas anda telah dihantar.': 'Thank you. Your feedback has been sent.',
+    'Kalendar ketersediaan': 'Availability calendar', 'Kalendar': 'Calendar', 'Mohon tempahan': 'Book a room', 'Semak / batal tempahan': 'Check / cancel booking', 'Semak / batal': 'Check / cancel',
+    'Lihat slot kosong setiap ruang mengikut tarikh atau mengikut ruang.': 'See free slots for every room, by date or by room.',
+    'Isi borang dengan No. Staf anda. Tiada akaun atau kata laluan diperlukan.': 'Fill in the form with your Staff No. No account or password needed.',
+    'Guna No. Rujukan dan No. Staf untuk menyemak status, mencetak slip atau membatalkan.': 'Use your Reference No. and Staff No. to check the status, print the slip or cancel.',
+    'Borang Tempahan Ruang': 'Room Booking Form',
+    'Semak kekosongan di Kalendar dahulu. Nama & emel diambil automatik daripada senarai staf berdasarkan No. Staf anda.': 'Check availability in the Calendar first. Your name and email are taken from the staff list using your Staff No.',
+    'Permohonan anda telah diterima dan sedang menunggu kelulusan. Pengesahan & keputusan akan dihantar ke emel staf anda. Simpan No. Rujukan untuk semakan atau pembatalan.': 'Your application has been received and is awaiting approval. A confirmation and the decision will be sent to your staff email. Keep the Reference No. to check or cancel.',
+    'No. Staf': 'Staff No.', 'Nama pemohon': 'Applicant name', 'Emel': 'Email', 'No. telefon': 'Phone No.', 'Ruang': 'Room', 'Tarikh': 'Date', 'Hingga tarikh': 'Until date',
+    'Untuk tempahan berbilang hari (maksimum 14 hari). Kosongkan jika sehari sahaja.': 'For multi-day bookings (up to 14 days). Leave empty for a single day.',
+    'Masa mula': 'Start time', 'Masa tamat': 'End time', 'Bilangan peserta': 'Number of participants', 'Tujuan / aktiviti': 'Purpose / activity',
+    'cth. 9515': 'e.g. 9515', 'cth. 012-345 6789': 'e.g. 012-345 6789', 'cth.': 'e.g.',
+    'Hantar': 'Submit', '— Pilih —': '— Select —', 'Berjaya dihantar': 'Submitted', 'Terima kasih.': 'Thank you.', 'Simpan nombor rujukan ini.': 'Keep this reference number.',
+    'Semak status': 'Check status', 'Kembali ke laman utama': 'Back to home', 'Rujukan': 'Reference',
+    'Bar hijau = kosong. Klik pada ruang kosong dalam bar, atau butang Tempah, untuk membuka borang yang telah diisi.': 'Green = free. Click a free part of a bar, or the Book button, to open a pre-filled form.',
+    'Paparan': 'View', 'Ikut tarikh': 'By date', 'Ikut ruang': 'By room', 'Sebelum': 'Previous', 'Seterusnya': 'Next', 'Hari ini': 'Today', 'hari ini': 'today',
+    'Kosong': 'Free', 'kosong': 'free', 'Ditempah': 'Booked', 'Menunggu kelulusan': 'Awaiting approval', 'menunggu': 'pending', 'Waktu operasi': 'Opening hours',
+    'Cari nama ruang': 'Search room name', 'Blok': 'Block', 'Jenis': 'Type', 'Semua blok': 'All blocks', 'Semua jenis': 'All types',
+    'Tiada ruang': 'No rooms', 'Tiada ruang sepadan dengan penapis.': 'No rooms match the filters.', 'ruang': 'rooms', 'Aras': 'Level', 'orang': 'people', 'Tempah': 'Book',
+    'Tiada tempahan': 'No bookings', 'Kosong sepanjang hari': 'Free all day', 'Pilih ruang': 'Choose a room', 'Pilih ruang untuk melihat jadual 14 hari.': 'Choose a room to see its 14-day schedule.',
+    'Tiada slot kosong selepas masa ini pada hari tersebut.': 'No free slot after this time on that day.', 'Slot ini telah ditempah.': 'This slot is already booked.',
+    'Dewan Kuliah': 'Lecture Hall', 'Bilik Kuliah': 'Lecture Room', 'Makmal Komputer': 'Computer Lab', 'Studio': 'Studio', 'Bilik Seminar': 'Seminar Room', 'Bilik Mesyuarat': 'Meeting Room', 'Makmal': 'Laboratory',
+    'Masukkan No. Rujukan (dalam emel pengesahan) dan No. Staf anda.': 'Enter your Reference No. (in the confirmation email) and your Staff No.',
+    'No. rujukan': 'Reference No.', 'No. Rujukan': 'Reference No.', 'Semak': 'Check', 'Mohon tempahan baharu': 'New booking', 'Masa': 'Time', 'Peserta': 'Participants', 'Tujuan': 'Purpose',
+    'Pemohon': 'Applicant', 'Catatan': 'Note', 'Cetak / simpan slip': 'Print / save slip', 'Batalkan tempahan ini': 'Cancel this booking', 'Isi No. Rujukan dan No. Staf.': 'Enter the Reference No. and Staff No.',
+    'Batalkan tempahan?': 'Cancel booking?', 'Tempahan ini akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.': 'This booking will be cancelled and the slot released to others. This cannot be undone.',
+    'Emel staf anda (untuk pengesahan)': 'Your staff email (for verification)', 'Sebab (pilihan)': 'Reason (optional)', 'Tidak': 'No', 'Ya, batalkan': 'Yes, cancel',
+    'Tempahan telah dibatalkan. Pengesahan dihantar ke emel anda.': 'The booking has been cancelled. A confirmation was sent to your email.',
+    'Diluluskan': 'Approved', 'Ditolak': 'Not approved', 'Dibatalkan': 'Cancelled', 'Selesai': 'Completed',
+    'Slip pengesahan tempahan ruang': 'Room booking confirmation slip', 'Lokasi': 'Location', 'setiap hari': 'daily', 'PIC ruang': 'Room PIC', 'Diluluskan oleh': 'Approved by',
+    'Sila bawa slip ini (cetak atau di telefon) dan tunjukkan kepada PIC ruang jika diminta. Tempahan tertakluk kepada peraturan penggunaan ruang FKM.': 'Bring this slip (printed or on your phone) and show it to the room PIC if asked. Bookings are subject to FKM room-use rules.',
+    'Dicetak pada': 'Printed on',
+    'Tempahan ruang hari ini': "Today's room bookings", 'Memuatkan…': 'Loading…', 'Tempah ruang': 'Book a room', 'Sedang berlangsung': 'In progress', 'Seterusnya hari ini': 'Later today',
+    'Tiada tempahan sedang berlangsung.': 'No bookings in progress.', 'Tiada tempahan lagi hari ini.': 'No more bookings today.', 'tempahan telah selesai hari ini.': 'bookings already finished today.', 'Dikemas kini': 'Updated',
+    'No. Staf tidak dijumpai dalam senarai staf FKM. Sila semak semula atau hubungi pentadbir.': 'Staff No. not found in the FKM staff list. Please check it or contact the administrator.',
+    'No. Staf tidak dijumpai.': 'Staff No. not found.', 'Masa tamat mesti selepas masa mula.': 'End time must be after start time.', 'Mesti selepas masa mula.': 'Must be after start time.',
+    'Tarikh tamat tidak boleh sebelum tarikh mula.': 'End date cannot be before the start date.', 'Sebelum tarikh mula.': 'Before the start date.',
+    'Tarikh tempahan telah berlalu.': 'The booking date has passed.', 'Tarikh telah berlalu.': 'Date has passed.', 'Masa mula telah berlalu.': 'The start time has passed.', 'Masa telah berlalu.': 'Time has passed.',
+    'Terlalu jauh ke hadapan.': 'Too far ahead.', 'Nombor telefon tidak sah.': 'Invalid phone number.', 'Alamat email tidak sah.': 'Invalid email address.',
+    'Borang telah tamat tempoh atau dihantar terlalu cepat. Muat semula halaman dan cuba lagi.': 'The form expired or was sent too quickly. Reload the page and try again.',
+    'Terlalu banyak cubaan. Sila cuba sebentar lagi.': 'Too many attempts. Please try again shortly.', 'Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.': 'Could not reach the server. Check your connection and try again.',
+    'Tempahan dengan No. Rujukan dan No. Staf ini tidak dijumpai.': 'No booking found with this Reference No. and Staff No.', 'Tempahan ini tidak boleh dibatalkan lagi.': 'This booking can no longer be cancelled.',
+    'Borang awam ditutup buat sementara.': 'The form is temporarily closed.', 'Sistem sedang diselenggara. Sila cuba sebentar lagi.': 'The system is under maintenance. Please try again shortly.',
+    'Julat tarikh tidak sah.': 'Invalid date range.', 'Maaf, berlaku masalah.': 'Sorry, something went wrong.', 'Sila semak maklumat yang dimasukkan.': 'Please check the information entered.',
+    'Ada akaun?': 'Have an account?', 'untuk menjejak status dalam aplikasi.': 'to track status in the app.'
+  }, [
+    [/^Masa tempahan mesti antara (.+) dan (.+)\.$/, (m) => 'Booking time must be between ' + m[1] + ' and ' + m[2] + '.'],
+    [/^Paling awal (.+)\.$/, (m) => 'Earliest ' + m[1] + '.'],
+    [/^Paling lewat (.+)\.$/, (m) => 'Latest ' + m[1] + '.'],
+    [/^Tempahan maksimum (\d+) hari berturut-turut\.$/, (m) => 'Bookings are limited to ' + m[1] + ' consecutive days.'],
+    [/^Maksimum (\d+) hari\.$/, (m) => 'Maximum ' + m[1] + ' days.'],
+    [/^Tempahan hanya dibuka sehingga (\d+) hari ke hadapan\.$/, (m) => 'Bookings open only up to ' + m[1] + ' days ahead.'],
+    [/^Bilangan peserta melebihi kapasiti ruang \((\d+) orang\)\.$/, (m) => 'Participants exceed the room capacity (' + m[1] + ' people).'],
+    [/^Maksimum (\d+)\.$/, (m) => 'Maximum ' + m[1] + '.'],
+    [/^Ruang ini sudah ditempah pada (.+), (\d\d:\d\d)–(\d\d:\d\d)(.*)\. Sila pilih masa atau ruang lain\.$/, (m) => 'This room is already booked on ' + m[1] + ', ' + m[2] + '–' + m[3] + '. Please choose another time or room.'],
+    [/^(.+) diperlukan\.$/, (m, tr) => tr(m[1]) + ' is required.'],
+    [/^(.+) tidak sah \(HH:MM\)\.$/, (m, tr) => tr(m[1]) + ' is invalid (HH:MM).'],
+    [/^(.+) tidak sah\.$/, (m, tr) => tr(m[1]) + ' is invalid.'],
+    [/^(.+) mesti sekurang-kurangnya (\d+) aksara\.$/, (m, tr) => tr(m[1]) + ' must be at least ' + m[2] + ' characters.'],
+    [/^(.+) tidak boleh melebihi (\d+) aksara\.$/, (m, tr) => tr(m[1]) + ' cannot exceed ' + m[2] + ' characters.'],
+    [/^(.+) minimum (\d+)\.$/, (m, tr) => tr(m[1]) + ': minimum ' + m[2] + '.'],
+    [/^(.+) maksimum (\d+)\.$/, (m, tr) => tr(m[1]) + ': maximum ' + m[2] + '.'],
+    [/^(.+) mesti nombor bulat\.$/, (m, tr) => tr(m[1]) + ' must be a whole number.']
+  ]);
 })(window.KD);
 </script>

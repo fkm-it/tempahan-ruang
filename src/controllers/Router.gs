@@ -101,7 +101,7 @@ const Router = {
   },
 
   /**
-   * @param {{action:string, payload?:Object, token?:string, meta?:{userAgent?:string}}} request
+   * @param {{action:string, payload?:Object, token?:string, meta?:{userAgent?:string, lang?:string}}} request
    * @return {Object} ApiResponse
    */
   dispatch: function (request) {
@@ -120,7 +120,8 @@ const Router = {
       if (JSON.stringify(payload).length > CONFIG.MAX_REQUEST_CHARS) throw Errors.validation('Permintaan terlalu besar.');
 
       const userAgent = request.meta && typeof request.meta.userAgent === 'string' ? request.meta.userAgent.slice(0, 200) : '';
-      let ctx = { userId: '', role: ROLES.PUBLIC, user: null, sessionId: '', userAgent: userAgent };
+      const lang = request.meta && request.meta.lang === 'en' ? 'en' : 'ms'; // bahasa antara muka peminta (mesej & email)
+      let ctx = { userId: '', role: ROLES.PUBLIC, user: null, sessionId: '', userAgent: userAgent, lang: lang };
       if (request.token) {
         const resolved = AuthService.resolveSession(String(request.token));
         if (resolved) ctx = Object.assign(ctx, resolved);

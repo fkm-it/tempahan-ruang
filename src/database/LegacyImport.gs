@@ -167,6 +167,8 @@ const LegacyImport = {
         no_telefon: LegacyImport.phone(o['No Telefon']), ruang: ruang, tarikh: tarikh, tarikh_tamat: tarikh, masa_mula: mula, masa_tamat: tamat,
         bilangan_peserta: 0, tujuan: LegacyImport.str(o['Tujuan']).slice(0, 500) || '-',
         peringatan_dihantar: LegacyImport.str(o['Peringatan Dihantar']) ? mohon : '',
+        peringatan_jam_dihantar: LegacyImport.str(o['Peringatan Jam Dihantar']) ? tarikh : '',
+        bahasa: /^(en|eng|english|bi)/i.test(LegacyImport.str(o['Bahasa'])) ? 'en' : 'ms',
         status: status, status_note: sebab ? sebab.slice(0, 500) : 'Diimport daripada sistem lama.', status_changed_by: 'Import'
       }), { created_at: mohon, updated_at: mohon, status_changed_at: mohon }));
     });

@@ -154,6 +154,30 @@
       "type": "string",
       "readonly": true,
       "adminOnly": true
+    },
+    {
+      "key": "bahasa",
+      "label": "Bahasa emel",
+      "type": "enum",
+      "readonly": true,
+      "default": "ms",
+      "options": [
+        {
+          "value": "ms",
+          "label": "Bahasa Melayu"
+        },
+        {
+          "value": "en",
+          "label": "English"
+        }
+      ]
+    },
+    {
+      "key": "peringatanJamDihantar",
+      "label": "Peringatan jam dihantar",
+      "type": "string",
+      "readonly": true,
+      "adminOnly": true
     }
   ]
 }

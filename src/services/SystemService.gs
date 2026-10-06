@@ -33,6 +33,7 @@ const HealthService = {
       mailQuotaRemaining: mailQuota,
       triggers: triggers,
       maintenanceTriggerInstalled: triggers.indexOf('dailyMaintenance') >= 0,
+      hourlyTriggerInstalled: triggers.indexOf('hourlyMaintenance') >= 0,
       pbkdf2Iterations: SecurityUtils.iterations(),
       iframeEmbed: Env.bool('ALLOW_IFRAME_EMBED', false),
       migrations: Migration.status()
@@ -81,9 +82,31 @@ const BackupService = {
 };
 
 const MaintenanceService = {
+  /**
+   * Pastikan pencetus masa wujud: harian (sentiasa) dan setiap jam (jika ada modul dengan hook hourly).
+   * Idempoten; dipanggil oleh installTriggers, penyelenggaraan harian dan migrasi automatik selepas deploy.
+   * @return {string[]} pencetus yang baru dipasang
+   */
+  ensureTriggers: function () {
+    const have = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+    const added = [];
+    if (have.indexOf('dailyMaintenance') < 0) { ScriptApp.newTrigger('dailyMaintenance').timeBased().everyDays(1).atHour(2).create(); added.push('dailyMaintenance'); }
+    const wantHourly = CrudEngine.hasHook('hourly');
+    if (wantHourly && have.indexOf('hourlyMaintenance') < 0) { ScriptApp.newTrigger('hourlyMaintenance').timeBased().everyHours(1).create(); added.push('hourlyMaintenance'); }
+    /* Tidak membuang pencetus di sini (ujian dengan modul fixture tidak boleh menjejaskan produksi); installTriggers memasang semula dari kosong. */
+    if (added.length) AppLogger.info('Pencetus dipasang', { added: added });
+    return added;
+  },
+
+  /** Dijalankan oleh pencetus setiap jam (hanya jika ada modul dengan hook hourly). */
+  hourly: function () {
+    return { modules: CrudEngine.hourly() };
+  },
+
   /** Dijalankan oleh pencetus harian. */
   daily: function () {
     const out = {};
+    try { out.triggersAdded = MaintenanceService.ensureTriggers(); } catch (e) { out.triggersError = String(e && e.message); }
     out.sessionsPurged = SessionRepository.purgeExpired();
     out.systemLogsPruned = SystemLogRepository.prune(CONFIG.SYSTEM_LOG_MAX_ROWS);
     try { out.modules = CrudEngine.maintenance(); } catch (e) { out.modulesError = String(e && e.message); }

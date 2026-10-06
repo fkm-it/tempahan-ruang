@@ -19,7 +19,9 @@ const SETTINGS_DEFS = Object.freeze({
   },
   DEFAULT_PAGE_SIZE: { type: 'int', default: 20, min: 5, max: 100, minRole: 'ADMIN', public: true, description: 'Saiz halaman senarai' },
   NOTIFY_EMAIL_ENABLED: { type: 'bool', default: true, minRole: 'ADMIN', public: false, description: 'Hantar email untuk notifikasi rekod (rekod baharu kepada admin, perubahan status kepada pemilik)' },
-  ADMIN_EMAIL: { type: 'string', default: '', max: 254, minRole: 'SUPER_ADMIN', public: false, description: 'Email pentadbir untuk maklum balas & amaran' }
+  ADMIN_EMAIL: { type: 'string', default: '', max: 254, minRole: 'SUPER_ADMIN', public: false, description: 'Email pentadbir untuk maklum balas & amaran' },
+  PERINGATAN_JAM: { type: 'int', default: 2, min: 0, max: 12, minRole: 'ADMIN', public: false, description: 'Tempahan: emel peringatan berapa jam sebelum slot bermula setiap hari (0 = tutup). Peringatan sehari sebelum tetap dihantar.' },
+  PAPAN_TUNJUK_TUJUAN: { type: 'bool', default: true, minRole: 'ADMIN', public: false, description: 'Tempahan: papar tujuan tempahan yang diluluskan pada Papan Paparan awam (nama pemohon tidak pernah dipaparkan)' }
 });
 
 const SettingModel = {

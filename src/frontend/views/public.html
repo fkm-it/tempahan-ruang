@@ -7,18 +7,27 @@
   const { html, raw, qs, on, formData, fmtNum, requestId } = KD.utils;
   const { icon, star, toast, toastError, busy, fieldErrors } = KD.ui;
   const cfg = () => KD.config || {};
+  const t = (s) => KD.t(s);
+  /* Butang tukar bahasa (hanya jika projek menyediakan kamus 'en') */
+  const langBtn = (dark) => (KD.i18n.has('en') ? html`<button type="button" class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" data-act="lang" aria-label="${KD.i18n.lang() === 'en' ? 'Bahasa Melayu' : 'English'}">${KD.i18n.lang() === 'en' ? 'BM' : 'EN'}</button>` : '');
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-act="lang"]');
+    if (!b) return;
+    KD.i18n.set(KD.i18n.lang() === 'en' ? 'ms' : 'en');
+    KD.router.render();
+  });
 
   function publicTop(dark) {
     const loggedIn = KD.auth.loggedIn();
-    return html`<header class="public-top"><a class="brand" href="#/">${star()}<span class="brand__full">${cfg().SYSTEM_NAME || ''}</span><span class="brand__short">${cfg().SHORT_NAME || cfg().SYSTEM_NAME || ''}</span></a>
-      <nav class="row">${loggedIn
-        ? html`<a class="btn ${dark ? 'btn-light' : 'btn-outline'} btn-sm" href="#/utama">Buka aplikasi</a>`
-        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">Log Masuk</a>${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">Daftar</a>` : ''}`}</nav></header>`;
+    return html`<header class="public-top"><a class="brand" href="#/">${star()}<span class="brand__full">${t(cfg().SYSTEM_NAME || '')}</span><span class="brand__short">${t(cfg().SHORT_NAME || cfg().SYSTEM_NAME || '')}</span></a>
+      <nav class="row">${langBtn(dark)}${loggedIn
+        ? html`<a class="btn ${dark ? 'btn-light' : 'btn-outline'} btn-sm" href="#/utama">${t('Buka aplikasi')}</a>`
+        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">${t('Log Masuk')}</a>${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">${t('Daftar')}</a>` : ''}`}</nav></header>`;
   }
 
   function publicFoot() {
-    return html`<footer class="public-foot"><nav><button class="btn-link" data-scroll="ciri">Ciri-ciri</button><button class="btn-link" data-scroll="maklum-balas">Maklum Balas</button></nav>
-      <div>${cfg().SYSTEM_NAME || ''}: ${cfg().SYSTEM_TAGLINE || ''}${cfg().ORG_NAME ? html`<br>${cfg().ORG_NAME}` : ''}</div></footer>`;
+    return html`<footer class="public-foot"><nav><button class="btn-link" data-scroll="ciri">${t('Ciri-ciri')}</button><button class="btn-link" data-scroll="maklum-balas">${t('Maklum Balas')}</button></nav>
+      <div>${t(cfg().SYSTEM_NAME || '')}: ${t(cfg().SYSTEM_TAGLINE || '')}${cfg().ORG_NAME ? html`<br>${t(cfg().ORG_NAME)}` : ''}</div></footer>`;
   }
 
   function passwordField(name, label, autocomplete, hint) {
@@ -46,12 +55,12 @@
         <section class="hero">
           ${publicTop(true)}
           <div class="hero__inner">
-            ${c.ORG_NAME ? html`<span class="hero__eyebrow">${c.ORG_NAME}</span>` : ''}
-            <h1 class="hero__title">${c.SYSTEM_NAME || ''}</h1>
-            <p class="hero__msg">${c.SYSTEM_TAGLINE || ''}${c.LANDING_MESSAGE ? html`<br>${c.LANDING_MESSAGE}` : ''}</p>
+            ${c.ORG_NAME ? html`<span class="hero__eyebrow">${t(c.ORG_NAME)}</span>` : ''}
+            <h1 class="hero__title">${t(c.SYSTEM_NAME || '')}</h1>
+            <p class="hero__msg">${t(c.SYSTEM_TAGLINE || '')}${c.LANDING_MESSAGE ? html`<br>${t(c.LANDING_MESSAGE)}` : ''}</p>
             <div class="hero__cta">
-              ${KD.auth.loggedIn() ? html`<a class="btn btn-light btn-lg" href="#/utama">Buka aplikasi</a>`
-                : html`<a class="btn btn-light btn-lg" href="#/log-masuk">Log Masuk</a>${c.ALLOW_REGISTRATION !== false || c.SETUP_PENDING ? html`<a class="btn btn-outline btn-lg" href="#/daftar">Daftar Baru</a>` : ''}`}
+              ${KD.auth.loggedIn() ? html`<a class="btn btn-light btn-lg" href="#/utama">${t('Buka aplikasi')}</a>`
+                : (KD.heroCta ? KD.heroCta() : html`<a class="btn btn-light btn-lg" href="#/log-masuk">${t('Log Masuk')}</a>${c.ALLOW_REGISTRATION !== false || c.SETUP_PENDING ? html`<a class="btn btn-outline btn-lg" href="#/daftar">${t('Daftar Baru')}</a>` : ''}`)}
             </div>
           </div>
         </section>
@@ -59,18 +68,18 @@
           <div class="feature-grid">${(KD.landingCards || []).concat((publicMods.length ? publicMods : mods).map((m) => ({
             href: m.publicForm && c.ALLOW_PUBLIC_SUBMISSION !== false ? '/borang/' + m.key : '/log-masuk',
             icon: m.icon, title: m.publicForm ? (m.publicForm.title || m.label) : m.labelPlural, text: m.description || '' }))).slice(0, 3)
-            .map((x) => html`<a class="feature" href="#${x.href}">${icon(x.icon)}<h3>${x.title}</h3><p>${x.text}</p></a>`)}</div>
+            .map((x) => html`<a class="feature" href="#${x.href}">${icon(x.icon)}<h3>${t(x.title)}</h3><p>${t(x.text)}</p></a>`)}</div>
         </div>
 
         <section class="section" id="maklum-balas" style="padding-top:0">
           <div class="panel" style="max-width:640px;margin:0 auto">
-            <h2>Maklum balas</h2><p class="muted mt-2">Ada cadangan atau masalah? Beritahu kami.</p>
+            <h2>${t('Maklum balas')}</h2><p class="muted mt-2">${t('Ada cadangan atau masalah? Beritahu kami.')}</p>
             <form class="mt-6" data-form="feedback" novalidate>
-              <div class="grid grid-2"><div class="field"><label class="label" for="fb-name">Nama</label><input class="input" id="fb-name" name="name" required maxlength="80" autocomplete="name"></div>
-              <div class="field" style="margin-top:0"><label class="label" for="fb-email">Email</label><input class="input" id="fb-email" name="email" type="email" required autocomplete="email"></div></div>
-              <div class="field mt-4"><label class="label" for="fb-msg">Mesej</label><textarea class="textarea" id="fb-msg" name="message" required minlength="10" maxlength="1500"></textarea></div>
+              <div class="grid grid-2"><div class="field"><label class="label" for="fb-name">${t('Nama')}</label><input class="input" id="fb-name" name="name" required maxlength="80" autocomplete="name"></div>
+              <div class="field" style="margin-top:0"><label class="label" for="fb-email">${t('Email')}</label><input class="input" id="fb-email" name="email" type="email" required autocomplete="email"></div></div>
+              <div class="field mt-4"><label class="label" for="fb-msg">${t('Mesej')}</label><textarea class="textarea" id="fb-msg" name="message" required minlength="10" maxlength="1500"></textarea></div>
               <div class="hp" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
-              <button class="btn btn-primary mt-4" type="submit">${icon('send')}Hantar maklum balas</button>
+              <button class="btn btn-primary mt-4" type="submit">${icon('send')}${t('Hantar maklum balas')}</button>
             </form>
           </div>
         </section>
@@ -84,7 +93,7 @@
           try {
             await KD.api.sendFeedback(formData(form));
             form.reset(); fieldErrors(form, null);
-            toast('Terima kasih. Maklum balas anda telah dihantar.');
+            toast(t('Terima kasih. Maklum balas anda telah dihantar.'));
           } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
         });
       });
