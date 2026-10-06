@@ -36,6 +36,9 @@ class MockRange {
     }
     return out;
   }
+  getDisplayValues() {
+    return this.getValues().map((line) => line.map((v) => (v instanceof Date ? v.toISOString() : String(v))));
+  }
   setValues(values) {
     if (!Array.isArray(values) || values.length !== this.nr) throw new Error(`The number of rows in the data does not match the number of rows in the range. The data has ${values.length} but the range has ${this.nr}.`);
     values.forEach((line, r) => {

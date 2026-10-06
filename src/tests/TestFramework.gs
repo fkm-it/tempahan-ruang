@@ -8,7 +8,18 @@
 const TestRunner = {
   /** Senarai suite — diselesaikan semasa panggilan (tiada kebergantungan susunan muat). */
   suites: function () {
-    return [TestSuiteUtils, TestSuiteSecurity, TestSuiteRepository, TestSuiteAuth, TestSuiteCrud, TestSuitePush, TestSuiteAdmin];
+    return [TestSuiteUtils, TestSuiteSecurity, TestSuiteRepository, TestSuiteAuth, TestSuiteCrud, TestSuitePush, TestSuiteAdmin]
+      .concat(TestRunner.appSuites());
+  },
+
+  /** Suite domain projek: isytihar `const AppTests = { suites: function () { return [TestSuiteX]; } }` dalam src/tests/. */
+  appSuites: function () {
+    return typeof AppTests !== 'undefined' && AppTests.suites ? AppTests.suites() : [];
+  },
+
+  /** Nama suite bagi bahagian n (bahagian 5 = suite domain projek). */
+  partSuites: function (n) {
+    return Number(n) === 5 ? TestRunner.appSuites().map(function (s) { return s.name; }) : TestRunner.PARTS[n];
   },
 
   /** Bahagian ujian untuk Apps Script (setiap bahagian < 6 minit). */
@@ -84,6 +95,8 @@ const TestRunner = {
     Database.useSpreadsheet(sandbox.ss);
     DriveService.folderOverride = sandbox.folder;
     Migration.run({});
+    // Ujian teras menganggap pendaftaran dibuka (lalai projek mungkin menutupnya)
+    SettingsRepository.setMany({ ALLOW_REGISTRATION: 'TRUE' }, 'TEST');
     return sandbox;
   },
 

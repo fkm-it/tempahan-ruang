@@ -1,8 +1,8 @@
 {
-  "name": "gas-pwa-starter",
-  "version": "0.2.0",
+  "name": "tempahan-ruang-fkm",
+  "version": "1.0.0",
   "private": true,
-  "description": "Templat sistem web + PWA atas Google Apps Script, Sheets & Drive \u2014 modul dijana daripada JSON",
+  "description": "Sistem Tempahan Ruang & Fasiliti FKM — Tempah ruang kuliah, makmal dan studio FKM dengan mudah",
   "engines": {
     "node": ">=18"
   },

@@ -62,6 +62,7 @@ edit('src/config/Config.gs', (s) => {
   s = setMarked(s, 'appName', name);
   s = setMarked(s, 'tagline', tagline);
   s = setMarked(s, 'slug', slug);
+  s = setMarked(s, 'brandColor', color);
   return setMarked(s, 'shortName', shortName);
 });
 edit('src/models/SettingModel.gs', (s) => setMarked(setMarked(s, 'appName', name), 'tagline', tagline));

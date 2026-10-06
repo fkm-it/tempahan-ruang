@@ -110,7 +110,7 @@ const NotificationService = {
       const name = SettingsService.get('SYSTEM_NAME');
       const esc = StringUtils.escapeHtml;
       const base = PushService.baseUrl();
-      const button = base ? '<p><a href="' + esc(base + (o.path || '#/notifikasi')) + '" style="display:inline-block;background:#4F46E5;color:#fff;' +
+      const button = base ? '<p><a href="' + esc(base + (o.path || '#/notifikasi')) + '" style="display:inline-block;background:' + esc(CONFIG.BRAND_COLOR || '#4F46E5') + ';color:#fff;' +
         'padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Buka ' + esc(name) + '</a></p>' : '';
       MailApp.sendEmail({
         to: to,

@@ -50,7 +50,7 @@ Apa yang dijana daripada satu modul:
 | `subtitleField` | — | Sub-tajuk (cth. kategori) |
 | `nav.user` / `nav.admin` | `true` | Papar dalam menu pengguna/admin |
 | `nav.order` | `50` | Susunan menu (kecil dahulu). Modul pertama mengisi butang tengah navigasi telefon |
-| `publicForm` | — | Hanya jika `access.create = PUBLIC`: `title`, `intro`, `successMessage`, `contactEmailField` (email untuk makluman status), `nameField` (nama pemohon dipaparkan kepada admin), `rateKeyField` (medan untuk had kadar per pemohon; lalai `contactEmailField`) |
+| `publicForm` | — | Hanya jika `access.create = PUBLIC`: `title`, `intro`, `successMessage`, `contactEmailField` (email untuk makluman status), `nameField` (nama pemohon dipaparkan kepada admin), `rateKeyField` (medan untuk had kadar per pemohon; lalai `contactEmailField`), `successLink` (`{ "href": "#/semak?ref={refNo}", "label": "Semak status" }`: butang pada halaman berjaya) |
 
 ## Medan (`fields[]`)
 

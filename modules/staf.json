@@ -1,0 +1,20 @@
+{
+  "key": "staf",
+  "name": "Staf",
+  "label": "Staf",
+  "labelPlural": "Senarai Staf",
+  "icon": "users",
+  "prefix": "SF",
+  "description": "Senarai staf FKM yang layak membuat tempahan (disemak menggunakan No. Staf).",
+  "access": { "create": "ADMIN", "list": "OWN", "edit": "ADMIN", "delete": "ADMIN" },
+  "notify": { "adminsOnCreate": false, "ownerOnStatus": false },
+  "titleField": "nama",
+  "subtitleField": "noStaf",
+  "nav": { "user": false, "admin": true, "order": 30 },
+  "fields": [
+    { "key": "noStaf", "label": "No. Staf", "type": "string", "required": true, "max": 20, "list": true, "search": true },
+    { "key": "nama", "label": "Nama", "type": "string", "required": true, "max": 120, "list": true, "search": true },
+    { "key": "emel", "label": "Emel", "type": "email", "required": true, "list": true, "search": true },
+    { "key": "aktif", "label": "Aktif", "type": "bool", "default": true, "filter": true, "list": true }
+  ]
+}

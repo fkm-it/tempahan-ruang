@@ -7,13 +7,15 @@
  * Tetapan yang boleh diubah admin semasa runtime ada dalam SETTINGS_DEFS (models/SettingModel.gs).
  */
 const CONFIG = Object.freeze({
-  APP_NAME: 'Sistem Saya', // @init:appName
-  TAGLINE: 'Urus kerja dengan mudah', // @init:tagline
+  APP_NAME: 'Sistem Tempahan Ruang & Fasiliti FKM', // @init:appName
+  TAGLINE: 'Tempah ruang kuliah, makmal dan studio FKM dengan mudah', // @init:tagline
   /** Nama pendek di bawah ikon app telefon (≤ 12 aksara). */
-  SHORT_NAME: 'Sistem Saya', // @init:shortName
+  SHORT_NAME: 'Tempahan FKM', // @init:shortName
   /** Awalan nama fail Drive (sandaran, ujian). Huruf/nombor sahaja. */
-  APP_SLUG: 'SistemSaya', // @init:slug
-  VERSION: '0.2.0',
+  APP_SLUG: 'TempahanRuangFKM', // @init:slug
+  /** Warna jenama (email, dsb.). */
+  BRAND_COLOR: '#7A0019', // @init:brandColor
+  VERSION: '1.0.0',
   TIMEZONE_FALLBACK: 'Asia/Kuala_Lumpur',
 
   DEFAULT_PAGE_SIZE: 20,
@@ -79,6 +81,10 @@ const CONFIG = Object.freeze({
     'public.feedback.global': [100, 3600],
     'attachment.get': [120, 3600],
     'push.register': [20, 3600],
-    'push.test': [10, 3600]
+    'push.test': [10, 3600],
+    'tempahan.jadual.global': [3000, 3600],
+    'tempahan.semak': [20, 3600],
+    'tempahan.semak.global': [600, 3600],
+    'tempahan.batal': [10, 3600]
   })
 });

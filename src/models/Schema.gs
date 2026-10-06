@@ -76,15 +76,20 @@ const SCHEMA = Object.freeze({
   // ===================================================================== MODUL
   // Blok di bawah DIJANA oleh `npm run gen` daripada modules/*.json — jangan sunting dengan tangan.
   // @generator:schema:start
-  ADUAN: {
-    sheet: 'ADUAN', id: 'id', prefix: 'AD', module: 'aduan',
-    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'nama', 'email', 'tajuk', 'kategori', 'keutamaan', 'lokasi', 'keterangan', 'lampiran', 'catatan_pentadbir', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
-    types: {'lampiran': 'int'}
+  TEMPAHAN: {
+    sheet: 'TEMPAHAN', id: 'id', prefix: 'TP', module: 'tempahan',
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'no_staf', 'nama', 'emel', 'no_telefon', 'ruang', 'tarikh', 'tarikh_tamat', 'masa_mula', 'masa_tamat', 'bilangan_peserta', 'tujuan', 'peringatan_dihantar', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    types: {'bilangan_peserta': 'int'}
   },
-  PENGUMUMAN: {
-    sheet: 'PENGUMUMAN', id: 'id', prefix: 'PE', module: 'pengumuman',
-    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'tajuk', 'isi', 'tarikh_tamat', 'penting', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
-    types: {'penting': 'bool'}
+  RUANG: {
+    sheet: 'RUANG', id: 'id', prefix: 'RU', module: 'ruang',
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'nama', 'blok', 'jenis', 'aras', 'kod_ruang', 'kapasiti', 'pic', 'emel_pic', 'aktif', 'catatan', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    types: {'kapasiti': 'int', 'aktif': 'bool'}
+  },
+  STAF: {
+    sheet: 'STAF', id: 'id', prefix: 'SF', module: 'staf',
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'no_staf', 'nama', 'emel', 'aktif', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    types: {'aktif': 'bool'}
   },
   // @generator:schema:end
 });

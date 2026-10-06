@@ -117,6 +117,7 @@ function normalize(raw, file) {
     if (m.publicForm.contactEmailField && !(m.fields || []).some((f) => f.key === m.publicForm.contactEmailField && f.type === 'email')) {
       err('publicForm.contactEmailField mesti medan jenis email');
     }
+    if (m.publicForm.successLink && !(m.publicForm.successLink.href && /^#\//.test(m.publicForm.successLink.href))) err('publicForm.successLink.href mesti bermula dengan "#/"');
     if (m.publicForm.nameField && !(m.fields || []).some((f) => f.key === m.publicForm.nameField && f.type === 'string')) {
       err('publicForm.nameField mesti medan jenis string');
     }

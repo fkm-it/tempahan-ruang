@@ -178,8 +178,9 @@
     .concat([['/notifikasi', 'bell', 'Notifikasi'], ['/profil', 'user', 'Profil']]);
   const ADMIN_NAV = () => [['/admin', 'chart', 'Dashboard'], ['/admin/pengguna', 'users', 'Pengguna']]
     .concat(mods().filter((m) => m.nav.admin !== false).map((m) => ['/admin' + m.path, m.icon, m.labelPlural]), extraNav('admin'))
+    .concat(mods().some((m) => m.fields.some((f) => f.type === 'category')) ? [['/admin/kategori', 'grid', 'Kategori']] : [])
     .concat([
-      ['/admin/kategori', 'grid', 'Kategori'], ['/admin/notifikasi', 'bell', 'Notifikasi'], ['/admin/maklum-balas', 'feedback', 'Maklum Balas'],
+      ['/admin/notifikasi', 'bell', 'Notifikasi'], ['/admin/maklum-balas', 'feedback', 'Maklum Balas'],
       ['/admin/audit', 'shield', 'Audit Log'], ['/admin/tetapan', 'settings', 'Tetapan'],
       ['/admin/pangkalan-data', 'database', 'Pangkalan Data', 'super'], ['/admin/kesihatan', 'activity', 'Kesihatan Sistem', 'super']
     ]);

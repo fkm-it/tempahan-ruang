@@ -30,9 +30,14 @@ module.exports = function seedDemo(ctx) {
   const ok = (r) => { if (!r.success) throw new Error(r.code + ': ' + r.message); return r.data; };
   const reg = (fullName, email) => ok(api({ action: 'auth.register', payload: { fullName, email, password: 'Demo1234' } }));
 
-  const sup = reg('Pentadbir Sistem', 'super@demo.local');
+  const sup = reg('Pentadbir Sistem', 'super@demo.local'); /* BOOTSTRAP_SUPER_ADMIN_EMAIL — dibenarkan walaupun pendaftaran ditutup */
+  /* Projek mungkin menutup pendaftaran secara lalai: buka sementara untuk akaun demo, kemudian pulihkan */
+  const regOpen = ok(api({ action: 'public.config' })).ALLOW_REGISTRATION !== false;
+  const setReg = (v) => ok(api({ action: 'admin.settings.update', token: sup.token, payload: { changes: { ALLOW_REGISTRATION: v } } }));
+  if (!regOpen) setReg(true);
   const user = reg('Nur Aisyah binti Ahmad', 'user@demo.local');
   const others = ['Ahmad Faiz', 'Siti Hajar'].map((n, i) => reg(n, 'user' + i + '@demo.local'));
+  if (!regOpen) setReg(false);
 
   const SecurityUtils = require('vm').runInContext('SecurityUtils', ctx);
   /* Data contoh khusus sistem: tools/seed-custom.js (jika wujud) MENGGANTIKAN seed generik modul. */

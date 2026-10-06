@@ -406,7 +406,7 @@
             <div class="form-grid">${fields.map((f) => fieldInput(f, { cats, refOptions: data.refOptions || {}, value: prefill(f), idPrefix: 'pf-' }))}</div>
             <div class="sr-only" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
             <button class="btn btn-primary btn-block mt-6" type="submit">${icon('send')}Hantar</button>
-            ${KD.auth.loggedIn() ? '' : html`<p class="xs muted mt-4" style="text-align:center">Ada akaun? <a href="#/log-masuk">Log masuk</a> untuk menjejak status dalam aplikasi.</p>`}
+            ${KD.auth.loggedIn() || (KD.config || {}).ALLOW_REGISTRATION === false ? '' : html`<p class="xs muted mt-4" style="text-align:center">Ada akaun? <a href="#/log-masuk">Log masuk</a> untuk menjejak status dalam aplikasi.</p>`}
           </form></div></div>`.s;
         const form = qs('[data-public-form]', el);
         form.addEventListener('submit', (e) => {
@@ -420,7 +420,9 @@
               el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card success-card">${icon('check', 'i-lg')}
                 <h2>Berjaya dihantar</h2><p class="muted">${pf.successMessage || 'Terima kasih.'}</p>
                 ${res.refNo ? html`<div class="rec-ref">${res.refNo}</div><p class="xs muted mt-2">Simpan nombor rujukan ini.</p>` : ''}
-                <a class="btn btn-outline mt-6" href="#/">Kembali ke laman utama</a></div></div>`.s;
+                <div class="row row-wrap mt-6" style="justify-content:center">
+                  ${pf.successLink && res.refNo ? html`<a class="btn btn-primary" href="${pf.successLink.href.replace('{refNo}', encodeURIComponent(res.refNo))}">${pf.successLink.label || 'Semak status'}</a>` : ''}
+                  <a class="btn btn-outline" href="#/">Kembali ke laman utama</a></div></div></div>`.s;
             } catch (err) {
               if (!fieldErrors(form, err)) toastError(err);
               if (err.code === 'VALIDATION_ERROR' && /tamat tempoh|terlalu cepat/.test(err.message)) {

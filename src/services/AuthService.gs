@@ -59,7 +59,6 @@ const AuthService = {
 
   register: function (payload, ctx) {
     const settings = SettingsService.all();
-    if (!settings.ALLOW_REGISTRATION) throw Errors.forbidden('Pendaftaran baharu ditutup buat masa ini.');
     const data = Validator.validate(payload, {
       fullName: { type: 'string', required: true, min: 3, max: CONFIG.NAME_MAX, label: 'Nama penuh' },
       email: { type: 'email', required: true, label: 'Email' },
@@ -67,6 +66,11 @@ const AuthService = {
       password: { type: 'string', required: true, raw: true, label: 'Kata laluan' },
       remember: { type: 'boolean', default: false }
     });
+    // Pendaftaran ditutup → hanya email BOOTSTRAP_SUPER_ADMIN_EMAIL (sebelum Super Admin pertama wujud) dibenarkan
+    const boot = StringUtils.normalizeEmail(Env.get('BOOTSTRAP_SUPER_ADMIN_EMAIL'));
+    if (!settings.ALLOW_REGISTRATION && !(boot && boot === data.email && UserRepository.countByRole(ROLES.SUPER_ADMIN) === 0)) {
+      throw Errors.forbidden('Pendaftaran baharu ditutup buat masa ini.');
+    }
     Validator.password(data.password, data.email);
     SecurityService.rateLimit('auth.register.global', 'all');
     SecurityService.rateLimit('auth.register', data.email);

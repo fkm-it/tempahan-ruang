@@ -240,20 +240,22 @@ function healthCheck() {
 /**
  * Ujian dalam Apps Script dipecah kepada 4 bahagian kerana had 6 minit setiap eksekusi.
  * Setiap bahagian guna spreadsheet & folder SEMENTARA (dibuang selepas siap) — data produksi tidak disentuh.
- * Jalankan runTestsPart1 → runTestsPart4 satu demi satu.
+ * Jalankan runTestsPart1 → runTestsPart5 satu demi satu.
  */
 function runTestsPart1() { return runTestPart_(1); }
 function runTestsPart2() { return runTestPart_(2); }
 function runTestsPart3() { return runTestPart_(3); }
 function runTestsPart4() { return runTestPart_(4); }
+/** Ujian domain projek (src/tests/App*.gs). */
+function runTestsPart5() { return runTestPart_(5); }
 
 /** @deprecated Gunakan runTestsPart1..4. Dikekalkan supaya arahan lama tidak gagal. */
 function runTests() { return runTestPart_(1); }
 
 function runTestPart_(n) {
   requireOwner_();
-  const result = TestRunner.runAll({ live: true, suites: TestRunner.PARTS[n], budgetMs: 4.5 * 60 * 1000 });
-  console.log('Bahagian ' + n + ' daripada 4\n' + TestRunner.format(result));
+  const result = TestRunner.runAll({ live: true, suites: TestRunner.partSuites(n), budgetMs: 4.5 * 60 * 1000 });
+  console.log('Bahagian ' + n + ' daripada 5\n' + TestRunner.format(result));
   return result.summary;
 }
 

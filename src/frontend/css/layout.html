@@ -62,6 +62,10 @@
 .public-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-4) var(--sp-8); }
 .public-top .brand { display: flex; align-items: center; gap: var(--sp-2); color: var(--brand-900); text-decoration: none; font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 650; white-space: nowrap; }
 .public-top .brand .brand-star { width: 32px; height: 32px; color: var(--brand); }
+.public-top .brand { min-width: 0; }
+.public-top .brand span { overflow: hidden; text-overflow: ellipsis; }
+.public-top .brand .brand__short { display: none; }
+@media (max-width: 760px) { .public-top .brand .brand__full { display: none; } .public-top .brand .brand__short { display: inline; } }
 .public-foot { margin-top: auto; padding: var(--sp-8); text-align: center; color: var(--muted); font-size: var(--fs-sm); border-top: 1px solid var(--line); }
 .public-foot nav { display: flex; gap: var(--sp-5); justify-content: center; flex-wrap: wrap; margin-bottom: var(--sp-3); }
 </style>

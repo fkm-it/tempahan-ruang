@@ -10,10 +10,10 @@
 
   function publicTop(dark) {
     const loggedIn = KD.auth.loggedIn();
-    return html`<header class="public-top"><a class="brand" href="#/">${star()}<span>${cfg().SYSTEM_NAME || ''}</span></a>
+    return html`<header class="public-top"><a class="brand" href="#/">${star()}<span class="brand__full">${cfg().SYSTEM_NAME || ''}</span><span class="brand__short">${cfg().SHORT_NAME || cfg().SYSTEM_NAME || ''}</span></a>
       <nav class="row">${loggedIn
         ? html`<a class="btn ${dark ? 'btn-light' : 'btn-outline'} btn-sm" href="#/utama">Buka aplikasi</a>`
-        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">Log Masuk</a><a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">Daftar</a>`}</nav></header>`;
+        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">Log Masuk</a>${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">Daftar</a>` : ''}`}</nav></header>`;
   }
 
   function publicFoot() {
@@ -51,7 +51,7 @@
             <p class="hero__msg">${c.SYSTEM_TAGLINE || ''}${c.LANDING_MESSAGE ? html`<br>${c.LANDING_MESSAGE}` : ''}</p>
             <div class="hero__cta">
               ${KD.auth.loggedIn() ? html`<a class="btn btn-light btn-lg" href="#/utama">Buka aplikasi</a>`
-                : html`<a class="btn btn-light btn-lg" href="#/log-masuk">Log Masuk</a>${c.ALLOW_REGISTRATION !== false ? html`<a class="btn btn-outline btn-lg" href="#/daftar">Daftar Baru</a>` : ''}`}
+                : html`<a class="btn btn-light btn-lg" href="#/log-masuk">Log Masuk</a>${c.ALLOW_REGISTRATION !== false || c.SETUP_PENDING ? html`<a class="btn btn-outline btn-lg" href="#/daftar">Daftar Baru</a>` : ''}`}
             </div>
           </div>
         </section>
@@ -126,7 +126,7 @@
 
   KD.views.register = {
     async render(el) {
-      if (cfg().ALLOW_REGISTRATION === false) {
+      if (cfg().ALLOW_REGISTRATION === false && !cfg().SETUP_PENDING) {
         el.innerHTML = authShell('Pendaftaran ditutup', 'Pendaftaran akaun baharu tidak dibuka buat masa ini.', html`<a class="btn btn-outline btn-block" href="#/log-masuk">Log masuk</a>`).s;
         return;
       }

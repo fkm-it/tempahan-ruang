@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 1.0.0 — 2026-10-06 · Sistem Tempahan Ruang & Fasiliti FKM
+Dibina semula di atas templat `gas-pwa-starter` 0.2.0 (menggantikan sistem lama berasaskan spreadsheet).
+
+- **Borang tempahan awam tanpa akaun**: pemohon isi No. Staf; nama & emel diambil daripada senarai staf (tidak boleh dipalsukan). No. rujukan `TP-YYYY-NNNN`.
+- **Peraturan**: tiada pertindihan masa (disemak semula semasa lulus), peserta ≤ kapasiti, tarikh tidak lepas, waktu 07:00–23:00, maksimum 14 hari berturut, sehingga 365 hari ke hadapan.
+- **Aliran**: Menunggu → Diluluskan / Ditolak (sebab) / Dibatalkan → Selesai (automatik). Permohonan yang tidak diproses sebelum tarikhnya dibatalkan automatik.
+- **Emel**: pengesahan permohonan, keputusan (lulus/tolak/batal), PIC ruang dimaklumkan apabila diluluskan/dibatalkan, peringatan sehari sebelum.
+- **Kalendar ketersediaan** awam & admin: ikut tarikh (semua ruang, dikumpul ikut blok) atau ikut ruang (14 hari); klik slot kosong untuk borang yang diisi awal. Data peribadi tidak dipaparkan kepada awam.
+- **Semak / batal** oleh pemohon dengan No. Rujukan + No. Staf (+ emel untuk batal).
+- Modul **Ruang** dan **Senarai Staf** (admin sahaja).
+- **`importLegacyData()`**: import Ruang, Staf dan Tempahan daripada spreadsheet lama (idempoten).
+- Pendaftaran akaun ditutup secara lalai (hanya pentadbir); emel notifikasi dihidupkan secara lalai.
+
+### Penambahbaikan generik (juga dipindahkan ke templat)
+- Pendaftaran Super Admin pertama dibenarkan walaupun pendaftaran ditutup (`SETUP_PENDING`); pautan "Daftar" disembunyikan apabila ditutup.
+- Warna jenama dalam emel (`CONFIG.BRAND_COLOR`, diset oleh `npm run init`).
+- Suite ujian domain projek (`AppTests` → `runTestsPart5`); seed demo & E2E menyokong pendaftaran ditutup; `tools/e2e-values.json`; E2E menyemak halaman awam tersuai pada 360px.
+- `publicForm.successLink`; menu Kategori disembunyikan jika tiada modul menggunakan medan kategori; nama pendek pada pengepala awam telefon.
+
+
 ## 0.2.0 — 2026-10-06
 - Jenis medan **`ref`** (rujuk rekod modul lain, cth. ruang/peralatan): pilihan dalam borang dalaman & awam, label, penapis, validasi (hook `selectable`).
 - Hook **`beforeStatus`** (halang perubahan status — cth. semak semula pertindihan semasa lulus) dan **`routes`** (laluan API khusus modul tanpa mengubah Router).
