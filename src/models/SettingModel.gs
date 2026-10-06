@@ -5,7 +5,7 @@
  * `public: true` → didedahkan kepada frontend (tiada rahsia di sini).
  */
 const SETTINGS_DEFS = Object.freeze({
-  SYSTEM_NAME: { type: 'string', max: 60, minRole: 'ADMIN', public: true, description: 'Nama sistem', default: 'Sistem Tempahan Ruang & Fasiliti FKM' }, // @init:appName
+  SYSTEM_NAME: { type: 'string', max: 60, minRole: 'ADMIN', public: true, description: 'Nama sistem', default: 'D’Ruang @FKM' }, // @init:appName
   SYSTEM_TAGLINE: { type: 'string', max: 120, minRole: 'ADMIN', public: true, description: 'Slogan', default: 'Tempah ruang kuliah, makmal dan studio FKM dengan mudah' }, // @init:tagline
   LANDING_MESSAGE: { type: 'text', default: 'Semak kekosongan ruang dan hantar permohonan tempahan secara dalam talian. Keputusan dimaklumkan melalui emel.', max: 400, minRole: 'ADMIN', public: true, description: 'Mesej halaman utama' },
   ORG_NAME: { type: 'string', default: 'Fakulti Kejuruteraan Mekanikal, UTM', max: 120, minRole: 'ADMIN', public: true, description: 'Nama organisasi (footer)' },
@@ -42,6 +42,9 @@ const SETTINGS_DEFS = Object.freeze({
   },
   PELAJAR_DIBENARKAN: { type: 'bool', default: true, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: pelajar boleh memohon melalui borang awam' },
   PERINGATAN_PAGI: { type: 'int', default: 7, min: 0, max: 12, minRole: 'ADMIN', public: false, hidden: true, description: 'Tempahan: emel peringatan pada pagi hari tempahan, pada jam ini (0 = tutup)' },
+  /* Logo sistem — diurus melalui panel "Logo sistem" (Tetapan). Kosong = logo asal (icons/logo.png). */
+  LOGO: { type: 'text', default: '', max: 45000, minRole: 'ADMIN', public: false, hidden: true, description: 'Logo sistem (data URL PNG/WebP/JPEG)' },
+  LOGO_VER: { type: 'string', default: '', max: 20, minRole: 'ADMIN', public: true, hidden: true, description: 'Versi logo (berubah setiap kali logo ditukar)' },
   PAPAN_TUNJUK_TUJUAN: { type: 'bool', default: true, minRole: 'ADMIN', public: false, description: 'Tempahan: papar tujuan tempahan yang diluluskan pada Papan Paparan awam (nama pemohon tidak pernah dipaparkan)' }
 });
 

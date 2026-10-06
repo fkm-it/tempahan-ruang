@@ -212,4 +212,12 @@ a.rec-item, a.rec-item:hover { text-decoration: none; color: inherit; }
 .status-ok { background: var(--success); box-shadow: 0 0 0 4px var(--success-50); }
 .status-bad { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-50); }
 .status-warn { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-50); }
+
+/* Logo sistem: petak putih supaya logo apa-apa warna kekal jelas di atas latar gelap atau cerah */
+.brand-logo { flex: none; display: block; width: 32px; height: 32px; object-fit: contain; background: #fff; border-radius: 9px; padding: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .06); }
+.brand-logo.is-broken { visibility: hidden; }
+.brand-logo--lg { width: 64px; height: 64px; border-radius: 16px; padding: 4px; margin: 0 auto var(--sp-3); }
+.brand-logo--hero { width: 112px; height: 112px; border-radius: 28px; padding: 6px; margin: 0 auto var(--sp-5); box-shadow: 0 12px 32px rgba(0, 0, 0, .25); }
+@media (max-width: 760px) { .brand-logo--hero { width: 88px; height: 88px; border-radius: 22px; } }
+.logo-preview { width: 96px; height: 96px; margin: 0; }
 </style>

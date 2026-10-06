@@ -254,7 +254,15 @@
   // ================================================================ Tetapan
   KD.views.adminSettings = {
     async render(el) {
-      el.innerHTML = html`${head('Tetapan', 'Konfigurasi sistem. Tetapan kritikal keselamatan hanya boleh diubah oleh Super Admin.')}<section class="panel" data-box>${skeletonList(4)}</section>`.s;
+      el.innerHTML = html`${head('Tetapan', 'Konfigurasi sistem. Tetapan kritikal keselamatan hanya boleh diubah oleh Super Admin.')}
+        <section class="panel" style="margin-bottom:var(--sp-6)" data-logo-box><div class="panel-head"><h3>Logo sistem</h3></div>
+          <div class="row" style="gap:var(--sp-5);align-items:center;flex-wrap:wrap">
+            ${KD.ui.logo('brand-logo--lg logo-preview')}
+            <div style="flex:1;min-width:220px"><p class="small muted">Dipaparkan pada halaman utama, menu, skrin log masuk dan tab pelayar. Guna imej PNG, JPG atau WebP berbentuk segi empat sama (latar putih atau lutsinar). Imej dikecilkan secara automatik.</p>
+              <div class="row mt-4" style="flex-wrap:wrap"><label class="btn btn-primary btn-sm">${icon('upload')}Muat naik logo<input type="file" accept="image/png,image/jpeg,image/webp" data-logo-file class="sr-only"></label>
+              <button type="button" class="btn btn-outline btn-sm ${KD.config && KD.config.LOGO_VER ? '' : 'hidden'}" data-act="logo-reset">${icon('refresh')}Guna logo asal</button></div>
+              <p class="xs muted mt-2">Ikon app yang telah dipasang di telefon kekal menggunakan logo asal.</p></div></div></section>
+        <section class="panel" data-box>${skeletonList(4)}</section>`.s;
       let rows = [];
       const draw = () => {
         qs('[data-box]', el).innerHTML = html`<form novalidate>${rows.map((s) => html`<div class="setting-row field" style="margin-top:0">
@@ -289,9 +297,60 @@
         });
       });
       on(el, 'click', '[data-act="reload"]', load);
+      /* Logo: dikecilkan di pelayar (≤ 256px, WebP/PNG) supaya muat dalam satu sel tetapan (had 45 000 aksara) */
+      const saveLogo = async (data, btn) => busy(btn, async () => {
+        try {
+          const r = await A.saveLogo(data);
+          KD.config = Object.assign({}, KD.config, { LOGO_VER: r.ver });
+          if (r.ver) KD.brand.store(r.ver, data);
+          KD.brand.apply();
+          qs('[data-act="logo-reset"]', el).classList.toggle('hidden', !r.ver);
+          toast(r.ver ? 'Logo dikemas kini.' : 'Logo asal digunakan semula.');
+        } catch (err) { toastError(err); }
+      });
+      on(el, 'change', '[data-logo-file]', async (e, input) => {
+        const file = input.files && input.files[0];
+        input.value = '';
+        if (!file) return;
+        if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { toastError({ message: 'Pilih imej PNG, JPG atau WebP.' }); return; }
+        if (file.size > 10 * 1024 * 1024) { toastError({ message: 'Imej terlalu besar (maksimum 10MB).' }); return; }
+        let data = '';
+        try { data = await shrinkLogo(file); } catch (err) { toastError({ message: 'Imej tidak dapat dibaca.' }); return; }
+        if (!data) { toastError({ message: 'Logo terlalu terperinci untuk dikecilkan. Cuba imej yang lebih ringkas.' }); return; }
+        await saveLogo(data, input.closest('label'));
+      });
+      on(el, 'click', '[data-act="logo-reset"]', async (e, btn) => {
+        if (!(await confirm({ title: 'Guna logo asal?', message: 'Logo tersuai akan dibuang.', confirmText: 'Guna logo asal' }))) return;
+        await saveLogo('', btn);
+      });
       load();
     }
   };
+
+  /** Kecilkan imej kepada logo segi empat (latar lutsinar) ≤ 45 000 aksara data URL. Pulang '' jika tidak muat. */
+  async function shrinkLogo(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = url; });
+      const LIMIT = 45000;
+      for (const size of [256, 224, 192, 160, 128]) {
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const k = Math.min(size / img.naturalWidth, size / img.naturalHeight);
+        const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        for (const q of [0.92, 0.85, 0.75]) {
+          const d = c.toDataURL('image/webp', q);
+          if (/^data:image\/webp;/.test(d) && d.length <= LIMIT) return d;
+        }
+        const png = c.toDataURL('image/png');
+        if (png.length <= LIMIT) return png;
+      }
+      return '';
+    } finally { URL.revokeObjectURL(url); }
+  }
 
   // ================================================================ Pangkalan data (SUPER_ADMIN)
   KD.views.adminDatabase = {

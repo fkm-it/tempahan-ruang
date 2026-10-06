@@ -7,6 +7,7 @@
 
 const PublicController = {
   config: function () { return SettingsService.publicConfig(); },
+  logo: function () { return SettingsService.logo(); },
   /** Satu panggilan semasa app dibuka (config + metadata modul) — kurang eksekusi Apps Script = lebih pantas. */
   bootstrap: function () { return { config: SettingsService.publicConfig(), modules: CrudEngine.meta() }; },
   categories: function () { return CategoryService.listActive(); },
@@ -85,6 +86,7 @@ const AdminController = {
 
   settings: function (p, ctx) { return SettingsService.listForAdmin(ctx.role); },
   settingsUpdate: function (p, ctx) { return SettingsService.update(ctx, p && p.changes); },
+  logoSave: function (p, ctx) { return SettingsService.saveLogo(ctx, p && p.data); },
 
   health: function () { return HealthService.check(); },
   backup: function (p, ctx) { return BackupService.run(ctx); },

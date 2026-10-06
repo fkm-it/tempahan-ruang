@@ -7,15 +7,15 @@
  * Tetapan yang boleh diubah admin semasa runtime ada dalam SETTINGS_DEFS (models/SettingModel.gs).
  */
 const CONFIG = Object.freeze({
-  APP_NAME: 'Sistem Tempahan Ruang & Fasiliti FKM', // @init:appName
+  APP_NAME: 'D’Ruang @FKM', // @init:appName
   TAGLINE: 'Tempah ruang kuliah, makmal dan studio FKM dengan mudah', // @init:tagline
   /** Nama pendek di bawah ikon app telefon (≤ 12 aksara). */
-  SHORT_NAME: 'Tempahan FKM', // @init:shortName
+  SHORT_NAME: 'D’Ruang', // @init:shortName
   /** Awalan nama fail Drive (sandaran, ujian). Huruf/nombor sahaja. */
   APP_SLUG: 'TempahanRuangFKM', // @init:slug
   /** Warna jenama (email, dsb.). */
   BRAND_COLOR: '#7A0019', // @init:brandColor
-  VERSION: '1.3.0',
+  VERSION: '1.3.1',
   TIMEZONE_FALLBACK: 'Asia/Kuala_Lumpur',
 
   DEFAULT_PAGE_SIZE: 20,

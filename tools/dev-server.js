@@ -131,6 +131,13 @@ const server = http.createServer((req, res) => {
     res.end(fs.readFileSync(file));
     return;
   }
+  /* Ikon & logo statik (sama seperti GitHub Pages) */
+  const im = /^\/icons\/([a-z0-9-]+\.png)$/.exec(url.pathname);
+  if (im && fs.existsSync(path.join(__dirname, '..', 'pwa', 'icons', im[1]))) {
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' });
+    res.end(fs.readFileSync(path.join(__dirname, '..', 'pwa', 'icons', im[1])));
+    return;
+  }
   if (url.pathname === '/' || url.pathname === '/index.html') {
     const app = tpl.readAppConfig();
     let page = renderTemplate('frontend/index', { appName: app.appName, tagline: app.tagline, version: app.version, slug: app.slug });

@@ -19,6 +19,7 @@ const Router = {
     Router.routes = {
       'public.config': { role: P, fn: PublicController.config, allowInMaintenance: true },
       'public.bootstrap': { role: P, fn: PublicController.bootstrap, allowInMaintenance: true },
+      'public.logo': { role: P, fn: PublicController.logo, allowInMaintenance: true },
       'public.categories': { role: P, fn: PublicController.categories },
       'public.feedback': { role: P, fn: PublicController.feedback },
 
@@ -75,6 +76,7 @@ const Router = {
       'admin.feedback': { role: A, fn: AdminController.feedback, allowInMaintenance: true },
       'admin.feedback.status': { role: A, fn: AdminController.feedbackStatus, allowInMaintenance: true },
       'admin.settings': { role: A, fn: AdminController.settings, allowInMaintenance: true },
+      'admin.logo': { role: A, fn: AdminController.logoSave, allowInMaintenance: true },
       'admin.settings.update': { role: A, fn: AdminController.settingsUpdate, allowInMaintenance: true }, // per-kunci disemak dalam service
 
       'admin.health': { role: S, fn: AdminController.health, allowInMaintenance: true },

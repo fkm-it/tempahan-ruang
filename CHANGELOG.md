@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.3.1] — 2026-10-06
+
+### Ditambah
+- Logo D'Ruang @FKM pada halaman utama, pengepala, menu sisi, skrin log masuk, skrin pemuatan, favicon dan ikon app (PWA).
+- **Tukar logo** (Admin → Tetapan → Logo sistem): muat naik PNG/JPG/WebP, dikecilkan secara automatik di pelayar; butang "Guna logo asal". Logo disahkan dengan magic bytes (SVG ditolak), dimuat turun sekali bagi setiap versi (`LOGO_VER` dalam config) dan disimpan dalam pelayar.
+- Laluan API `public.logo` dan `admin.logo`.
+
+### Diubah
+- Nama ringkas "Tempahan FKM" (terpotong di telefon) → "D’Ruang"; nama app → "D’Ruang @FKM".
+
 ## 1.3.0 — 2026-10-06
 Ciri daripada sistem lama (FKM i-Space):
 - **Borang tempahan baharu**: pilihan Staf FKM / Pelajar (No. Matrik + emel UTM), isi-automatik nama & emel staf, butang "Semak kekosongan" sebelum hantar, pilihan berbilang hari.

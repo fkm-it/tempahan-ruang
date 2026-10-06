@@ -9,6 +9,57 @@
   const icon = (name, cls) => raw('<svg class="i ' + (cls || '') + '" aria-hidden="true"><use href="#i-' + esc(name) + '"/></svg>');
   const star = (cls) => raw('<svg class="brand-star ' + (cls || '') + '" viewBox="0 0 64 64" aria-hidden="true"><use href="#i-brand"/></svg>');
 
+  /*
+   * Logo sistem. Asal: icons/logo.png (fail statik). Tersuai: data URL daripada public.logo, disimpan dalam storan pelayar
+   * dan hanya dimuat semula apabila config.LOGO_VER berubah (config kekal kecil).
+   */
+  const LOGO_KEY = 'kd.logo';
+  const LOGO_DEFAULT = 'icons/logo.png';
+  const logoCache = () => { try { return JSON.parse(localStorage.getItem(KD.utils.nsKey(LOGO_KEY)) || 'null'); } catch (e) { return null; } };
+  const brand = {
+    DEFAULT: LOGO_DEFAULT,
+    src() {
+      const ver = (KD.config && KD.config.LOGO_VER) || '';
+      const c = logoCache();
+      return ver && c && c.ver === ver && c.data ? c.data : LOGO_DEFAULT;
+    },
+    /** Kemas kini semua <img data-logo> + favicon. */
+    apply() {
+      const src = brand.src();
+      qsa('img[data-logo]').forEach((img) => {
+        if (img.getAttribute('src') !== src) { img.classList.remove('is-broken'); img.setAttribute('src', src); }
+        else if (img.complete && !img.naturalWidth) img.classList.add('is-broken');
+      });
+      const fav = document.querySelector('link[rel="icon"]');
+      if (fav) {
+        if (!fav.dataset.asal) fav.dataset.asal = fav.getAttribute('href') || '';
+        fav.setAttribute('href', src === LOGO_DEFAULT ? fav.dataset.asal : src);
+      }
+    },
+    /** Selaraskan dengan config semasa (muat turun logo tersuai sekali bagi setiap versi). */
+    async sync() {
+      const ver = (KD.config && KD.config.LOGO_VER) || '';
+      const c = logoCache();
+      if (ver && !(c && c.ver === ver)) {
+        try {
+          const r = await KD.api.getLogo();
+          if (r && r.ver === ver) brand.store(r.ver, r.data);
+        } catch (e) { /* kekal logo asal */ }
+      }
+      brand.apply();
+    },
+    store(ver, data) {
+      try { localStorage.setItem(KD.utils.nsKey(LOGO_KEY), JSON.stringify({ ver, data })); } catch (e) { /* storan penuh */ }
+    }
+  };
+  /* Fail logo gagal dimuat (cth. dihidang tanpa folder icons/) → sembunyi, jangan papar ikon rosak */
+  document.addEventListener('error', (e) => {
+    const el = e.target;
+    if (el && el.tagName === 'IMG' && el.hasAttribute('data-logo')) el.classList.add('is-broken');
+  }, true);
+  /** <img> logo (dibungkus dalam petak putih oleh CSS .brand-logo). */
+  const logo = (cls) => raw('<img class="brand-logo ' + esc(cls || '') + '" data-logo src="' + esc(brand.src()) + '" alt="" width="64" height="64" decoding="async">');
+
   const CATEGORY_ICONS = ['grid', 'star', 'heart', 'home', 'book', 'briefcase', 'users', 'calendar', 'settings', 'shield', 'inbox', 'list'];
   const catIcon = (name, cls) => icon(CATEGORY_ICONS.indexOf(name) >= 0 ? name : 'grid', cls);
 
@@ -144,6 +195,7 @@
   const toneBadge = (label, tone) => html`<span class="badge ${TONE_BADGE[tone] || 'badge-muted'}">${label}</span>`;
   const roleBadge = (r) => html`<span class="badge ${r === 'SUPER_ADMIN' ? 'badge-brand' : r === 'ADMIN' ? 'badge' : 'badge-muted'}">${r === 'SUPER_ADMIN' ? 'Super Admin' : r === 'ADMIN' ? 'Admin' : 'Pengguna'}</span>`;
 
-  KD.ui = { icon, star, catIcon, toneBadge, toast, toastError, modal, confirm, skeletonList, skeletonStats, empty, errorState, pager, busy, fieldErrors, statusBadge, roleBadge };
+  KD.ui = { icon, star, logo, catIcon, toneBadge, toast, toastError, modal, confirm, skeletonList, skeletonStats, empty, errorState, pager, busy, fieldErrors, statusBadge, roleBadge };
+  KD.brand = brand;
 })(window.KD);
 </script>

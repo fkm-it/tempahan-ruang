@@ -57,6 +57,7 @@
     // Awam
     getConfig: () => call('public.config'),
     bootstrap: () => call('public.bootstrap'),
+    getLogo: () => call('public.logo'),
     getCategories: () => call('public.categories'),
     sendFeedback: (p) => call('public.feedback', p),
     // Auth
@@ -114,6 +115,7 @@
       setFeedbackStatus: (p) => call('admin.feedback.status', p),
       getSettings: () => call('admin.settings'),
       updateSettings: (changes) => call('admin.settings.update', { changes }),
+      saveLogo: (data) => call('admin.logo', { data }),
       getHealth: () => call('admin.health'),
       runBackup: () => call('admin.backup'),
       getMigrations: () => call('admin.migrations'),

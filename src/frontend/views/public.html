@@ -5,7 +5,7 @@
 (function (KD) {
   'use strict';
   const { html, raw, qs, on, formData, fmtNum, requestId } = KD.utils;
-  const { icon, star, toast, toastError, busy, fieldErrors } = KD.ui;
+  const { icon, star, logo, toast, toastError, busy, fieldErrors } = KD.ui;
   const cfg = () => KD.config || {};
   const t = (s) => KD.t(s);
   /* Butang tukar bahasa (hanya jika projek menyediakan kamus 'en') */
@@ -19,7 +19,7 @@
 
   function publicTop(dark) {
     const loggedIn = KD.auth.loggedIn();
-    return html`<header class="public-top"><a class="brand" href="#/">${star()}<span class="brand__full">${t(cfg().SYSTEM_NAME || '')}</span><span class="brand__short">${t(cfg().SHORT_NAME || cfg().SYSTEM_NAME || '')}</span></a>
+    return html`<header class="public-top"><a class="brand" href="#/" aria-label="${t(cfg().SYSTEM_NAME || '')}">${logo()}<span class="brand__full">${t(cfg().SYSTEM_NAME || '')}</span><span class="brand__short">${t(cfg().SHORT_NAME || cfg().SYSTEM_NAME || '')}</span></a>
       <nav class="row">${langBtn(dark)}${loggedIn
         ? html`<a class="btn ${dark ? 'btn-light' : 'btn-outline'} btn-sm" href="#/utama">${t('Buka aplikasi')}</a>`
         : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">${t('Log Masuk')}</a>${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">${t('Daftar')}</a>` : ''}`}</nav></header>${dark ? '' : publicTabs()}`;
@@ -63,6 +63,7 @@
         <section class="hero">
           ${publicTop(true)}
           <div class="hero__inner">
+            ${logo('brand-logo--hero')}
             ${c.ORG_NAME ? html`<span class="hero__eyebrow">${t(c.ORG_NAME)}</span>` : ''}
             <h1 class="hero__title">${t(c.SYSTEM_NAME || '')}</h1>
             <p class="hero__msg">${t(c.SYSTEM_TAGLINE || '')}${c.LANDING_MESSAGE ? html`<br>${t(c.LANDING_MESSAGE)}` : ''}</p>
@@ -111,7 +112,7 @@
   // ---------------------------------------------------------------- Auth
   function authShell(title, subtitle, body, links) {
     return html`${publicTop(false)}<main class="auth"><div class="auth-card">
-      <div class="auth-card__head">${star()}<h1 style="font-size:var(--fs-2xl)">${title}</h1><p>${subtitle}</p></div>
+      <div class="auth-card__head">${logo('brand-logo--lg')}<h1 style="font-size:var(--fs-2xl)">${title}</h1><p>${subtitle}</p></div>
       ${body}${links ? html`<div class="auth-links">${links}</div>` : ''}</div></main>`;
   }
 

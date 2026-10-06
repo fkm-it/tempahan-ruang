@@ -6,7 +6,7 @@
 (function (KD) {
   'use strict';
   const { html, raw, qs, qsa, on, storage } = KD.utils;
-  const { icon, star } = KD.ui;
+  const { icon, star, logo } = KD.ui;
 
   // ================================================================ AUTH
   const SESSION_KEY = 'kd.session.v1';
@@ -230,7 +230,7 @@
       const nav = app.navItems(mode);
       qs('#root').innerHTML = html`<div class="shell">
         <aside class="sidebar" aria-label="Navigasi utama">
-          <a class="side-brand" href="#${mode === 'admin' ? '/admin' : '/utama'}">${star()}<span class="side-brand__name">${(KD.config && KD.config.SYSTEM_NAME) || ''}</span>${mode === 'admin' ? html`<span class="badge badge-accent">Pentadbir</span>` : ''}</a>
+          <a class="side-brand" href="#${mode === 'admin' ? '/admin' : '/utama'}">${logo('brand-logo--lg')}<span class="side-brand__name">${(KD.config && KD.config.SYSTEM_NAME) || ''}</span>${mode === 'admin' ? html`<span class="badge badge-accent">Pentadbir</span>` : ''}</a>
           <nav class="side-nav">${nav.map((n) => html`<a class="side-link" href="#${n[0]}" data-nav="${n[0]}">${icon(n[1])}<span>${n[2]}</span>${n[0] === '/notifikasi' ? html`<span class="badge-dot hidden" data-unread-dot></span>` : ''}</a>`)}</nav>
           ${auth.isAdmin() ? html`<div class="side-section">${mode === 'admin' ? 'Aplikasi' : 'Pentadbiran'}</div>
             <nav class="side-nav">${mode === 'admin' ? html`<a class="side-link" href="#/utama">${icon('home')}<span>Kembali ke aplikasi</span></a>` : html`<a class="side-link" href="#/admin">${icon('shield')}<span>Panel pentadbir</span></a>`}</nav>` : ''}
@@ -239,7 +239,7 @@
         <div class="main">
           <header class="topbar">
             <button class="icon-btn hide-desktop" data-act="menu" aria-label="Menu">${icon('menu')}</button>
-            <a class="topbar__brand" href="#/utama">${star()}<span>${(KD.config && (KD.config.SHORT_NAME || KD.config.SYSTEM_NAME)) || ''}</span></a>
+            <a class="topbar__brand" href="#/utama">${logo()}<span>${(KD.config && (KD.config.SHORT_NAME || KD.config.SYSTEM_NAME)) || ''}</span></a>
             <div class="topbar__title" data-title></div>
             <div class="topbar__actions">
               <a class="icon-btn" href="#/notifikasi" aria-label="Notifikasi">${icon('bell')}<span class="count-pill hidden" data-unread-count></span></a>
@@ -321,7 +321,7 @@
 
     maintenance(message) {
       if (auth.isAdmin()) return;
-      qs('#root').innerHTML = html`<div class="public"><div class="auth"><div class="auth-card" style="text-align:center">${star()}<h2 class="mt-4">Sedang diselenggara</h2><p class="muted mt-2">${message}</p><button class="btn btn-outline mt-6" data-act="reload">${icon('refresh')}Muat semula</button></div></div></div>`.s;
+      qs('#root').innerHTML = html`<div class="public"><div class="auth"><div class="auth-card" style="text-align:center">${logo('brand-logo--lg')}<h2 class="mt-4">Sedang diselenggara</h2><p class="muted mt-2">${message}</p><button class="btn btn-outline mt-6" data-act="reload">${icon('refresh')}Muat semula</button></div></div></div>`.s;
       const btn = qs('#root [data-act="reload"]');
       if (btn) btn.addEventListener('click', () => location.reload());
       app.shellMode = null;
@@ -356,12 +356,14 @@
           KD.config = b.config; KD.modules = b.modules;
           try { localStorage.setItem(KD.utils.nsKey(BOOT_KEY), JSON.stringify({ v: ver, at: Date.now(), config: b.config, modules: b.modules })); } catch (e) { /* storan penuh / mod peribadi */ }
         });
-      if (cached) { KD.config = cached.config; KD.modules = cached.modules; fresh.catch(() => {}); }
+      if (cached) { KD.config = cached.config; KD.modules = cached.modules; fresh.catch(() => {}); KD.brand.apply(); }
       const tasks = [cached ? Promise.resolve() : fresh.catch(() => { KD.config = KD.config || {}; KD.modules = KD.modules || []; })];
       if (auth.loggedIn()) {
         tasks.push(KD.api.getCurrentUser().then((me) => { auth.updateUser(me.user); app.unread = me.unreadNotifications; }).catch((e) => { if (e.code === 'UNAUTHENTICATED') auth.clear(); }));
       }
       await Promise.all(tasks);
+      KD.brand.sync();
+      fresh.then(() => KD.brand.sync()).catch(() => {});
       if (KD.pwa && auth.loggedIn()) KD.pwa.setBadge(app.unread);
 
       const standalone = !!(KD.pwa && KD.pwa.isWeb() && KD.pwa.isStandalone());

@@ -398,6 +398,29 @@ const TestSuiteAdmin = {
       t.ok(list.items[0].locked, 'ditanda dikunci');
       TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.user.unlock', { userId: target.user.id }));
       TestAssert.apiOk(api({ action: 'auth.login', payload: { email: target.email, password: 'Rahsia123' } }));
+    }],
+
+    ['Logo sistem: tukar (ADMIN), disahkan magic bytes, versi dalam config, kembali ke asal', function (t) {
+      const adm = TestHelpers.admin();
+      const usr = TestHelpers.user('logo');
+      const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      t.eq(TestAssert.apiOk(api({ action: 'public.logo' })).ver, '', 'tiada logo tersuai pada mulanya');
+      TestAssert.apiFail(TestHelpers.call(usr.token, 'admin.logo', { data: PNG }), ERROR_CODES.FORBIDDEN);
+      TestAssert.apiFail(TestHelpers.call(adm.token, 'admin.logo', { data: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }), ERROR_CODES.VALIDATION_ERROR);
+      TestAssert.apiFail(TestHelpers.call(adm.token, 'admin.logo', { data: 'data:image/png;base64,' + Utilities.base64Encode('bukan imej sebenar, cuma teks panjang sedikit') }), ERROR_CODES.VALIDATION_ERROR);
+      TestAssert.apiFail(TestHelpers.call(adm.token, 'admin.logo', { data: PNG + new Array(46000).join('A') }), ERROR_CODES.VALIDATION_ERROR);
+      const r = TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.logo', { data: PNG }));
+      t.ok(r.ver, 'versi baharu');
+      t.eq(TestAssert.apiOk(api({ action: 'public.config' })).LOGO_VER, r.ver);
+      t.ok(!('LOGO' in TestAssert.apiOk(api({ action: 'public.config' }))), 'data logo tidak dalam config');
+      const got = TestAssert.apiOk(api({ action: 'public.logo' }));
+      t.eq(got.ver, r.ver);
+      t.eq(got.data, PNG);
+      t.ok(!TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.settings')).some(function (x) { return x.key === 'LOGO'; }), 'tersembunyi daripada skrin Tetapan');
+      TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.logo', { data: '' }));
+      const back = TestAssert.apiOk(api({ action: 'public.logo' }));
+      t.eq(back.ver, '');
+      t.eq(back.data, '');
     }]
   ]
 };

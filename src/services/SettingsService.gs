@@ -62,6 +62,32 @@ const SettingsService = {
     });
   },
 
+  /** Logo tersuai (kosong = logo asal). Dipisahkan daripada public.config supaya config kekal kecil. */
+  logo: function () {
+    const s = SettingsService.all();
+    return { ver: s.LOGO_VER || '', data: s.LOGO_VER ? (s.LOGO || '') : '' };
+  },
+
+  /**
+   * Tukar logo (ADMIN). data = data URL PNG/WebP/JPEG (dikecilkan di pelayar ≤ 45 000 aksara); kosong/null = kembali ke logo asal.
+   * SVG ditolak (boleh membawa skrip). Kandungan disahkan dengan magic bytes.
+   */
+  saveLogo: function (ctx, data) {
+    const v = data === null || data === undefined ? '' : String(data);
+    if (v) {
+      const max = SETTINGS_DEFS.LOGO.max;
+      if (v.length > max) throw Errors.validation('Logo terlalu besar. Guna imej yang lebih kecil.');
+      const m = /^data:(image\/(?:png|webp|jpeg));base64,([A-Za-z0-9+\/]+={0,2})$/.exec(v);
+      if (!m) throw Errors.validation('Logo mesti imej PNG, WebP atau JPEG.');
+      const bytes = Utilities.base64Decode(m[2]);
+      if (bytes.length < 32 || !SecurityService.matchesSignature(bytes, m[1])) throw Errors.validation('Kandungan logo tidak sah.');
+    }
+    const ver = v ? Date.now().toString(36) : '';
+    SettingsRepository.setMany({ LOGO: v, LOGO_VER: ver }, ctx.userId, { LOGO: SETTINGS_DEFS.LOGO.description, LOGO_VER: SETTINGS_DEFS.LOGO_VER.description });
+    AuditService.log(ctx, AUDIT_ACTIONS.SETTINGS_UPDATED, 'SETTINGS', '', v ? 'Logo sistem ditukar' : 'Logo sistem dikembalikan ke asal');
+    return { ver: ver };
+  },
+
   /**
    * Kemas kini tetapan. Kunci tidak dikenali ditolak; peranan disemak per kunci.
    * @param {Object} ctx konteks permintaan
