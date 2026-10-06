@@ -1,0 +1,67 @@
+<style>
+/* ==========================================================================
+   Susun atur: shell aplikasi (sidebar + topbar + kandungan + bottom nav)
+   ========================================================================== */
+.shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) 1fr; }
+
+.sidebar {
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+  background: var(--grad-side);
+  color: #E2E8F0;
+  padding: var(--sp-6) var(--sp-4) var(--sp-4);
+  overflow-y: auto;
+}
+.sidebar { position: sticky; }
+.side-brand { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding-bottom: var(--sp-6); text-decoration: none; color: inherit; }
+.side-brand .brand-star { width: 36px; height: 36px; color: var(--brand); }
+.side-brand__name { font-family: var(--font-display); font-size: var(--fs-xl); color: #fff; }
+.side-section { margin: var(--sp-4) var(--sp-3) var(--sp-2); font-size: var(--fs-xs); color: rgba(226, 232, 240, .6); }
+.side-nav { display: flex; flex-direction: column; gap: 2px; position: relative; z-index: 1; }
+.side-link {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 10px var(--sp-3); border-radius: var(--r-sm);
+  color: rgba(226, 232, 240, .86); text-decoration: none; font-size: var(--fs-sm); font-weight: 500;
+}
+.side-link:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+.side-link.is-active { background: rgba(255, 255, 255, .13); color: #fff; box-shadow: inset 3px 0 0 var(--accent); }
+.side-link .badge-dot { margin-left: auto; }
+.side-foot { margin-top: auto; padding-top: var(--sp-6); position: relative; z-index: 1; }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 20; height: var(--topbar-h);
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: 0 var(--sp-8);
+  background: rgba(248, 250, 252, .9);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar__title { font-family: var(--font-display); font-size: var(--fs-xl); color: var(--brand-900); }
+.topbar__brand { display: none; align-items: center; gap: var(--sp-2); text-decoration: none; color: var(--brand-900); font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 650; min-width: 0; }
+.topbar__brand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar__brand .brand-star { width: 28px; height: 28px; color: var(--brand); }
+.topbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+
+.content { width: 100%; max-width: var(--content-max); margin: 0 auto; padding: var(--sp-8); flex: 1; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-6); }
+.page-head p { color: var(--muted); margin-top: var(--sp-1); }
+
+.grid { display: grid; gap: var(--sp-5); }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid-main-side { grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); align-items: start; }
+
+.bottomnav { display: none; }
+.hide-desktop { display: none; }
+.label-mobile { display: none; }
+
+/* Susun atur awam (landing, auth) */
+.public { min-height: 100vh; display: flex; flex-direction: column; }
+.public-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-4) var(--sp-8); }
+.public-top .brand { display: flex; align-items: center; gap: var(--sp-2); color: var(--brand-900); text-decoration: none; font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 650; white-space: nowrap; }
+.public-top .brand .brand-star { width: 32px; height: 32px; color: var(--brand); }
+.public-foot { margin-top: auto; padding: var(--sp-8); text-align: center; color: var(--muted); font-size: var(--fs-sm); border-top: 1px solid var(--line); }
+.public-foot nav { display: flex; gap: var(--sp-5); justify-content: center; flex-wrap: wrap; margin-bottom: var(--sp-3); }
+</style>

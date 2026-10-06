@@ -1,0 +1,150 @@
+<script>
+/**
+ * Paparan pengguna: Utama (papan pemuka), Notifikasi, Profil.
+ * Paparan modul (senarai/butiran/borang) berada dalam js/crud.html — dijana daripada metadata modul.
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, qs, qsa, on, formData, fmtNum, fmtDate, relTime } = KD.utils;
+  const { icon, toast, toastError, skeletonList, skeletonStats, empty, errorState, pager, busy, fieldErrors } = KD.ui;
+  const api = KD.api;
+
+  const NOTIF_ICON = { WELCOME: 'sparkle', RECORD_CREATED: 'inbox', RECORD_STATUS: 'refresh', BROADCAST: 'bell', SECURITY: 'lock', ACCOUNT: 'user' };
+
+  /** ID rekod (cth. AD-…) → laluan butiran modul berdasarkan awalan ID. */
+  function refPath(ref) {
+    if (!ref) return '';
+    const prefix = String(ref).split('-')[0];
+    const m = (KD.modules || []).filter((x) => x.prefix === prefix)[0];
+    if (!m) return '';
+    return (KD.auth.isAdmin() && KD.app.shellMode === 'admin' ? '/admin' : '') + m.path + '/' + ref;
+  }
+  KD.views.refPath = refPath;
+
+  // ---------------------------------------------------------------- Utama
+  KD.views.dashboard = {
+    async render(el) {
+      const user = KD.auth.user() || {};
+      const mods = (KD.modules || []).filter((m) => m.nav.user !== false);
+      const creatable = mods.filter((m) => m.access.create !== 'ADMIN' || KD.auth.isAdmin());
+      el.innerHTML = html`<div class="welcome"><div><h2>Selamat datang, ${user.fullName || ''}</h2><p>${(KD.config && KD.config.SYSTEM_TAGLINE) || ''}</p></div>
+          ${creatable[0] ? html`<a class="btn btn-light" href="#${creatable[0].path}/baru">${icon('plus')}${creatable[0].label} baharu</a>` : ''}</div>
+        ${KD.pwa && KD.pwa.isWeb() ? html`<div class="push-prompt panel mt-6 hidden" data-push-prompt>${icon('bell')}<div class="grow"><strong>Dapatkan notifikasi di telefon</strong><div class="small muted">Dimaklumkan serta-merta apabila status rekod anda dikemas kini.</div></div>
+          <button class="btn btn-primary btn-sm" data-push-on>Hidupkan</button><button class="icon-btn" data-push-dismiss aria-label="Tutup">${icon('x')}</button></div>` : ''}
+        <div class="mt-6" data-stats>${skeletonStats(Math.min(4, mods.length || 1))}</div>
+        <section class="panel panel-flush mt-6"><div class="panel-head"><h3>Terkini</h3></div><div data-recent class="mt-3">${skeletonList(3)}</div></section>`.s;
+      if (KD.pwa) KD.pwa.refreshPushUi();
+      const load = async () => {
+        try {
+          const d = await api.getSummary();
+          KD.app.setUnread(d.unreadNotifications);
+          qs('[data-stats]', el).innerHTML = html`<div class="grid grid-4">${d.modules.map((s) => {
+            const m = KD.moduleOf(s.key) || { statuses: [] };
+            const total = s.total || 0;
+            return html`<a class="stat mod-stat" href="#${s.path}"><div class="stat__label">${icon(s.icon)}${s.label}</div><div class="stat__value">${fmtNum(total)}</div>
+              ${m.statuses.length && total ? html`<div class="status-bars">${m.statuses.map((st) => (s.byStatus[st.value] ? html`<span class="tone-${st.tone}" style="width:${(100 * s.byStatus[st.value] / total).toFixed(1)}%" title="${st.label}: ${s.byStatus[st.value]}"></span>` : ''))}</div>
+              <div class="stat__note">${m.statuses.filter((st) => s.byStatus[st.value]).map((st) => st.label + ' ' + s.byStatus[st.value]).join(' · ')}</div>` : ''}</a>`;
+          })}</div>`.s;
+          const recent = qs('[data-recent]', el);
+          recent.innerHTML = d.recent.length ? html`<div class="rec-list">${d.recent.map((x) => KD.crud.item(KD.moduleOf(x.module), x, null))}</div>`.s
+            : empty('Belum ada rekod', 'Rekod yang anda hantar akan dipaparkan di sini.', creatable[0] ? html`<a class="btn btn-primary" href="#${creatable[0].path}/baru">${icon('plus')}${creatable[0].label} baharu</a>` : '').s;
+        } catch (err) {
+          qs('[data-stats]', el).innerHTML = errorState(err, 'reload').s;
+        }
+      };
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+
+  // ---------------------------------------------------------------- Notifikasi
+  KD.views.notifications = {
+    async render(el) {
+      let page = 1;
+      el.innerHTML = html`<div class="page-head"><div><h1>Notifikasi</h1><p>Kemas kini rekod dan makluman akaun anda.</p></div><button class="btn btn-outline" data-act="all">${icon('check')}Tandakan semua dibaca</button></div><section class="panel panel-flush" data-box>${skeletonList(4)}</section>`.s;
+      const load = async () => {
+        const box = qs('[data-box]', el);
+        try {
+          const r = await api.getNotifications({ page, pageSize: 20 });
+          KD.app.setUnread(r.meta.unread);
+          box.innerHTML = r.items.length ? html`<div class="rec-list">${r.items.map((n) => html`<button class="rec-item ${n.isRead ? '' : 'is-unread'}" data-n="${n.id}" data-ref="${n.referenceId}" data-type="${n.type}">
+              <span class="rec-item__icon">${icon(NOTIF_ICON[n.type] || 'bell')}</span>
+              <span class="rec-item__body"><span class="rec-item__title"><span>${n.title}</span>${n.isRead ? '' : html`<span class="badge-dot" aria-label="Belum dibaca"></span>`}</span><span class="rec-item__text">${n.message}</span><span class="rec-item__meta">${relTime(n.createdAt)}</span></span></button>`)}</div>${pager(r.meta)}`.s
+            : empty('Tiada notifikasi', 'Anda akan dimaklumkan di sini apabila ada kemas kini.').s;
+        } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+      };
+      on(el, 'click', '[data-n]', async (e, b) => {
+        if (b.classList.contains('is-unread')) {
+          b.classList.remove('is-unread');
+          api.markNotificationRead(b.getAttribute('data-n')).then((r) => KD.app.setUnread(r.unread)).catch(() => {});
+        }
+        const path = refPath(b.getAttribute('data-ref'));
+        if (path) KD.router.go(path);
+      });
+      on(el, 'click', '[data-act="all"]', async (e, b) => busy(b, async () => { try { await api.markAllNotificationsRead(); KD.app.setUnread(0); toast('Semua notifikasi ditandakan dibaca.'); load(); } catch (err) { toastError(err); } }));
+      on(el, 'click', '[data-page]', (e, b) => { page = Number(b.getAttribute('data-page')); load(); });
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+
+  // ---------------------------------------------------------------- Profil
+  KD.views.profile = {
+    async render(el) {
+      const u = KD.auth.user() || {};
+      const pwaPanel = KD.pwa && KD.pwa.isWeb() ? html`<section class="panel app-panel" style="margin-bottom:var(--sp-6)"><div class="app-panel__icon"><img src="icons/icon-192.png" alt="" width="48" height="48"></div>
+          <div class="grow"><h3>Aplikasi telefon</h3>
+            <p class="small muted hidden" data-pwa-installed>${icon('check', 'i-sm')} Anda sedang menggunakan aplikasi yang dipasang.</p>
+            <p class="small muted" data-pwa-hint>Pasang di skrin utama telefon untuk dibuka dengan satu sentuhan dan terima notifikasi.</p></div>
+          <button class="btn btn-accent hidden" data-pwa-install data-act="pwa-install">${icon('download')}Pasang aplikasi</button>
+          <div class="push-panel hidden" data-push-panel><div class="grow"><h4>${icon('bell', 'i-sm')} Notifikasi telefon</h4><p class="small muted" data-push-text></p></div>
+            <div class="row row-wrap"><button class="btn btn-primary hidden" data-push-on>${icon('bell')}Hidupkan notifikasi</button>
+            <button class="btn btn-outline hidden" data-push-test>${icon('send')}Hantar ujian</button>
+            <button class="btn btn-ghost hidden" data-push-off>Matikan</button></div></div></section>` : '';
+      el.innerHTML = html`<div class="page-head"><div><h1>Profil</h1><p>Urus maklumat akaun dan keselamatan anda.</p></div></div>
+        ${pwaPanel}
+        <div class="grid grid-2">
+          <section class="panel"><div class="row" style="margin-bottom:20px"><span class="avatar" style="width:56px;height:56px;font-size:1.2rem">${u.initials}</span><div><h3>${u.fullName}</h3><div class="small muted">${u.email}</div><div class="mt-2">${KD.ui.roleBadge(u.role)}</div></div></div>
+            <form data-form="profile" novalidate>
+              <div class="field"><label class="label" for="p-name">Nama penuh</label><input class="input" id="p-name" name="fullName" required maxlength="80" value="${u.fullName}" autocomplete="name"></div>
+              <div class="field"><label class="label" for="p-phone">No. telefon</label><input class="input" id="p-phone" name="phone" type="tel" value="${u.phone || ''}" autocomplete="tel"></div>
+              <div class="field"><span class="label">Email</span><input class="input" value="${u.email}" disabled aria-label="Email"><span class="hint">Email digunakan untuk log masuk dan tidak boleh diubah.</span></div>
+              <button class="btn btn-primary mt-6" type="submit">Simpan profil</button>
+              <p class="xs muted mt-4">Ahli sejak ${fmtDate(u.createdAt)}. Log masuk terakhir ${fmtDate(u.lastLoginAt, true)}.</p>
+            </form></section>
+          <section class="panel"><h3>Tukar kata laluan</h3>
+            <form data-form="password" class="mt-4" novalidate>
+              <div class="field"><label class="label" for="p-cur">Kata laluan semasa</label><input class="input" id="p-cur" name="currentPassword" type="password" required autocomplete="current-password"></div>
+              <div class="field"><label class="label" for="p-new">Kata laluan baharu</label><input class="input" id="p-new" name="newPassword" type="password" required minlength="8" autocomplete="new-password"><span class="hint">Sekurang-kurangnya 8 aksara, dengan huruf dan nombor.</span></div>
+              <label class="check mt-4"><input type="checkbox" name="logoutOthers" checked>Log keluar daripada peranti lain</label>
+              <button class="btn btn-primary mt-6" type="submit">${icon('lock')}Tukar kata laluan</button>
+            </form>
+            <hr style="border:0;border-top:1px solid var(--line);margin:28px 0 20px">
+            <button class="btn btn-outline btn-block" data-act="logout">${icon('logout')}Log keluar</button></section>
+        </div>`.s;
+      if (KD.pwa) { KD.pwa.refresh(); KD.pwa.refreshPushUi(); }
+      on(el, 'submit', 'form', async (e, form) => {
+        e.preventDefault();
+        const data = formData(form);
+        await busy(qs('button[type="submit"]', form), async () => {
+          try {
+            if (form.dataset.form === 'profile') {
+              const user = await api.updateProfile(data);
+              KD.auth.updateUser(user);
+              KD.app.shellMode = null;
+              toast('Profil disimpan.');
+              KD.router.render();
+            } else {
+              const r = await api.changePassword(data);
+              form.reset();
+              fieldErrors(form, null);
+              toast('Kata laluan ditukar.' + (r.sessionsRevoked ? ' ' + r.sessionsRevoked + ' sesi lain telah ditamatkan.' : ''));
+            }
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+      on(el, 'click', '[data-act="logout"]', () => KD.auth.logout());
+    }
+  };
+})(window.KD);
+</script>

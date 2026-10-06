@@ -1,0 +1,201 @@
+<script>
+/**
+ * Paparan awam: Landing, Log Masuk, Daftar, Lupa Kata Laluan. (Borang awam modul: js/crud.html → publicForm)
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, qs, on, formData, fmtNum, requestId } = KD.utils;
+  const { icon, star, toast, toastError, busy, fieldErrors } = KD.ui;
+  const cfg = () => KD.config || {};
+
+  function publicTop(dark) {
+    const loggedIn = KD.auth.loggedIn();
+    return html`<header class="public-top"><a class="brand" href="#/">${star()}<span>${cfg().SYSTEM_NAME || ''}</span></a>
+      <nav class="row">${loggedIn
+        ? html`<a class="btn ${dark ? 'btn-light' : 'btn-outline'} btn-sm" href="#/utama">Buka aplikasi</a>`
+        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">Log Masuk</a><a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">Daftar</a>`}</nav></header>`;
+  }
+
+  function publicFoot() {
+    return html`<footer class="public-foot"><nav><button class="btn-link" data-scroll="ciri">Ciri-ciri</button><button class="btn-link" data-scroll="maklum-balas">Maklum Balas</button></nav>
+      <div>${cfg().SYSTEM_NAME || ''}: ${cfg().SYSTEM_TAGLINE || ''}${cfg().ORG_NAME ? html`<br>${cfg().ORG_NAME}` : ''}</div></footer>`;
+  }
+
+  function passwordField(name, label, autocomplete, hint) {
+    return html`<div class="field"><label class="label" for="f-${name}">${label}</label>
+      <div class="input-group"><input class="input" id="f-${name}" name="${name}" type="password" autocomplete="${autocomplete}" required minlength="8" maxlength="128">
+      <button type="button" class="icon-btn" data-act="toggle-pw" aria-label="Tunjuk kata laluan">${icon('eye')}</button></div>${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
+  }
+  function bindPwToggle(root) {
+    on(root, 'click', '[data-act="toggle-pw"]', (e, btn) => {
+      const input = btn.parentElement.querySelector('input');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = icon(show ? 'eye-off' : 'eye').s;
+      btn.setAttribute('aria-label', show ? 'Sembunyi kata laluan' : 'Tunjuk kata laluan');
+    });
+  }
+
+  // ---------------------------------------------------------------- Landing
+  KD.views.landing = {
+    async render(el) {
+      const c = cfg();
+      const mods = KD.modules || [];
+      const publicMods = mods.filter((m) => m.publicForm);
+      el.innerHTML = html`
+        <section class="hero">
+          ${publicTop(true)}
+          <div class="hero__inner">
+            ${c.ORG_NAME ? html`<span class="hero__eyebrow">${c.ORG_NAME}</span>` : ''}
+            <h1 class="hero__title">${c.SYSTEM_NAME || ''}</h1>
+            <p class="hero__msg">${c.SYSTEM_TAGLINE || ''}${c.LANDING_MESSAGE ? html`<br>${c.LANDING_MESSAGE}` : ''}</p>
+            <div class="hero__cta">
+              ${KD.auth.loggedIn() ? html`<a class="btn btn-light btn-lg" href="#/utama">Buka aplikasi</a>`
+                : html`<a class="btn btn-light btn-lg" href="#/log-masuk">Log Masuk</a>${c.ALLOW_REGISTRATION !== false ? html`<a class="btn btn-outline btn-lg" href="#/daftar">Daftar Baru</a>` : ''}`}
+            </div>
+          </div>
+        </section>
+        <div class="section" id="ciri" style="padding-top:0">
+          <div class="feature-grid">${(publicMods.length ? publicMods : mods).slice(0, 3).map((m) => html`<a class="feature" href="#${m.publicForm && c.ALLOW_PUBLIC_SUBMISSION !== false ? '/borang/' + m.key : '/log-masuk'}">
+            ${icon(m.icon)}<h3>${m.publicForm ? (m.publicForm.title || m.label) : m.labelPlural}</h3><p>${m.description || ''}</p></a>`)}</div>
+        </div>
+
+        <section class="section" id="maklum-balas" style="padding-top:0">
+          <div class="panel" style="max-width:640px;margin:0 auto">
+            <h2>Maklum balas</h2><p class="muted mt-2">Ada cadangan atau masalah? Beritahu kami.</p>
+            <form class="mt-6" data-form="feedback" novalidate>
+              <div class="grid grid-2"><div class="field"><label class="label" for="fb-name">Nama</label><input class="input" id="fb-name" name="name" required maxlength="80" autocomplete="name"></div>
+              <div class="field" style="margin-top:0"><label class="label" for="fb-email">Email</label><input class="input" id="fb-email" name="email" type="email" required autocomplete="email"></div></div>
+              <div class="field mt-4"><label class="label" for="fb-msg">Mesej</label><textarea class="textarea" id="fb-msg" name="message" required minlength="10" maxlength="1500"></textarea></div>
+              <div class="hp" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
+              <button class="btn btn-primary mt-4" type="submit">${icon('send')}Hantar maklum balas</button>
+            </form>
+          </div>
+        </section>
+        ${publicFoot()}`.s;
+
+      on(el, 'click', '[data-scroll]', (e, b) => { const t = qs('#' + b.getAttribute('data-scroll'), el); if (t) t.scrollIntoView({ behavior: 'smooth' }); });
+      on(el, 'submit', '[data-form="feedback"]', async (e, form) => {
+        e.preventDefault();
+        const btn = qs('button[type="submit"]', form);
+        await busy(btn, async () => {
+          try {
+            await KD.api.sendFeedback(formData(form));
+            form.reset(); fieldErrors(form, null);
+            toast('Terima kasih. Maklum balas anda telah dihantar.');
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+    }
+  };
+
+  // ---------------------------------------------------------------- Auth
+  function authShell(title, subtitle, body, links) {
+    return html`${publicTop(false)}<main class="auth"><div class="auth-card">
+      <div class="auth-card__head">${star()}<h1 style="font-size:var(--fs-2xl)">${title}</h1><p>${subtitle}</p></div>
+      ${body}${links ? html`<div class="auth-links">${links}</div>` : ''}</div></main>`;
+  }
+
+  KD.views.login = {
+    async render(el) {
+      el.innerHTML = authShell('Log Masuk', 'Assalamualaikum. Selamat kembali.', html`
+        <form data-form="login" novalidate>
+          <div class="field"><label class="label" for="f-email">Email</label><input class="input" id="f-email" name="email" type="email" autocomplete="email" required placeholder="cth. nama@email.com"></div>
+          <div class="field">${passwordField('password', 'Kata laluan', 'current-password')}</div>
+          <label class="check mt-4"><input type="checkbox" name="remember" checked>Ingat saya pada peranti ini</label>
+          <button class="btn btn-primary btn-lg btn-block mt-6" type="submit">${icon('lock')}Log Masuk</button>
+        </form>`, html`<a href="#/daftar">Daftar baru</a><a href="#/lupa-kata-laluan">Lupa kata laluan?</a>`).s;
+      bindPwToggle(el);
+      on(el, 'submit', 'form', async (e, form) => {
+        e.preventDefault();
+        const data = formData(form);
+        await busy(qs('button[type="submit"]', form), async () => {
+          try {
+            const res = await KD.api.login(data);
+            KD.auth.set(res, data.remember);
+            toast('Selamat datang, ' + res.user.fullName + '.');
+            KD.api.getCurrentUser().then((me) => KD.app.setUnread(me.unreadNotifications)).catch(() => {});
+            KD.app.afterLogin();
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+    }
+  };
+
+  KD.views.register = {
+    async render(el) {
+      if (cfg().ALLOW_REGISTRATION === false) {
+        el.innerHTML = authShell('Pendaftaran ditutup', 'Pendaftaran akaun baharu tidak dibuka buat masa ini.', html`<a class="btn btn-outline btn-block" href="#/log-masuk">Log masuk</a>`).s;
+        return;
+      }
+      el.innerHTML = authShell('Daftar Baru', 'Cipta akaun untuk mula menggunakan sistem.', html`
+        <form data-form="register" novalidate>
+          <div class="field"><label class="label" for="f-fullName">Nama penuh <span class="req">*</span></label><input class="input" id="f-fullName" name="fullName" required minlength="3" maxlength="80" autocomplete="name"></div>
+          <div class="field"><label class="label" for="f-email">Email <span class="req">*</span></label><input class="input" id="f-email" name="email" type="email" required autocomplete="email"></div>
+          <div class="field"><label class="label" for="f-phone">No. telefon</label><input class="input" id="f-phone" name="phone" type="tel" autocomplete="tel" placeholder="cth. 012-345 6789"></div>
+          <div class="field">${passwordField('password', 'Kata laluan *', 'new-password', 'Sekurang-kurangnya 8 aksara, dengan huruf dan nombor.')}</div>
+          <label class="check mt-4"><input type="checkbox" name="remember">Ingat saya pada peranti ini</label>
+          <button class="btn btn-primary btn-lg btn-block mt-6" type="submit">Daftar</button>
+        </form>`, html`<span class="muted">Sudah ada akaun?</span><a href="#/log-masuk">Log masuk</a>`).s;
+      bindPwToggle(el);
+      on(el, 'submit', 'form', async (e, form) => {
+        e.preventDefault();
+        const data = formData(form);
+        await busy(qs('button[type="submit"]', form), async () => {
+          try {
+            const res = await KD.api.register(data);
+            KD.auth.set(res, data.remember);
+            toast('Akaun anda telah didaftarkan. Selamat datang!');
+            KD.app.setUnread(1);
+            KD.app.afterLogin();
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+    }
+  };
+
+  KD.views.forgot = {
+    async render(el) {
+      let email = '';
+      const step1 = () => {
+        el.innerHTML = authShell('Lupa Kata Laluan', 'Kami akan menghantar kod 6 digit ke email anda.', html`
+          <form data-form="request" novalidate>
+            <div class="field"><label class="label" for="f-email">Email</label><input class="input" id="f-email" name="email" type="email" required autocomplete="email"></div>
+            <button class="btn btn-primary btn-lg btn-block mt-6" type="submit">${icon('mail')}Hantar kod</button>
+          </form>`, html`<a href="#/log-masuk">Kembali ke log masuk</a>`).s;
+      };
+      const step2 = () => {
+        el.innerHTML = authShell('Tetapkan kata laluan baharu', 'Masukkan kod yang dihantar ke ' + email + '.', html`
+          <form data-form="reset" novalidate>
+            <div class="field"><label class="label" for="f-code">Kod 6 digit</label><input class="input" id="f-code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code" style="letter-spacing:.4em;font-size:1.2rem"></div>
+            <div class="field">${passwordField('newPassword', 'Kata laluan baharu', 'new-password', 'Sekurang-kurangnya 8 aksara, dengan huruf dan nombor.')}</div>
+            <button class="btn btn-primary btn-lg btn-block mt-6" type="submit">Tetapkan kata laluan</button>
+          </form>`, html`<button class="btn-link" data-act="again">Hantar semula kod</button><a href="#/log-masuk">Log masuk</a>`).s;
+        bindPwToggle(el);
+      };
+      step1();
+      on(el, 'click', '[data-act="again"]', step1);
+      on(el, 'submit', 'form', async (e, form) => {
+        e.preventDefault();
+        const data = formData(form);
+        await busy(qs('button[type="submit"]', form), async () => {
+          try {
+            if (form.dataset.form === 'request') {
+              const r = await KD.api.requestReset(data);
+              email = data.email;
+              toast(r.message);
+              step2();
+            } else {
+              await KD.api.resetPassword({ email, code: data.code, newPassword: data.newPassword });
+              toast('Kata laluan telah ditetapkan. Sila log masuk.');
+              KD.router.go('/log-masuk');
+            }
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+    }
+  };
+
+  KD.views.publicTop = () => publicTop(false);
+})(window.KD);
+</script>

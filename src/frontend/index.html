@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="<?= appName ?> — <?= tagline ?>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <?!= include('frontend/css/tokens'); ?>
+  <?!= include('frontend/css/base'); ?>
+  <?!= include('frontend/css/layout'); ?>
+  <?!= include('frontend/css/components'); ?>
+  <?!= include('frontend/css/views'); ?>
+  <?!= include('frontend/css/mobile'); ?>
+  <style media="print">
+    .sidebar, .topbar, .bottomnav, #toasts, .toolbar, .page-head .row, .pager { display: none !important; }
+    .shell { display: block; } .content { padding: 0; max-width: none; } .panel { break-inside: avoid; }
+  </style>
+</head>
+<body data-version="<?= version ?>" data-app="<?= slug ?>">
+  <?!= include('frontend/components/icons'); ?>
+
+  <div id="boot" class="boot" role="status" aria-label="Memuatkan">
+    <div class="boot__inner">
+      <svg class="brand-star" viewBox="0 0 64 64" aria-hidden="true"><use href="#i-brand"/></svg>
+      <div class="boot__name"><?= appName ?></div>
+      <div class="boot__tag"><?= tagline ?></div>
+    </div>
+  </div>
+
+  <div id="root"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="modal-root"></div>
+
+  <noscript><p style="padding:24px"><?= appName ?> memerlukan JavaScript.</p></noscript>
+
+  <?!= include('frontend/js/utils'); ?>
+  <?!= include('frontend/js/api'); ?>
+  <?!= include('frontend/js/ui'); ?>
+  <?!= include('frontend/js/charts'); ?>
+  <?!= include('frontend/js/pwa'); ?>
+  <?!= include('frontend/js/app'); ?>
+  <?!= include('frontend/views/public'); ?>
+  <?!= include('frontend/views/user'); ?>
+  <?!= include('frontend/js/crud'); ?>
+  <?!= include('frontend/views/admin'); ?>
+  <!-- Paparan modul tersuai (src/frontend/modules/<key>.html) — DIJANA oleh npm run gen -->
+  <!-- @generator:frontend:start -->
+  <!-- @generator:frontend:end -->
+  <script>
+    window.addEventListener('error', function (e) { console.error('[kd]', e.message); });
+    KD.app.boot();
+  </script>
+</body>
+</html>

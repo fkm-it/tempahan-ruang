@@ -1,0 +1,329 @@
+<script>
+/**
+ * Paparan pentadbir. Semua tindakan disahkan semula di backend (RBAC + audit).
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, qs, qsa, on, formData, fmtNum, fmtDate, relTime, debounce, toCsv, downloadText, todayKey } = KD.utils;
+  const { icon, star, catIcon, toast, toastError, modal, confirm, skeletonList, skeletonStats, empty, errorState, pager, busy, fieldErrors, statusBadge, roleBadge } = KD.ui;
+  const A = KD.api.admin;
+  const C = KD.charts;
+
+  const head = (title, sub, actions) => html`<div class="page-head"><div><h1>${title}</h1>${sub ? html`<p>${sub}</p>` : ''}</div>${actions ? html`<div class="row row-wrap">${actions}</div>` : ''}</div>`;
+  const stat = (label, value, ic, note) => html`<div class="stat"><div class="stat__label">${icon(ic)}${label}</div><div class="stat__value">${typeof value === 'number' ? fmtNum(value) : value}</div>${note ? html`<div class="stat__note">${note}</div>` : ''}</div>`;
+  const ACTION_LABEL = {
+    USER_REGISTERED: 'Pendaftaran', USER_LOGIN: 'Log masuk', ADMIN_LOGIN: 'Log masuk admin', USER_LOGOUT: 'Log keluar', LOGIN_FAILED: 'Log masuk gagal',
+    PASSWORD_CHANGED: 'Tukar kata laluan', PASSWORD_RESET_REQUESTED: 'Minta set semula', PASSWORD_RESET: 'Set semula kata laluan', PROFILE_UPDATED: 'Kemas kini profil',
+    RECORD_CREATED: 'Rekod dicipta', RECORD_UPDATED: 'Rekod disunting', RECORD_STATUS: 'Status rekod', RECORD_DELETED: 'Rekod dipadam', USER_BLOCKED: 'Pengguna disekat', USER_ACTIVATED: 'Pengguna diaktifkan',
+    USER_DEACTIVATED: 'Pengguna dinyahaktif', USER_ROLE_CHANGED: 'Tukar peranan', USER_SESSIONS_REVOKED: 'Sesi ditamatkan', CATEGORY_CREATED: 'Kategori dicipta',
+    CATEGORY_UPDATED: 'Kategori dikemas kini', SETTINGS_UPDATED: 'Tetapan dikemas kini', NOTIFICATION_BROADCAST: 'Hebahan', EXPORT_GENERATED: 'Eksport',
+    REPORT_GENERATED: 'Laporan dijana', FEEDBACK_UPDATED: 'Maklum balas dikemas kini', BACKUP_CREATED: 'Sandaran dicipta', MIGRATION_APPLIED: 'Migrasi'
+  };
+  const actionLabel = (a) => ACTION_LABEL[a] || a;
+  const activityList = (items) => items.length ? html`<div>${items.map((a) => html`<div class="health-row"><span class="avatar" style="width:30px;height:30px;font-size:11px;background:var(--brand2-100);color:var(--brand2-900)">${KD.utils.esc((a.userName || '?').slice(0, 1)).toUpperCase()}</span><div class="grow"><div class="small"><strong>${a.userName}</strong> <span class="muted">${actionLabel(a.action)}</span></div>${a.description ? html`<div class="xs muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.description}</div>` : ''}</div><span class="xs muted nowrap">${relTime(a.createdAt)}</span></div>`)}</div>` : html`<p class="muted small">Tiada aktiviti.</p>`;
+
+  /** Pembantu: muat senarai berpaginasi dengan penapis. */
+  function pagedTable(el, opts) {
+    const state = Object.assign({ page: 1 }, opts.initial || {});
+    const box = qs(opts.box, el);
+    const load = async () => {
+      box.innerHTML = skeletonList(4).s;
+      try {
+        const f = Object.assign({}, state);
+        Object.keys(f).forEach((k) => { if (f[k] === '') delete f[k]; });
+        const r = await opts.fetch(f);
+        box.innerHTML = r.items.length ? html`<div class="table-wrap">${opts.table(r.items)}</div>${pager(r.meta)}`.s : empty(opts.emptyTitle || 'Tiada rekod', opts.emptyText || 'Cuba ubah penapis.').s;
+        box._items = r.items;
+      } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+    };
+    on(el, 'input', '[data-f="q"]', debounce((e) => { state.q = e.target.value.trim(); state.page = 1; load(); }, 350));
+    on(el, 'change', 'select[data-f], input[type="date"][data-f]', (e, s) => { state[s.getAttribute('data-f')] = s.value; state.page = 1; load(); });
+    on(el, 'click', '[data-page]', (e, b) => { state.page = Number(b.getAttribute('data-page')); load(); });
+    on(el, 'click', '[data-act="reload"]', load);
+    return { load, state, items: () => box._items || [] };
+  }
+
+  // ================================================================ Dashboard
+  KD.views.adminDashboard = {
+    async render(el) {
+      el.innerHTML = html`${head('Dashboard', 'Gambaran keseluruhan aktiviti sistem.', html`<button class="btn btn-outline" data-act="reload">${icon('refresh')}Muat semula</button>`)}<div data-box>${skeletonStats(4)}<div class="mt-6">${skeletonStats(2)}</div></div>`.s;
+      const load = async () => {
+        const box = qs('[data-box]', el);
+        try {
+          const s = await A.getStatistics();
+          const k = s.kpi;
+          box.innerHTML = html`<div class="grid grid-4">
+              ${stat('Jumlah pengguna', k.totalUsers, 'users', fmtNum(k.activeUsers) + ' aktif dalam 30 hari')}
+              ${stat('Jumlah rekod', k.totalRecords, 'inbox', fmtNum(k.recordsMonth) + ' bulan ini')}
+              ${stat('Rekod hari ini', k.recordsToday, 'clock')}
+              ${stat('Maklum balas baharu', k.newFeedback, 'feedback')}
+            </div>
+            <div class="grid grid-2 mt-6">${s.modules.map((m) => html`<section class="panel"><div class="panel-head"><h3>${icon(m.icon, 'i-sm')} ${m.label}</h3><a class="small" href="#/admin${m.path}">Lihat semua (${fmtNum(m.total)})</a></div>
+              ${m.byStatus.length ? C.hbars(m.byStatus, { title: m.label + ' mengikut status' }) : ''}
+              <div class="mt-4">${C.bars(m.byDay, { title: m.label + ' mengikut hari', labelFormat: 'day', height: 150 })}</div></section>`)}</div>
+            <div class="grid grid-main-side mt-6">
+              <section class="panel"><div class="panel-head"><h3>Aktiviti pengguna</h3><span class="xs muted">Peristiwa audit, 14 hari</span></div>${C.line(s.charts.activity, { title: 'Aktiviti pengguna', labelFormat: 'day', height: 180 })}
+                <div class="panel-head mt-6"><h3>Pendaftaran pengguna</h3><span class="xs muted">6 bulan</span></div>${C.bars(s.charts.registrations, { title: 'Pendaftaran pengguna', labelFormat: 'month', height: 160 })}</section>
+              <section class="panel"><div class="panel-head"><h3>Aktiviti terkini</h3><a class="small" href="#/admin/audit">Audit log</a></div>${activityList(s.recentActivity)}</section>
+            </div>
+            <p class="xs muted mt-4">Dikemas kini ${fmtDate(s.generatedAt, true)}. Statistik dicache selama 2 minit.</p>`.s;
+        } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+      };
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+
+  // ================================================================ Pengguna
+  KD.views.adminUsers = {
+    async render(el) {
+      el.innerHTML = html`${head('Pengguna', 'Urus akaun, status dan peranan. Kata laluan tidak pernah boleh dilihat.')}
+        <div class="toolbar"><div class="search">${icon('search')}<input class="input" type="search" data-f="q" placeholder="Cari nama, email atau ID…" aria-label="Cari pengguna"></div>
+          <select class="select" data-f="role" aria-label="Peranan"><option value="">Semua peranan</option><option value="USER">Pengguna</option><option value="ADMIN">Admin</option><option value="SUPER_ADMIN">Super Admin</option></select>
+          <select class="select" data-f="status" aria-label="Status"><option value="">Semua status</option><option value="ACTIVE">Aktif</option><option value="INACTIVE">Tidak aktif</option><option value="BLOCKED">Disekat</option></select>
+          <select class="select" data-f="sort" aria-label="Susunan"><option value="NEWEST">Terbaharu</option><option value="OLDEST">Terlama</option><option value="NAME">Nama</option><option value="LAST_LOGIN">Log masuk terakhir</option></select></div>
+        <section class="panel panel-flush" data-box></section>`.s;
+      const me = KD.auth.user();
+      const t = pagedTable(el, {
+        box: '[data-box]', fetch: A.getUsers, emptyTitle: 'Tiada pengguna',
+        table: (items) => html`<table class="table"><thead><tr><th>Pengguna</th><th>Peranan</th><th>Status</th><th>Rekod</th><th>Log masuk terakhir</th><th>Daftar</th><th><span class="sr-only">Tindakan</span></th></tr></thead><tbody>
+          ${items.map((u) => html`<tr><td><div class="cell-strong">${u.fullName}</div><div class="xs muted">${u.email}</div></td><td>${roleBadge(u.role)}</td><td>${statusBadge(u.status)}</td><td>${fmtNum(u.recordCount)}</td><td class="nowrap">${u.lastLoginAt ? relTime(u.lastLoginAt) : '—'}</td><td class="nowrap">${fmtDate(u.createdAt)}</td>
+          <td>${u.id === me.id ? html`<span class="xs muted">Anda</span>` : html`<button class="btn btn-outline btn-sm" data-manage="${u.id}">Urus</button>`}</td></tr>`)}</tbody></table>`
+      });
+      on(el, 'click', '[data-manage]', (e, b) => {
+        const u = t.items().find((x) => x.id === b.getAttribute('data-manage'));
+        const isSuper = KD.auth.isSuper();
+        const m = modal({
+          title: u.fullName,
+          body: html`<div class="small muted">${u.email}</div><div class="row mt-2">${roleBadge(u.role)}${statusBadge(u.status)}</div>
+            <div class="mt-6"><div class="label">Status akaun</div><div class="row row-wrap mt-2">
+              ${u.status !== 'ACTIVE' ? html`<button class="btn btn-outline btn-sm" data-status="ACTIVE">${icon('check', 'i-sm')}Aktifkan</button>` : ''}
+              ${u.status !== 'INACTIVE' ? html`<button class="btn btn-outline btn-sm" data-status="INACTIVE">Nyahaktifkan</button>` : ''}
+              ${u.status !== 'BLOCKED' ? html`<button class="btn btn-danger btn-sm" data-status="BLOCKED">${icon('lock', 'i-sm')}Sekat</button>` : ''}</div></div>
+            ${isSuper ? html`<div class="mt-6"><label class="label" for="m-role">Peranan</label><div class="row mt-2"><select class="select" id="m-role">${['USER', 'ADMIN', 'SUPER_ADMIN'].map((r) => html`<option value="${r}" ${u.role === r ? raw('selected') : ''}>${r === 'USER' ? 'Pengguna' : r === 'ADMIN' ? 'Admin' : 'Super Admin'}</option>`)}</select><button class="btn btn-primary btn-sm" data-act="role">Tukar</button></div><span class="hint">Pengguna akan dilog keluar supaya peranan baharu berkuat kuasa.</span></div>` : ''}
+            <div class="mt-6"><div class="label">Keselamatan</div><div class="row row-wrap mt-2"><button class="btn btn-outline btn-sm" data-act="revoke">${icon('logout', 'i-sm')}Tamatkan semua sesi</button><button class="btn btn-outline btn-sm" data-act="reset">${icon('mail', 'i-sm')}Hantar email set semula</button></div></div>`
+        });
+        const done = (msg) => { toast(msg); m.close(); t.load(); };
+        on(m.el, 'click', '[data-status]', async (e2, sb) => {
+          const status = sb.getAttribute('data-status');
+          const reason = status === 'ACTIVE' ? true : await confirm({ title: status === 'BLOCKED' ? 'Sekat pengguna?' : 'Nyahaktifkan pengguna?', message: 'Semua sesi pengguna akan ditamatkan serta-merta.', confirmText: status === 'BLOCKED' ? 'Sekat' : 'Nyahaktifkan', danger: status === 'BLOCKED', withReason: true });
+          if (!reason) return;
+          try { await A.setUserStatus({ userId: u.id, status, reason: typeof reason === 'string' ? reason.trim() : '' }); done('Status dikemas kini.'); } catch (err) { toastError(err); }
+        });
+        on(m.el, 'click', '[data-act="role"]', async (e2, rb) => busy(rb, async () => { try { await A.setUserRole({ userId: u.id, role: qs('#m-role', m.el).value }); done('Peranan dikemas kini.'); } catch (err) { toastError(err); } }));
+        on(m.el, 'click', '[data-act="revoke"]', async (e2, rb) => busy(rb, async () => { try { const r = await A.revokeSessions(u.id); toast(r.revoked + ' sesi ditamatkan.'); } catch (err) { toastError(err); } }));
+        on(m.el, 'click', '[data-act="reset"]', async (e2, rb) => busy(rb, async () => { try { await A.sendReset(u.id); toast('Email set semula dihantar kepada pengguna.'); } catch (err) { toastError(err); } }));
+      });
+      t.load();
+    }
+  };
+
+  // ================================================================ Kategori
+  KD.views.adminCategories = {
+    async render(el) {
+      el.innerHTML = html`${head('Kategori', 'Kategori untuk medan jenis "category" dalam modul. Jika hanya satu aktif, pilihan disembunyikan.', html`<button class="btn btn-primary" data-act="new">${icon('plus')}Tambah kategori</button>`)}<section class="panel panel-flush" data-box>${skeletonList(4)}</section>`.s;
+      let data = null;
+      const load = async () => {
+        const box = qs('[data-box]', el);
+        try {
+          data = await A.getCategories();
+          box.innerHTML = html`<div class="table-wrap"><table class="table"><thead><tr><th>Susunan</th><th>Kategori</th><th>Nama (EN)</th><th>Rekod</th><th>Status</th><th><span class="sr-only">Tindakan</span></th></tr></thead><tbody>
+            ${data.items.map((c) => html`<tr><td>${c.sortOrder}</td><td><span class="row" style="gap:10px"><span class="rec-item__icon" style="width:34px;height:34px">${catIcon(c.icon, 'i-sm')}</span><span><span class="cell-strong">${c.nameMs}</span>${c.description ? html`<br><span class="xs muted">${c.description}</span>` : ''}</span></span></td><td>${c.nameEn || '—'}</td><td>${fmtNum(c.recordCount)}</td><td>${statusBadge(c.status)}</td>
+            <td class="nowrap"><button class="btn btn-outline btn-sm" data-edit="${c.id}">Sunting</button> <button class="btn btn-ghost btn-sm" data-toggle="${c.id}" data-status="${c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}">${c.status === 'ACTIVE' ? 'Nyahaktif' : 'Aktifkan'}</button></td></tr>`)}</tbody></table></div>`.s;
+        } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+      };
+      const openForm = (c) => {
+        c = c || { nameMs: '', nameEn: '', description: '', icon: 'star', sortOrder: 100 };
+        const m = modal({
+          title: c.id ? 'Sunting kategori' : 'Tambah kategori',
+          body: html`<form novalidate>
+            <div class="grid grid-2"><div class="field"><label class="label" for="k-ms">Nama (BM) <span class="req">*</span></label><input class="input" id="k-ms" name="nameMs" required maxlength="40" value="${c.nameMs}"></div>
+            <div class="field" style="margin-top:0"><label class="label" for="k-en">Nama (EN)</label><input class="input" id="k-en" name="nameEn" maxlength="40" value="${c.nameEn}"></div></div>
+            <div class="field mt-4"><label class="label" for="k-desc">Penerangan</label><input class="input" id="k-desc" name="description" maxlength="200" value="${c.description}"></div>
+            <div class="grid grid-2 mt-4"><div class="field"><label class="label" for="k-icon">Ikon</label><select class="select" id="k-icon" name="icon">${data.icons.map((i) => html`<option value="${i}" ${c.icon === i ? raw('selected') : ''}>${i}</option>`)}</select></div>
+            <div class="field" style="margin-top:0"><label class="label" for="k-sort">Susunan</label><input class="input" type="number" id="k-sort" name="sortOrder" min="0" max="999" value="${c.sortOrder}"></div></div></form>`,
+          foot: html`<button class="btn btn-outline" data-close>Batal</button><button class="btn btn-primary" data-act="save">Simpan</button>`
+        });
+        on(m.el, 'click', '[data-act="save"]', async (e, b) => {
+          const form = qs('form', m.el);
+          const p = formData(form);
+          p.sortOrder = Number(p.sortOrder);
+          if (c.id) p.id = c.id;
+          await busy(b, async () => {
+            try { await (c.id ? A.updateCategory(p) : A.createCategory(p)); toast('Kategori disimpan.'); m.close(); load(); } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+          });
+        });
+      };
+      on(el, 'click', '[data-act="new"]', () => openForm(null));
+      on(el, 'click', '[data-edit]', (e, b) => openForm(data.items.find((x) => x.id === b.getAttribute('data-edit'))));
+      on(el, 'click', '[data-toggle]', async (e, b) => { try { await A.updateCategory({ id: b.getAttribute('data-toggle'), status: b.getAttribute('data-status') }); toast('Status kategori dikemas kini.'); load(); } catch (err) { toastError(err); } });
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+
+  // ================================================================ Notifikasi (hebahan)
+  KD.views.adminNotifications = {
+    async render(el) {
+      el.innerHTML = html`${head('Notifikasi', 'Hantar makluman kepada pengguna dalam aplikasi.')}
+        <div class="grid grid-main-side">
+          <section class="panel"><h3>Hebahan baharu</h3><form class="mt-4" novalidate>
+            <div class="field"><label class="label" for="b-title">Tajuk <span class="req">*</span></label><input class="input" id="b-title" name="title" required maxlength="120"></div>
+            <div class="field"><label class="label" for="b-msg">Mesej <span class="req">*</span></label><textarea class="textarea" id="b-msg" name="message" required maxlength="500"></textarea></div>
+            <div class="field"><label class="label" for="b-aud">Sasaran</label><select class="select" id="b-aud" name="audience"><option value="ALL">Semua pengguna aktif</option><option value="USERS">Pengguna biasa sahaja</option><option value="ADMINS">Pentadbir sahaja</option></select></div>
+            <button class="btn btn-primary mt-6" type="submit">${icon('send')}Hantar hebahan</button></form></section>
+          <section class="panel"><div class="panel-head"><h3>Sejarah hebahan</h3></div><div data-hist>${skeletonList(2)}</div></section>
+        </div>`.s;
+      const loadHist = async () => {
+        try {
+          const h = await A.getBroadcasts();
+          qs('[data-hist]', el).innerHTML = h.length ? html`${h.map((x) => html`<div class="health-row"><div class="grow small">${x.description}</div><span class="xs muted nowrap">${relTime(x.createdAt)}</span></div>`)}`.s : html`<p class="muted small">Belum ada hebahan.</p>`.s;
+        } catch (err) { qs('[data-hist]', el).innerHTML = errorState(err).s; }
+      };
+      on(el, 'submit', 'form', async (e, form) => {
+        e.preventDefault();
+        const p = formData(form);
+        if (!(await confirm({ title: 'Hantar hebahan?', message: 'Notifikasi akan dihantar serta-merta dan tidak boleh ditarik balik.', confirmText: 'Hantar' }))) return;
+        await busy(qs('button[type="submit"]', form), async () => {
+          try { const r = await A.broadcast(p); toast('Hebahan dihantar kepada ' + fmtNum(r.sent) + ' pengguna.'); form.reset(); loadHist(); } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+      loadHist();
+    }
+  };
+
+  // ================================================================ Maklum balas
+  KD.views.adminFeedback = {
+    async render(el) {
+      el.innerHTML = html`${head('Maklum Balas', 'Mesej yang dihantar melalui halaman utama.')}
+        <div class="toolbar"><select class="select" data-f="status" aria-label="Status"><option value="">Semua status</option><option value="NEW">Baharu</option><option value="REVIEWED">Disemak</option><option value="CLOSED">Ditutup</option></select></div>
+        <section class="panel panel-flush" data-box></section>`.s;
+      const t = pagedTable(el, {
+        box: '[data-box]', fetch: A.getFeedback, emptyTitle: 'Tiada maklum balas', emptyText: 'Maklum balas daripada pengguna akan dipaparkan di sini.',
+        table: (items) => html`<table class="table"><thead><tr><th>Daripada</th><th>Mesej</th><th>Status</th><th>Tarikh</th><th><span class="sr-only">Tindakan</span></th></tr></thead><tbody>
+          ${items.map((f) => html`<tr><td><div class="cell-strong">${f.name}</div><div class="xs"><a href="mailto:${f.email}">${f.email}</a></div></td><td style="max-width:460px;white-space:pre-wrap">${f.message}</td><td>${statusBadge(f.status)}</td><td class="nowrap">${fmtDate(f.createdAt, true)}</td>
+          <td><select class="select" style="min-height:34px;width:auto" data-fb="${f.id}" aria-label="Tukar status">${['NEW', 'REVIEWED', 'CLOSED'].map((s) => html`<option value="${s}" ${f.status === s ? raw('selected') : ''}>${{ NEW: 'Baharu', REVIEWED: 'Disemak', CLOSED: 'Ditutup' }[s]}</option>`)}</select></td></tr>`)}</tbody></table>`
+      });
+      on(el, 'change', '[data-fb]', async (e, s) => { try { await A.setFeedbackStatus({ id: s.getAttribute('data-fb'), status: s.value }); toast('Status dikemas kini.'); t.load(); } catch (err) { toastError(err); } });
+      t.load();
+    }
+  };
+
+  // ================================================================ Audit
+  KD.views.adminAudit = {
+    async render(el) {
+      el.innerHTML = html`${head('Audit Log', 'Jejak setiap tindakan sensitif. Kata laluan, token dan kandungan peribadi tidak pernah direkodkan.')}
+        <div class="toolbar"><div class="search">${icon('search')}<input class="input" type="search" data-f="q" placeholder="Cari keterangan atau rujukan…" aria-label="Cari audit"></div>
+          <select class="select" data-f="action" aria-label="Tindakan"><option value="">Semua tindakan</option>${Object.keys(ACTION_LABEL).map((a) => html`<option value="${a}">${ACTION_LABEL[a]}</option>`)}</select>
+          <select class="select" data-f="module" aria-label="Modul"><option value="">Semua modul</option>${['AUTH', 'USER', 'CATEGORY', 'SETTINGS', 'NOTIFICATION', 'FEEDBACK', 'DATABASE'].concat((KD.modules || []).map((x) => x.sheet)).map((m) => html`<option value="${m}">${m}</option>`)}</select>
+          <input class="input" type="date" data-f="from" aria-label="Dari"><input class="input" type="date" data-f="to" aria-label="Hingga"></div>
+        <section class="panel panel-flush" data-box></section>`.s;
+      const t = pagedTable(el, {
+        box: '[data-box]', fetch: A.getAuditLogs, emptyTitle: 'Tiada log',
+        table: (items) => html`<table class="table"><thead><tr><th>Masa</th><th>Pengguna</th><th>Tindakan</th><th>Modul</th><th>Rujukan</th><th>Keterangan</th></tr></thead><tbody>
+          ${items.map((l) => html`<tr><td class="nowrap">${fmtDate(l.createdAt, true)}</td><td><div class="cell-strong">${l.userName}</div><div class="xs muted">${l.role}</div></td><td class="nowrap">${actionLabel(l.action)}</td><td>${l.module}</td><td class="xs nowrap">${l.referenceId || '—'}</td><td class="small">${l.description || '—'}</td></tr>`)}</tbody></table>`
+      });
+      t.load();
+    }
+  };
+
+  // ================================================================ Tetapan
+  KD.views.adminSettings = {
+    async render(el) {
+      el.innerHTML = html`${head('Tetapan', 'Konfigurasi sistem. Tetapan kritikal keselamatan hanya boleh diubah oleh Super Admin.')}<section class="panel" data-box>${skeletonList(4)}</section>`.s;
+      let rows = [];
+      const draw = () => {
+        qs('[data-box]', el).innerHTML = html`<form novalidate>${rows.map((s) => html`<div class="setting-row field" style="margin-top:0">
+            <div><label class="setting-row__key" for="s-${s.key}">${s.description}</label><div class="xs muted">${s.key}${!s.editable ? html` <span class="badge badge-accent">${icon('lock', 'i-sm')}Super Admin</span>` : ''}${s.updatedAt ? html` <span>dikemas kini ${relTime(s.updatedAt)}</span>` : ''}</div></div>
+            <div>${s.type === 'bool' ? html`<span class="toggle"><input type="checkbox" id="s-${s.key}" name="${s.key}" ${s.value ? raw('checked') : ''} ${s.editable ? '' : raw('disabled')}><span></span></span>`
+              : s.type === 'text' ? html`<textarea class="textarea" style="min-height:80px" id="s-${s.key}" name="${s.key}" maxlength="${s.max || 400}" ${s.editable ? '' : raw('disabled')}>${s.value}</textarea>`
+                : html`<input class="input" id="s-${s.key}" name="${s.key}" type="${s.type === 'int' ? 'number' : 'text'}" ${s.min !== undefined ? raw('min="' + s.min + '"') : ''} ${s.max !== undefined && s.type === 'int' ? raw('max="' + s.max + '"') : ''} value="${s.value}" ${s.editable ? '' : raw('disabled')}>`}</div></div>`)}
+          <div class="row mt-6" style="justify-content:flex-end"><button class="btn btn-primary" type="submit">Simpan tetapan</button></div></form>`.s;
+      };
+      const load = async () => {
+        try { rows = await A.getSettings(); draw(); } catch (err) { qs('[data-box]', el).innerHTML = errorState(err, 'reload').s; }
+      };
+      on(el, 'submit', 'form', async (e, form) => {
+        e.preventDefault();
+        const data = formData(form);
+        const changes = {};
+        rows.forEach((s) => {
+          if (!s.editable || !(s.key in data)) return;
+          let v = data[s.key];
+          if (s.type === 'int') v = Number(v);
+          if (v !== s.value) changes[s.key] = v;
+        });
+        if (!Object.keys(changes).length) { toast('Tiada perubahan untuk disimpan.'); return; }
+        if (changes.MAINTENANCE_MODE === true && !(await confirm({ title: 'Aktifkan mod penyelenggaraan?', message: 'Semua pengguna bukan pentadbir tidak dapat menggunakan sistem sehingga mod ini dimatikan.', confirmText: 'Aktifkan', danger: true }))) return;
+        await busy(qs('button[type="submit"]', form), async () => {
+          try {
+            rows = await A.updateSettings(changes);
+            KD.config = await KD.api.getConfig().catch(() => KD.config);
+            toast(Object.keys(changes).length + ' tetapan disimpan.');
+            draw();
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+
+  // ================================================================ Pangkalan data (SUPER_ADMIN)
+  KD.views.adminDatabase = {
+    async render(el) {
+      el.innerHTML = html`${head('Pangkalan Data', 'Sandaran, migrasi dan log ralat sistem.', html`<button class="btn btn-primary" data-act="backup">${icon('database')}Sandar sekarang</button>`)}
+        <div class="grid grid-2"><section class="panel"><div class="panel-head"><h3>Migrasi</h3></div><div data-mig>${skeletonList(2)}</div></section>
+        <section class="panel"><div class="panel-head"><h3>Sandaran</h3></div><div data-bk>${skeletonList(1)}</div></section></div>
+        <section class="panel panel-flush mt-6"><div class="panel-head"><h3>Log ralat terkini</h3><span class="xs muted">Gunakan ID ralat untuk menjejak aduan pengguna</span></div><div data-logs class="mt-3">${skeletonList(2)}</div></section>`.s;
+      const load = async () => {
+        try {
+          const [mig, logs, health] = await Promise.all([A.getMigrations(), A.getSystemLogs(), A.getHealth()]);
+          qs('[data-mig]', el).innerHTML = html`${mig.map((m) => html`<div class="health-row"><span class="status-dot ${m.appliedAt ? 'status-ok' : 'status-warn'}"></span><div class="grow"><div class="cell-strong small">${m.id}</div><div class="xs muted">${m.description}</div></div><span class="xs muted">${m.appliedAt ? fmtDate(m.appliedAt, true) : 'Tertunda'}</span></div>`)}<p class="xs muted mt-3">Migrasi baharu dijalankan oleh pemilik skrip melalui fungsi runMigration() dalam editor Apps Script.</p>`.s;
+          qs('[data-bk]', el).innerHTML = html`<div class="health-row"><span class="status-dot ${health.backup.ok ? 'status-ok' : 'status-warn'}"></span><div class="grow small">Sandaran terakhir</div><strong class="small">${health.backup.lastBackupAt ? fmtDate(health.backup.lastBackupAt, true) : 'Belum pernah'}</strong></div>
+            <div class="health-row"><span class="status-dot ${health.script.maintenanceTriggerInstalled ? 'status-ok' : 'status-warn'}"></span><div class="grow small">Sandaran automatik harian</div><strong class="small">${health.script.maintenanceTriggerInstalled ? 'Aktif' : 'Belum dipasang'}</strong></div>
+            <p class="xs muted mt-3">Salinan penuh spreadsheet disimpan dalam folder "<nama sistem> Backup" (30 salinan terkini).</p>`.s;
+          qs('[data-logs]', el).innerHTML = logs.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Masa</th><th>ID ralat</th><th>Tindakan</th><th>Mesej</th></tr></thead><tbody>${logs.map((l) => html`<tr><td class="nowrap">${fmtDate(l.createdAt, true)}</td><td class="xs nowrap">${l.errorId}</td><td>${l.action || '—'}</td><td class="small">${l.message}</td></tr>`)}</tbody></table></div>`.s : html`<p class="muted small" style="padding:0 24px 24px">Tiada ralat direkodkan. Alhamdulillah.</p>`.s;
+        } catch (err) { qs('[data-mig]', el).innerHTML = errorState(err, 'reload').s; }
+      };
+      on(el, 'click', '[data-act="backup"]', async (e, b) => busy(b, async () => { try { const r = await A.runBackup(); toast('Sandaran dicipta: ' + r.name); load(); } catch (err) { toastError(err); } }));
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+
+  // ================================================================ Kesihatan sistem (SUPER_ADMIN)
+  KD.views.adminHealth = {
+    async render(el) {
+      el.innerHTML = html`${head('Kesihatan Sistem', 'Status pangkalan data, storan, skrip dan sandaran.', html`<button class="btn btn-outline" data-act="reload">${icon('refresh')}Semak semula</button>`)}<div data-box>${skeletonStats(4)}</div>`.s;
+      const dot = (ok) => html`<span class="status-dot ${ok === true ? 'status-ok' : ok === false ? 'status-bad' : 'status-warn'}"></span>`;
+      const load = async () => {
+        const box = qs('[data-box]', el);
+        box.innerHTML = skeletonStats(4).s;
+        try {
+          const h = await A.getHealth();
+          const s = h.script;
+          box.innerHTML = html`<div class="grid grid-4">
+              <div class="stat"><div class="stat__label">${dot(h.database.ok)}Pangkalan data</div><div class="stat__value" style="font-size:var(--fs-xl)">${h.database.ok ? 'Sihat' : 'Bermasalah'}</div><div class="stat__note">${h.database.name || h.database.error || ''}</div></div>
+              <div class="stat"><div class="stat__label">${dot(h.drive.ok && h.drive.isPrivate)}Drive</div><div class="stat__value" style="font-size:var(--fs-xl)">${h.drive.ok ? (h.drive.isPrivate ? 'Peribadi' : 'Dikongsi!') : 'Ralat'}</div><div class="stat__note">${h.drive.folderName || h.drive.error || ''}</div></div>
+              <div class="stat"><div class="stat__label">${dot(true)}Skrip</div><div class="stat__value" style="font-size:var(--fs-xl)">v${s.version}</div><div class="stat__note">${s.environment}, ${s.timezone}</div></div>
+              <div class="stat"><div class="stat__label">${dot(h.backup.ok)}Sandaran terakhir</div><div class="stat__value" style="font-size:var(--fs-xl)">${h.backup.lastBackupAt ? relTime(h.backup.lastBackupAt) : 'Tiada'}</div></div>
+            </div>
+            <div class="grid grid-2 mt-6">
+              <section class="panel"><div class="panel-head"><h3>Sheet</h3></div>${(h.database.sheets || []).map((x) => html`<div class="health-row">${dot(x.exists && x.headersOk)}<span class="grow">${x.sheet}</span><span class="small muted">${x.exists ? fmtNum(x.rows) + ' baris' : 'Tiada'}${x.missing && x.missing.length ? ', lajur hilang: ' + x.missing.join(', ') : ''}</span></div>`)}</section>
+              <section class="panel"><div class="panel-head"><h3>Konfigurasi</h3></div>
+                <div class="health-row">${dot(s.maintenanceTriggerInstalled)}<span class="grow">Pencetus harian (sandaran & pembersihan)</span><strong class="small">${s.maintenanceTriggerInstalled ? 'Dipasang' : 'Jalankan installTriggers()'}</strong></div>
+                <div class="health-row">${dot(s.mailQuotaRemaining === null ? null : s.mailQuotaRemaining > 10)}<span class="grow">Baki kuota email hari ini</span><strong class="small">${s.mailQuotaRemaining === null ? '—' : fmtNum(s.mailQuotaRemaining)}</strong></div>
+                <div class="health-row">${dot(s.pbkdf2Iterations >= 10000 ? true : null)}<span class="grow">Lelaran PBKDF2</span><strong class="small">${fmtNum(s.pbkdf2Iterations)}</strong></div>
+                <div class="health-row">${dot(s.iframeEmbed ? null : true)}<span class="grow">Benam iframe (PWA shell)</span><strong class="small">${s.iframeEmbed ? 'Dibenarkan' : 'Disekat'}</strong></div>
+                <div class="health-row">${dot(!h.lastError)}<span class="grow">Ralat terakhir</span><strong class="small">${h.lastError ? h.lastError.errorId + ', ' + relTime(h.lastError.createdAt) : 'Tiada'}</strong></div>
+              </section></div>
+            <p class="xs muted mt-4">Disemak ${fmtDate(h.checkedAt, true)}.</p>`.s;
+        } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+      };
+      on(el, 'click', '[data-act="reload"]', load);
+      load();
+    }
+  };
+})(window.KD);
+</script>

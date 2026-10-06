@@ -1,0 +1,413 @@
+<script>
+/**
+ * KD.crud — paparan GENERIK untuk semua modul (senarai, butiran, borang, borang awam).
+ * Dipacu sepenuhnya oleh metadata modul (crud.meta ← modules/*.json). Tiada kod per modul diperlukan.
+ *
+ * Paparan tersuai (pilihan): cipta src/frontend/modules/<key>.html dan daftar
+ *   KD.views['crudList:<key>'] / ['crudDetail:<key>'] / ['crudForm:<key>'] — router menggunakannya jika wujud.
+ *   Fungsi pembantu di KD.crud boleh diguna semula (fieldInput, collect, valueText, ...).
+ *
+ * NOTA Apps Script: teks selepas dua garis condong dalam <script> dibuang — guna komen blok sahaja.
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, qs, qsa, on, fmtNum, fmtDate, relTime, requestId, debounce, fileToBase64, downloadBase64, fmtBytes, toCsv, downloadText } = KD.utils;
+  const { icon, toast, toastError, modal, confirm, skeletonList, empty, errorState, pager, busy, fieldErrors, toneBadge } = KD.ui;
+  const api = KD.api;
+
+  let catCache = null;
+  async function categories() {
+    if (!catCache) catCache = await api.getCategories();
+    return catCache;
+  }
+
+  const route = () => (KD.router.current && KD.router.current.route) || {};
+  const moduleFor = (r) => {
+    const m = KD.moduleOf(r.module);
+    if (!m) throw new Error('Modul tidak dijumpai. Muat semula halaman.');
+    return m;
+  };
+  const basePath = (m, r) => (r && r.admin ? '/admin' : '') + m.path;
+  const isAdmin = () => KD.auth.isAdmin();
+  const canCreate = (m) => m.access.create !== 'ADMIN' || isAdmin();
+  const statusOf = (m, value) => (m.statuses || []).filter((s) => s.value === value)[0];
+  const statusBadge = (m, value) => { const s = statusOf(m, value); return s ? toneBadge(s.label, s.tone) : ''; };
+
+  /** Medan yang dipaparkan kepada peminta semasa. */
+  function visibleFields(m, mode) {
+    const admin = isAdmin();
+    return m.fields.filter((f) => {
+      if (f.adminOnly && !admin && !(mode === 'view' && f.visibleToOwner)) return false;
+      if (mode === 'public') return f.public !== false && !f.adminOnly && !f.readonly;
+      if (f.publicOnly && !admin && mode !== 'view') return false;
+      if (mode === 'form' && f.readonly) return false;
+      return true;
+    });
+  }
+
+  /** Nilai paparan (teks) satu medan. */
+  function valueText(f, d) {
+    const v = d.values[f.key];
+    if (d.labels && d.labels[f.key] !== undefined && d.labels[f.key] !== '') return d.labels[f.key];
+    if (v === null || v === undefined || v === '') return '';
+    if (f.type === 'bool') return v ? 'Ya' : 'Tidak';
+    if (f.type === 'date') return fmtDate(v + 'T00:00:00');
+    if (f.type === 'number') return Number(v).toLocaleString('ms-MY', { maximumFractionDigits: f.decimals === undefined ? 2 : f.decimals });
+    if (f.type === 'files') return v ? v + ' fail' : '';
+    return String(v);
+  }
+
+  // ================================================================== Item senarai
+
+  function item(m, d, r) {
+    const listFields = m.fields.filter((f) => f.list && f.key !== m.titleField && f.type !== 'files' && (!f.adminOnly || isAdmin()));
+    const meta = listFields.map((f) => (f.type === 'bool' ? (d.values[f.key] ? f.label : '') : valueText(f, d))).filter(Boolean);
+    return html`<a class="rec-item" href="#${basePath(m, r)}/${d.id}">
+      <span class="rec-item__icon">${icon(m.icon)}</span>
+      <span class="rec-item__body">
+        <span class="rec-item__title"><span>${d.title}</span>${statusBadge(m, d.status)}${d.state === 'DELETED' ? html`<span class="badge badge-danger">Dipadam</span>` : ''}</span>
+        ${meta.length ? html`<span class="rec-item__text">${meta.join(' · ')}</span>` : ''}
+        <span class="rec-item__meta"><span class="rec-ref">${d.refNo}</span>${r && r.admin || m.access.list === 'ALL' ? html`<span>${icon('user', 'i-sm')}${d.ownerName}</span>` : ''}<span>${relTime(d.createdAt)}</span></span>
+      </span>
+      <span class="rec-item__side">${icon('chev-right', 'i-sm')}</span>
+    </a>`;
+  }
+
+  // ================================================================== Senarai
+
+  KD.views.crudList = {
+    async render(el, params, query) {
+      const r = route();
+      const m = moduleFor(r);
+      const admin = !!r.admin;
+      const state = { q: query.q || '', status: query.status || '', page: Number(query.page) || 1, filters: {}, scope: query.scope || '', deleted: query.deleted === '1' };
+      const filterFields = m.fields.filter((f) => f.filter && (!f.adminOnly || isAdmin()));
+      filterFields.forEach((f) => { if (query['f_' + f.key]) state.filters[f.key] = query['f_' + f.key]; });
+      const cats = filterFields.some((f) => f.type === 'category') ? await categories().catch(() => []) : [];
+
+      const filterSelect = (f) => {
+        const opts = f.type === 'enum' ? f.options.map((o) => [o.value, o.label])
+          : f.type === 'category' ? cats.map((c) => [c.id, c.nameMs]) : [['true', 'Ya'], ['false', 'Tidak']];
+        if (f.type === 'category' && opts.length < 2) return '';
+        return html`<select class="select" data-filter="${f.key}" aria-label="${f.label}"><option value="">${f.label}: semua</option>${opts.map((o) => html`<option value="${o[0]}" ${String(state.filters[f.key] || '') === o[0] ? raw('selected') : ''}>${o[1]}</option>`)}</select>`;
+      };
+
+      el.innerHTML = html`<div class="page-head"><div><h1>${m.labelPlural}</h1>${m.description ? html`<p>${m.description}</p>` : ''}</div>
+        <div class="row row-wrap"><button class="btn btn-outline" data-act="export">${icon('download')}Eksport CSV</button>
+        ${canCreate(m) ? html`<a class="btn btn-primary" href="#${basePath(m, r)}/baru">${icon('plus')}${m.label} baharu</a>` : ''}</div></div>
+        <div class="toolbar">
+          <input class="input search" type="search" placeholder="Cari…" value="${state.q}" data-q aria-label="Cari">
+          ${filterFields.map(filterSelect)}
+          ${admin ? html`<select class="select" data-scope aria-label="Skop"><option value="">Semua rekod</option><option value="MINE" ${state.scope === 'MINE' ? raw('selected') : ''}>Rekod saya</option></select>
+            <label class="check" style="flex:0 0 auto"><input type="checkbox" data-deleted ${state.deleted ? raw('checked') : ''}>Dipadam</label>` : ''}
+        </div>
+        <div data-chips></div>
+        <section class="panel panel-flush" data-box>${skeletonList(4)}</section>`.s;
+
+      const sync = () => {
+        const q = { q: state.q, status: state.status, page: state.page > 1 ? state.page : '', scope: state.scope, deleted: state.deleted ? '1' : '' };
+        Object.keys(state.filters).forEach((k) => { q['f_' + k] = state.filters[k]; });
+        KD.router.setQuery(q);
+      };
+      const payload = () => {
+        const p = { q: state.q, status: state.status, page: state.page, filters: state.filters };
+        if (admin) { p.scope = state.scope || 'ALL'; p.deleted = state.deleted; }
+        return p;
+      };
+
+      const load = async () => {
+        const box = qs('[data-box]', el);
+        try {
+          const res = await api.list(m.key, payload());
+          const counts = res.meta.statusCounts || {};
+          qs('[data-chips]', el).innerHTML = m.statuses.length ? html`<div class="chips">
+            <button class="chip ${!state.status ? 'is-on' : ''}" data-status="">Semua <b>${fmtNum(res.meta.totalAll)}</b></button>
+            ${m.statuses.map((s) => html`<button class="chip ${state.status === s.value ? 'is-on' : ''}" data-status="${s.value}">${s.label} <b>${fmtNum(counts[s.value] || 0)}</b></button>`)}</div>`.s : '';
+          box.innerHTML = res.items.length ? html`<div class="rec-list">${res.items.map((d) => item(m, d, r))}</div>${pager(res.meta)}`.s
+            : empty(state.q || state.status || Object.keys(state.filters).length ? 'Tiada padanan' : 'Belum ada ' + m.label.toLowerCase(),
+              state.q || state.status ? 'Cuba ubah carian atau penapis.' : (m.description || ''),
+              canCreate(m) && !state.q ? html`<a class="btn btn-primary" href="#${basePath(m, r)}/baru">${icon('plus')}${m.label} baharu</a>` : '').s;
+        } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+      };
+
+      on(el, 'input', '[data-q]', debounce((e, inp) => { state.q = e.target.value.trim(); state.page = 1; sync(); load(); }, 350));
+      on(el, 'change', '[data-filter]', (e, s) => { const k = s.getAttribute('data-filter'); if (s.value) state.filters[k] = s.value; else delete state.filters[k]; state.page = 1; sync(); load(); });
+      on(el, 'change', '[data-scope]', (e, s) => { state.scope = s.value; state.page = 1; sync(); load(); });
+      on(el, 'change', '[data-deleted]', (e, c) => { state.deleted = c.checked; state.page = 1; sync(); load(); });
+      on(el, 'click', '[data-status]', (e, b) => { state.status = b.getAttribute('data-status'); state.page = 1; sync(); load(); });
+      on(el, 'click', '[data-page]', (e, b) => { state.page = Number(b.getAttribute('data-page')); sync(); load(); window.scrollTo(0, 0); });
+      on(el, 'click', '[data-act="reload"]', load);
+      on(el, 'click', '[data-act="export"]', (e, b) => busy(b, async () => {
+        try {
+          const res = await api.exportRows(m.key, payload());
+          downloadText(toCsv(res.rows), 'text/csv;charset=utf-8', res.filename);
+          toast((res.rows.length - 1) + ' baris dieksport.' + (res.truncated ? ' (dihadkan)' : ''));
+        } catch (err) { toastError(err); }
+      }));
+      load();
+    }
+  };
+
+  // ================================================================== Butiran
+
+  KD.views.crudDetail = {
+    async render(el, params) {
+      const r = route();
+      const m = moduleFor(r);
+      el.innerHTML = skeletonList(3).s;
+      let d;
+      try { d = await api.get(m.key, params.id); } catch (err) { el.innerHTML = errorState(err).s; return; }
+      const fields = visibleFields(m, 'view').filter((f) => f.type !== 'files' && valueText(f, d) !== '');
+      const wide = (f) => f.type === 'text';
+      const s = statusOf(m, d.status);
+
+      el.innerHTML = html`<div class="page-head"><div>
+          <a class="back-link" href="#${basePath(m, r)}">${icon('chev-left', 'i-sm')}${m.labelPlural}</a>
+          <h1 class="mt-2">${d.title}</h1>
+          <div class="row row-wrap mt-2"><span class="rec-ref">${d.refNo}</span>${statusBadge(m, d.status)}${d.state === 'DELETED' ? html`<span class="badge badge-danger">Dipadam</span>` : ''}</div></div>
+        <div class="row row-wrap">
+          ${d.canSetStatus ? html`<button class="btn btn-primary" data-act="status">${icon('refresh')}Tukar status</button>` : ''}
+          ${d.canEdit ? html`<a class="btn btn-outline" href="#${basePath(m, r)}/${d.id}/sunting">${icon('edit')}Sunting</a>` : ''}
+          ${d.canDelete ? html`<button class="btn btn-outline" data-act="delete" aria-label="Padam">${icon('trash')}</button>` : ''}
+          ${d.state === 'DELETED' && isAdmin() ? html`<button class="btn btn-outline" data-act="restore">${icon('refresh')}Pulihkan</button>` : ''}
+        </div></div>
+        <div class="form-layout">
+          <section class="panel">
+            <dl class="rec-detail__meta">${fields.map((f) => html`<div class="${wide(f) ? 'field-wide' : ''}"><dt>${f.label}${f.adminOnly ? html` <span class="badge badge-muted">Dalaman</span>` : ''}</dt><dd>${valueText(f, d)}</dd></div>`)}</dl>
+            ${d.attachments && d.attachments.length ? html`<div class="mt-6"><div class="label">Lampiran</div><div class="att-list mt-2">${d.attachments.map((a) => html`<div>
+              <div class="att-row">${icon('clip', 'i-sm')}<span class="grow">${a.filename}</span><span class="xs muted">${fmtBytes(a.size)}</span><button class="btn btn-ghost btn-sm" data-att="${a.id}">${a.mimeType.indexOf('image/') === 0 ? 'Lihat' : 'Muat turun'}</button></div>
+              <div data-att-view="${a.id}"></div></div>`)}</div></div>` : ''}
+          </section>
+          <aside class="panel">
+            <h3>Maklumat</h3>
+            <dl class="rec-detail__meta" style="grid-template-columns:1fr;margin-top:var(--sp-4)">
+              ${s ? html`<div><dt>Status</dt><dd>${toneBadge(s.label, s.tone)}</dd></div>` : ''}
+              <div><dt>Dihantar oleh</dt><dd>${d.ownerName || '—'}</dd></div>
+              <div><dt>Tarikh</dt><dd>${fmtDate(d.createdAt, true)}</dd></div>
+              ${d.updatedAt !== d.createdAt ? html`<div><dt>Dikemas kini</dt><dd>${fmtDate(d.updatedAt, true)}</dd></div>` : ''}
+            </dl>
+            ${d.statusNote || d.statusChangedAt ? html`<div class="status-note"><strong>Catatan status</strong><div class="mt-2">${d.statusNote || '—'}</div><div class="xs muted mt-2">${fmtDate(d.statusChangedAt, true)}</div></div>` : ''}
+          </aside>
+        </div>`.s;
+
+      on(el, 'click', '[data-att]', async (e, b) => busy(b, async () => {
+        const target = qs('[data-att-view="' + b.getAttribute('data-att') + '"]', el);
+        try {
+          const f = await api.getAttachment(b.getAttribute('data-att'));
+          if (f.mimeType.indexOf('image/') === 0) {
+            const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], { type: f.mimeType }));
+            target.innerHTML = html`<div class="att-preview"><img alt="${f.filename}" src="${url}"></div>`.s;
+          } else downloadBase64(f.data, f.mimeType, f.filename);
+        } catch (err) { toastError(err); }
+      }));
+      on(el, 'click', '[data-act="delete"]', async () => {
+        if (!(await confirm({ title: 'Padam ' + m.label.toLowerCase() + '?', message: 'Rekod ' + d.refNo + ' akan dipadam.', danger: true, confirmText: 'Padam' }))) return;
+        try { await api.remove(m.key, d.id); toast(m.label + ' dipadam.'); KD.router.go(basePath(m, r)); } catch (err) { toastError(err); }
+      });
+      on(el, 'click', '[data-act="restore"]', async (e, b) => busy(b, async () => {
+        try { await api.restore(m.key, d.id); toast('Rekod dipulihkan.'); KD.router.render(); } catch (err) { toastError(err); }
+      }));
+      on(el, 'click', '[data-act="status"]', () => {
+        const md = modal({
+          title: 'Tukar status',
+          body: html`<form data-status-form novalidate>
+            <div class="field"><label class="label" for="st-status">Status</label><select class="select" id="st-status" name="status">${m.statuses.map((x) => html`<option value="${x.value}" ${x.value === d.status ? raw('selected') : ''}>${x.label}</option>`)}</select></div>
+            <div class="field"><label class="label" for="st-note">Catatan (dihantar kepada pemohon)</label><textarea class="textarea" id="st-note" name="note" maxlength="500">${d.statusNote || ''}</textarea></div></form>`,
+          foot: html`<button class="btn btn-outline" data-close>Batal</button><button class="btn btn-primary" data-save>Simpan</button>`
+        });
+        qs('[data-save]', md.el).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+          const form = qs('[data-status-form]', md.el);
+          try {
+            await api.setStatus(m.key, d.id, form.status.value, form.note.value.trim());
+            md.close(); toast('Status dikemas kini.'); KD.router.render();
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        }));
+      });
+    }
+  };
+
+  // ================================================================== Medan borang
+
+  /** HTML input untuk satu medan. @param {Object} opts { value, cats, existing (lampiran sedia ada), idPrefix } */
+  function fieldInput(f, opts) {
+    const o = opts || {};
+    const id = (o.idPrefix || 'f-') + f.key;
+    const v = o.value === undefined || o.value === null ? (f.default === undefined ? '' : f.default) : o.value;
+    const req = f.required && f.type !== 'files' ? raw('required') : '';
+    const label = html`<label class="label" for="${id}">${f.label}${f.required ? html` <span class="muted">*</span>` : ''}</label>`;
+    const hint = f.hint ? html`<span class="hint">${f.hint}</span>` : '';
+    const wide = ['text', 'files'].indexOf(f.type) >= 0 ? 'field-wide' : '';
+    const cfg = KD.config || {};
+    switch (f.type) {
+      case 'text':
+        return html`<div class="field ${wide}">${label}<textarea class="textarea" id="${id}" name="${f.key}" ${f.max ? raw('maxlength="' + Number(f.max) + '"') : ''} placeholder="${f.placeholder || ''}" ${req}>${v}</textarea>${hint}</div>`;
+      case 'bool':
+        return html`<div class="field"><label class="check" for="${id}"><input type="checkbox" id="${id}" name="${f.key}" ${v === true || v === 'true' ? raw('checked') : ''}>${f.label}</label>${hint}</div>`;
+      case 'enum':
+        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}>${f.required && v ? '' : html`<option value="">— Pilih —</option>`}${f.options.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}</option>`)}</select>${hint}</div>`;
+      case 'category': {
+        const cats = o.cats || [];
+        if (cats.length < 2 && !o.value) return ''; /* satu kategori sahaja → dipilih automatik di backend */
+        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}><option value="">— Pilih —</option>${cats.map((c) => html`<option value="${c.id}" ${String(v) === c.id ? raw('selected') : ''}>${c.nameMs}</option>`)}</select>${hint}</div>`;
+      }
+      case 'files': {
+        const accept = cfg.ALLOWED_MIME_TYPES || '';
+        const existing = o.existing || [];
+        return html`<div class="field ${wide}" data-files-field="${f.key}" data-max="${f.maxFiles || 3}"><span class="label">${f.label}</span>
+          ${existing.length ? html`<div class="att-list mb-2">${existing.map((a) => html`<label class="att-row">${icon('clip', 'i-sm')}<span class="grow">${a.filename}</span><span class="check xs"><input type="checkbox" data-remove-att="${a.id}">Buang</span></label>`)}</div>` : ''}
+          <div class="dropzone"><label class="btn btn-outline btn-sm" for="${id}">${icon('clip', 'i-sm')}Pilih fail</label><input class="sr-only" type="file" id="${id}" name="${f.key}" multiple accept="${accept}">
+          <span class="hint">Maksimum ${f.maxFiles || 3} fail, ${cfg.MAX_ATTACHMENT_MB || 5}MB setiap satu.</span><div class="row row-wrap" data-chips-for="${f.key}"></div></div>${hint}</div>`;
+      }
+      default: {
+        const type = { email: 'email', phone: 'tel', int: 'number', number: 'number', date: 'date', time: 'time' }[f.type] || 'text';
+        const extra = f.type === 'number' ? raw('step="any" inputmode="decimal"') : f.type === 'int' ? raw('step="1" inputmode="numeric"') : '';
+        const ac = { email: 'email', phone: 'tel' }[f.type] || 'off';
+        return html`<div class="field ${wide}">${label}<input class="input" id="${id}" name="${f.key}" type="${type}" value="${v}" ${extra} ${f.max && type === 'text' ? raw('maxlength="' + Number(f.max) + '"') : ''} ${f.min !== undefined && type === 'number' ? raw('min="' + Number(f.min) + '"') : ''} ${f.max !== undefined && type === 'number' ? raw('max="' + Number(f.max) + '"') : ''} placeholder="${f.placeholder || ''}" autocomplete="${ac}" ${req}>${hint}</div>`;
+      }
+    }
+  }
+
+  /** Urus pilihan fail (cip + buang) untuk semua medan files dalam borang. @return {Object} key → File[] */
+  function bindFiles(form) {
+    const chosen = {};
+    const maxMb = (KD.config && KD.config.MAX_ATTACHMENT_MB) || 5;
+    const draw = (key) => {
+      const box = qs('[data-chips-for="' + key + '"]', form);
+      if (box) box.innerHTML = html`${(chosen[key] || []).map((f, i) => html`<span class="file-chip">${f.name} <span class="muted">${fmtBytes(f.size)}</span><button type="button" data-rm-file="${key}:${i}" aria-label="Buang ${f.name}">${icon('x', 'i-sm')}</button></span>`)}`.s;
+    };
+    on(form, 'change', 'input[type="file"]', (e, input) => {
+      const key = input.name;
+      const max = Number(input.closest('[data-files-field]').getAttribute('data-max'));
+      const list = (chosen[key] || []).concat(Array.from(input.files));
+      const ok = list.filter((f) => f.size <= maxMb * 1048576);
+      if (ok.length < list.length) toast('Sesetengah fail melebihi ' + maxMb + 'MB dan diabaikan.', 'error');
+      if (ok.length > max) toast('Maksimum ' + max + ' fail.', 'error');
+      chosen[key] = ok.slice(0, max);
+      input.value = '';
+      draw(key);
+    });
+    on(form, 'click', '[data-rm-file]', (e, b) => {
+      const [key, i] = b.getAttribute('data-rm-file').split(':');
+      chosen[key].splice(Number(i), 1);
+      draw(key);
+    });
+    return chosen;
+  }
+
+  /** Kumpul nilai borang → payload bertaip (+ fail base64). */
+  async function collect(form, fields, chosen) {
+    const out = {};
+    for (const f of fields) {
+      const el = form.elements[f.key];
+      if (f.type === 'files') {
+        const files = (chosen && chosen[f.key]) || [];
+        if (files.length) out[f.key] = await Promise.all(files.map(async (x) => ({ name: x.name, mimeType: x.type, data: await fileToBase64(x) })));
+        continue;
+      }
+      if (!el) continue;
+      if (f.type === 'bool') { out[f.key] = el.checked; continue; }
+      const v = String(el.value || '').trim();
+      if ((f.type === 'int' || f.type === 'number') && v !== '') out[f.key] = Number(v);
+      else out[f.key] = v;
+    }
+    const rm = qsa('[data-remove-att]:checked', form).map((c) => c.getAttribute('data-remove-att'));
+    if (rm.length) out.removeAttachmentIds = rm;
+    return out;
+  }
+
+  // ================================================================== Borang (cipta / sunting)
+
+  KD.views.crudForm = {
+    async render(el, params) {
+      const r = route();
+      const m = moduleFor(r);
+      const editing = !!params.id;
+      el.innerHTML = skeletonList(2).s;
+      let d = null;
+      let cats = [];
+      try {
+        const tasks = [m.fields.some((f) => f.type === 'category') ? categories() : Promise.resolve([])];
+        if (editing) tasks.push(api.get(m.key, params.id));
+        [cats, d] = await Promise.all(tasks);
+      } catch (err) { el.innerHTML = errorState(err).s; return; }
+      if (editing && !d.canEdit) { el.innerHTML = empty('Tidak boleh disunting', 'Rekod ini tidak boleh disunting lagi.').s; return; }
+      if (!editing && !canCreate(m)) { const msg = 'Anda tidak boleh mencipta ' + m.label.toLowerCase() + '.'; el.innerHTML = empty('Tiada kebenaran', msg).s; return; }
+      const fields = visibleFields(m, 'form');
+      const existing = (key) => (d && d.attachments ? d.attachments.filter((a) => a.field === key) : []);
+
+      el.innerHTML = html`<div class="page-head"><div><a class="back-link" href="#${basePath(m, r)}${editing ? '/' + d.id : ''}">${icon('chev-left', 'i-sm')}${editing ? d.refNo : m.labelPlural}</a>
+          <h1 class="mt-2">${editing ? 'Sunting ' + m.label.toLowerCase() : m.label + ' baharu'}</h1>${!editing && m.description ? html`<p>${m.description}</p>` : ''}</div></div>
+        <form class="panel" data-crud-form novalidate>
+          <div class="form-grid">${fields.map((f) => fieldInput(f, { value: d ? d.values[f.key] : undefined, cats, existing: existing(f.key) }))}</div>
+          <div class="row row-wrap mt-6"><button class="btn btn-primary" type="submit">${icon('check')}${editing ? 'Simpan perubahan' : 'Hantar'}</button>
+          <a class="btn btn-ghost" href="#${basePath(m, r)}${editing ? '/' + d.id : ''}">Batal</a></div>
+        </form>`.s;
+      const form = qs('[data-crud-form]', el);
+      const chosen = bindFiles(form);
+      const rid = requestId();
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        busy(qs('button[type="submit"]', form), async () => {
+          try {
+            const p = await collect(form, fields, chosen);
+            const res = editing ? await api.update(m.key, d.id, p) : await api.create(m.key, Object.assign(p, { requestId: rid }));
+            toast(editing ? 'Perubahan disimpan.' : m.label + ' dihantar. No. rujukan: ' + res.refNo);
+            KD.router.go(basePath(m, r) + '/' + res.id);
+          } catch (err) { if (!fieldErrors(form, err)) toastError(err); }
+        });
+      });
+    }
+  };
+
+  // ================================================================== Borang awam (tanpa log masuk)
+
+  KD.views.publicForm = {
+    async render(el, params) {
+      el.innerHTML = html`<div class="auth"><div class="auth-card" style="width:min(640px,100%)">${skeletonList(2)}</div></div>`.s;
+      let data;
+      try { data = await api.publicForm(params.module); } catch (err) {
+        el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card">${errorState(err)}</div></div>`.s;
+        return;
+      }
+      const m = data.module;
+      const pf = m.publicForm || {};
+      const cats = m.fields.some((f) => f.type === 'category') ? await categories().catch(() => []) : [];
+      const fields = m.fields;
+      const render = () => {
+        el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card" style="width:min(640px,100%)">
+          <div class="auth-card__head">${icon(m.icon, 'i-lg')}<h2 class="mt-2">${pf.title || m.label}</h2>${pf.intro ? html`<p>${pf.intro}</p>` : ''}</div>
+          <form data-public-form novalidate>
+            <div class="form-grid">${fields.map((f) => fieldInput(f, { cats, idPrefix: 'pf-' }))}</div>
+            <div class="sr-only" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
+            <button class="btn btn-primary btn-block mt-6" type="submit">${icon('send')}Hantar</button>
+            ${KD.auth.loggedIn() ? '' : html`<p class="xs muted mt-4" style="text-align:center">Ada akaun? <a href="#/log-masuk">Log masuk</a> untuk menjejak status dalam aplikasi.</p>`}
+          </form></div></div>`.s;
+        const form = qs('[data-public-form]', el);
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          busy(qs('button[type="submit"]', form), async () => {
+            try {
+              const p = await collect(form, fields, null);
+              p.formToken = data.formToken;
+              p.website = form.elements.website.value;
+              const res = await api.publicCreate(m.key, p);
+              el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card success-card">${icon('check', 'i-lg')}
+                <h2>Berjaya dihantar</h2><p class="muted">${pf.successMessage || 'Terima kasih.'}</p>
+                ${res.refNo ? html`<div class="rec-ref">${res.refNo}</div><p class="xs muted mt-2">Simpan nombor rujukan ini.</p>` : ''}
+                <a class="btn btn-outline mt-6" href="#/">Kembali ke laman utama</a></div></div>`.s;
+            } catch (err) {
+              if (!fieldErrors(form, err)) toastError(err);
+              if (err.code === 'VALIDATION_ERROR' && /tamat tempoh|terlalu cepat/.test(err.message)) {
+                try { data.formToken = (await api.publicForm(m.key)).formToken; } catch (e2) { /* abaikan */ }
+              }
+            }
+          });
+        });
+      };
+      render();
+    }
+  };
+
+  KD.crud = { categories, visibleFields, valueText, fieldInput, bindFiles, collect, item, statusBadge, basePath };
+})(window.KD);
+</script>

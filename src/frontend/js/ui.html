@@ -1,0 +1,148 @@
+<script>
+/**
+ * KD.ui — komponen UI boleh guna semula: ikon, toast, modal, sahkan, skeleton, kosong, pager, ralat borang.
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, qs, qsa, esc, fmtNum } = KD.utils;
+
+  const icon = (name, cls) => raw('<svg class="i ' + (cls || '') + '" aria-hidden="true"><use href="#i-' + esc(name) + '"/></svg>');
+  const star = (cls) => raw('<svg class="brand-star ' + (cls || '') + '" viewBox="0 0 64 64" aria-hidden="true"><use href="#i-brand"/></svg>');
+
+  const CATEGORY_ICONS = ['grid', 'star', 'heart', 'home', 'book', 'briefcase', 'users', 'calendar', 'settings', 'shield', 'inbox', 'list'];
+  const catIcon = (name, cls) => icon(CATEGORY_ICONS.indexOf(name) >= 0 ? name : 'grid', cls);
+
+  // ---------------------------------------------------------------- Toast
+  function toast(message, type) {
+    const root = qs('#toasts');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type === 'error' ? ' toast-error' : '');
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    el.innerHTML = html`${icon(type === 'error' ? 'alert' : 'check')}<div>${message}</div>`.s;
+    root.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, type === 'error' ? 6000 : 3800);
+  }
+  /** Papar ralat API dengan errorId (jika ada) untuk rujukan sokongan. */
+  function toastError(err) {
+    const id = err && err.meta && err.meta.errorId;
+    toast((err && err.message ? err.message : 'Maaf, berlaku masalah.') + (id ? ' (Rujukan: ' + id + ')' : ''), 'error');
+  }
+
+  // ---------------------------------------------------------------- Modal
+  let lastFocus = null;
+  /**
+   * @param {{title:string, body:Raw, foot?:Raw, wide?:boolean, onClose?:Function}} opts
+   * @return {{el:HTMLElement, close:Function}}
+   */
+  function modal(opts) {
+    lastFocus = document.activeElement;
+    const root = qs('#modal-root');
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop';
+    const titleId = 'm' + Math.random().toString(36).slice(2);
+    wrap.innerHTML = html`<div class="modal ${opts.wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+      <div class="modal__head"><h3 id="${titleId}">${opts.title}</h3><button class="icon-btn" data-close aria-label="Tutup">${icon('x')}</button></div>
+      <div class="modal__body">${opts.body}</div>
+      ${opts.foot ? html`<div class="modal__foot">${opts.foot}</div>` : ''}
+    </div>`.s;
+    root.appendChild(wrap);
+    document.body.style.overflow = 'hidden';
+    const close = () => {
+      wrap.remove();
+      if (!qs('#modal-root').children.length) document.body.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
+      if (opts.onClose) opts.onClose();
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+      if (e.key === 'Tab') { // perangkap fokus
+        const f = qsa('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', wrap).filter((x) => !x.disabled && x.offsetParent !== null);
+        if (!f.length) return;
+        if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) close(); });
+    qsa('[data-close]', wrap).forEach((b) => b.addEventListener('click', close));
+    const first = qs('input, select, textarea', wrap) || qs('[data-close]', wrap);
+    if (first) setTimeout(() => first.focus(), 30);
+    return { el: wrap, close };
+  }
+
+  /** Dialog pengesahan. @return {Promise<boolean|string>} (string = sebab, jika withReason) */
+  function confirm(opts) {
+    return new Promise((resolve) => {
+      let done = false;
+      const m = modal({
+        title: opts.title,
+        body: html`<p>${opts.message}</p>${opts.withReason ? html`<div class="field mt-4"><label class="label" for="cf-reason">Sebab (pilihan)</label><input class="input" id="cf-reason" maxlength="200"></div>` : ''}`,
+        foot: html`<button class="btn btn-outline" data-close>Batal</button><button class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}" data-ok>${opts.confirmText || 'Teruskan'}</button>`,
+        onClose: () => { if (!done) resolve(false); }
+      });
+      qs('[data-ok]', m.el).addEventListener('click', () => {
+        done = true;
+        const reason = opts.withReason ? qs('#cf-reason', m.el).value.trim() : true;
+        m.close();
+        resolve(opts.withReason ? (reason || ' ') : true);
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- Keadaan
+  const skeletonList = (n) => html`<div class="panel">${Array.from({ length: n || 4 }, () => html`<div class="row" style="margin:14px 0"><div class="skel" style="width:42px;height:42px;border-radius:50%"></div><div class="grow"><div class="skel skel-line" style="width:40%"></div><div class="skel skel-line" style="width:85%"></div></div></div>`)}</div>`;
+  const skeletonStats = (n) => html`<div class="grid grid-4">${Array.from({ length: n || 4 }, () => html`<div class="skel skel-block"></div>`)}</div>`;
+  const empty = (title, message, action) => html`<div class="empty">${star()}<h3>${title}</h3><p>${message}</p>${action || ''}</div>`;
+  const errorState = (err, retryAct) => html`<div class="empty">${icon('alert', 'i-lg')}<h3>Tidak dapat memuatkan data</h3><p>${err && err.message ? err.message : 'Sila cuba semula.'}</p>${retryAct ? html`<button class="btn btn-outline" data-act="${retryAct}">${icon('refresh')}Cuba semula</button>` : ''}</div>`;
+
+  /** Navigasi halaman. */
+  function pager(meta) {
+    if (!meta || meta.totalPages <= 1) return meta && meta.total ? html`<div class="pager"><span>${fmtNum(meta.total)} rekod</span></div>` : '';
+    return html`<div class="pager"><span>Halaman ${meta.page} daripada ${meta.totalPages}, ${fmtNum(meta.total)} rekod</span>
+      <div class="row"><button class="btn btn-outline btn-sm" data-page="${meta.page - 1}" ${meta.page <= 1 ? raw('disabled') : ''}>${icon('chev-left', 'i-sm')}Sebelum</button>
+      <button class="btn btn-outline btn-sm" data-page="${meta.page + 1}" ${meta.page >= meta.totalPages ? raw('disabled') : ''}>Seterusnya${icon('chev-right', 'i-sm')}</button></div></div>`;
+  }
+
+  /** Butang sibuk semasa operasi async. */
+  async function busy(btn, fn) {
+    if (!btn) return fn();
+    btn.classList.add('is-loading'); btn.disabled = true;
+    try { return await fn(); } finally { btn.classList.remove('is-loading'); btn.disabled = false; }
+  }
+
+  /** Papar ralat medan daripada respons VALIDATION_ERROR. */
+  function fieldErrors(form, err) {
+    qsa('.field-error', form).forEach((e) => e.remove());
+    qsa('.field.has-error', form).forEach((f) => f.classList.remove('has-error'));
+    const fields = err && err.meta && err.meta.fields;
+    if (!fields) return false;
+    let first = null;
+    Object.keys(fields).forEach((name) => {
+      const input = form.querySelector('[name="' + name + '"]');
+      const field = input && input.closest('.field');
+      if (!field) return;
+      field.classList.add('has-error');
+      const p = document.createElement('div');
+      p.className = 'field-error';
+      p.textContent = fields[name];
+      field.appendChild(p);
+      if (!first) first = input;
+    });
+    if (first) first.focus();
+    return !!first;
+  }
+
+  const statusBadge = (s) => {
+    const map = { ACTIVE: ['badge-success', 'Aktif'], INACTIVE: ['badge-muted', 'Tidak aktif'], BLOCKED: ['badge-danger', 'Disekat'], ARCHIVED: ['badge-warn', 'Diarkib'], DELETED: ['badge-danger', 'Dipadam'], CLOSED: ['badge-muted', 'Ditutup'], NEW: ['badge-accent', 'Baharu'], REVIEWED: ['badge-success', 'Disemak'] };
+    const m = map[s] || ['badge-muted', s];
+    return html`<span class="badge ${m[0]}">${m[1]}</span>`;
+  };
+  /** Lencana status modul ikut "tone" dalam modules/*.json. */
+  const TONE_BADGE = { info: 'badge-brand', success: 'badge-success', warn: 'badge-warn', danger: 'badge-danger', muted: 'badge-muted', brand: 'badge' };
+  const toneBadge = (label, tone) => html`<span class="badge ${TONE_BADGE[tone] || 'badge-muted'}">${label}</span>`;
+  const roleBadge = (r) => html`<span class="badge ${r === 'SUPER_ADMIN' ? 'badge-brand' : r === 'ADMIN' ? 'badge' : 'badge-muted'}">${r === 'SUPER_ADMIN' ? 'Super Admin' : r === 'ADMIN' ? 'Admin' : 'Pengguna'}</span>`;
+
+  KD.ui = { icon, star, catIcon, toneBadge, toast, toastError, modal, confirm, skeletonList, skeletonStats, empty, errorState, pager, busy, fieldErrors, statusBadge, roleBadge };
+})(window.KD);
+</script>

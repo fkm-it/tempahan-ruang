@@ -1,0 +1,5 @@
+# Corak relatif kepada rootDir (src/). Abaikan semua, kecuali kod Apps Script.
+**/**
+!**/*.gs
+!**/*.html
+!appsscript.json

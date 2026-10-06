@@ -1,0 +1,112 @@
+<style>
+/* ==========================================================================
+   Responsif (mobile-first diselaraskan di sini) + navigasi bawah PWA
+   ========================================================================== */
+@media (max-width: 1080px) {
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-main-side, .form-layout { grid-template-columns: minmax(0, 1fr); }
+  .feature-grid { grid-template-columns: minmax(0, 1fr); margin-top: -40px; }
+  .quick { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .topbar { padding: 0 var(--sp-4); padding-top: var(--safe-t); height: calc(var(--topbar-h) + var(--safe-t)); }
+  .topbar__brand { display: flex; }
+  .icon-btn.hide-desktop { display: inline-grid; }
+  .topbar__title { display: none; }
+  .user-chip__name { display: none; }
+  .content { padding: var(--sp-5) var(--sp-4) calc(var(--bottomnav-h) + var(--safe-b) + var(--sp-8)); }
+  .page-head h1 { font-size: var(--fs-2xl); }
+
+  .bottomnav {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
+    height: calc(var(--bottomnav-h) + var(--safe-b)); padding-bottom: var(--safe-b);
+    background: var(--white); border-top: 1px solid var(--line);
+  }
+  .bottomnav a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); text-decoration: none; font-size: 11px; font-weight: 600; }
+  .bottomnav a.is-active { color: var(--brand); }
+  .bottomnav a.is-active::before { content: ""; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--accent); }
+  .bottomnav .bn-main { color: #fff; }
+  .bottomnav .bn-main .bn-circle { color: #fff; width: 46px; height: 46px; margin-top: -18px; border-radius: 50%; display: grid; place-items: center; background: var(--grad-brand); box-shadow: var(--shadow-lift); border: 3px solid var(--white); }
+  .bottomnav .bn-main span:last-child { color: var(--brand); }
+  .bottomnav .count-pill { top: 6px; right: calc(50% - 20px); }
+
+  #toasts { left: var(--sp-4); right: var(--sp-4); bottom: calc(var(--bottomnav-h) + var(--safe-b) + var(--sp-3)); max-width: none; }
+  .modal-backdrop { align-items: end; padding: 0; }
+  .modal { width: 100%; max-height: 92vh; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  /* Butang modal tidak terkeluar skrin: tindakan utama baris penuh di atas, yang lain berkongsi baris */
+  .modal__foot { gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + var(--safe-b)); }
+  .modal__foot > .btn { flex: 1 1 auto; justify-content: center; min-width: 0; margin-right: 0 !important; padding-left: var(--sp-3); padding-right: var(--sp-3); }
+  .modal__foot > .btn-primary { order: -1; flex-basis: 100%; }
+  .modal__foot > [data-act="delete"] { order: 9; flex: 0 0 auto; padding-left: var(--sp-3); padding-right: var(--sp-3); }
+  .label-desktop { display: none; }
+  .label-mobile { display: inline; }
+
+  .rec-detail__meta, .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .toolbar .input, .toolbar .select { min-width: 0; flex-basis: 100%; }
+  .setting-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+  .stat { padding: var(--sp-4); }
+  .stat__value { font-size: var(--fs-2xl); }
+  .panel { padding: var(--sp-5); border-radius: var(--r-md); }
+  .panel-flush { padding: 0; }
+  .welcome { padding: var(--sp-5); }
+  .public-top { padding: var(--sp-3) var(--sp-4); }
+  .hero__inner { padding: var(--sp-8) var(--sp-4) 72px; }
+  .hero__msg { font-size: var(--fs-md); }
+  .section { padding: var(--sp-10) var(--sp-4); }
+  .auth-card { padding: var(--sp-6) var(--sp-5); }
+  .rec-item { padding: var(--sp-4); gap: var(--sp-3); }
+  .rec-item__icon { width: 36px; height: 36px; }
+  .table th, .table td { padding: 10px 12px; }
+  .pager { flex-direction: column; align-items: stretch; text-align: center; }
+  .pager .row { justify-content: center; }
+}
+
+/* ---------------------------------------------------------------- PWA: aplikasi dipasang & pemasangan */
+.topbar { padding-top: var(--safe-t); height: calc(var(--topbar-h) + var(--safe-t)); }
+.public-top { padding-top: calc(var(--safe-t) + var(--sp-4)); }
+.is-standalone { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+.is-standalone .public-foot { padding-bottom: calc(var(--safe-b) + var(--sp-6)); }
+
+.install-banner {
+  position: fixed; left: var(--sp-3); right: var(--sp-3); z-index: 60;
+  bottom: calc(var(--sp-3) + var(--safe-b));
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  background: var(--white); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lift);
+  animation: kd-rise .35s ease-out;
+}
+.install-banner img { border-radius: 10px; flex: none; }
+.install-banner__text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.install-banner__text strong { color: var(--brand-900); font-size: var(--fs-sm); }
+.install-banner__text span { color: var(--muted); font-size: var(--fs-xs); }
+@keyframes kd-rise { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 860px) {
+  .has-install-banner .install-banner { bottom: calc(var(--bottomnav-h) + var(--safe-b) + var(--sp-3)); }
+}
+@media (prefers-reduced-motion: reduce) { .install-banner { animation: none; } }
+
+.install-guide__app { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-radius: 12px; background: var(--canvas); margin-bottom: var(--sp-4); }
+.install-guide__app img { border-radius: 12px; }
+.install-guide__steps { list-style: none; padding: 0; margin: 0 0 var(--sp-4); display: grid; gap: var(--sp-4); }
+.install-guide__steps li { display: flex; gap: var(--sp-3); align-items: flex-start; }
+.install-guide__num { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; font-weight: 700; font-size: var(--fs-sm); }
+.install-guide__title { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--brand-900); }
+
+.app-panel { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
+.app-panel__icon img { border-radius: 12px; display: block; }
+.push-panel { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.push-panel.hidden { display: none; }
+.push-panel h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--brand-900); }
+.push-prompt { display: flex; align-items: center; gap: var(--sp-3); border-color: var(--accent-200); background: var(--accent-50); }
+.push-prompt.hidden { display: none; }
+.push-prompt > .i { color: var(--accent); flex: none; }
+</style>

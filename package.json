@@ -1,0 +1,30 @@
+{
+  "name": "gas-pwa-starter",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Templat sistem web + PWA atas Google Apps Script, Sheets & Drive \u2014 modul dijana daripada JSON",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "init": "node tools/init.js",
+    "new": "node tools/gen.js new",
+    "gen": "node tools/gen.js",
+    "test": "node tools/gen.js --check && node tools/run-tests.js && node tools/run-tests.js --reverse",
+    "test:filter": "node tools/run-tests.js --filter",
+    "check": "node tools/check-frontend.js && node tools/scan-secrets.js",
+    "dev": "node tools/dev-server.js --seed",
+    "e2e": "python3 tools/e2e.py",
+    "build:web": "node tools/build-web.js",
+    "verify": "npm test && npm run check && npm run build:web -- --api http://localhost:8080/__api --out .verify-web",
+    "push": "npm test && npm run check && clasp push",
+    "pull": "clasp pull",
+    "open": "clasp open-script",
+    "deploy": "clasp create-deployment --description \"$npm_package_name $npm_package_version\"",
+    "deployments": "clasp list-deployments",
+    "logs": "clasp tail-logs"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.0.0"
+  }
+}

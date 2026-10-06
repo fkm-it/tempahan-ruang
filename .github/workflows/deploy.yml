@@ -1,0 +1,116 @@
+# Deploy autonomi: setiap push ke main →
+#   1. CI penuh (ci.yml)
+#   2. Apps Script: clasp push + kemas kini deployment SEDIA ADA (URL /exec kekal sama)
+#   3. GitHub Pages: binaan web (index, PWA, manifest, ikon) dengan URL Web App yang betul
+# Migrasi pangkalan data berjalan automatik pada permintaan pertama selepas deploy (Migration.autoRun).
+#
+# Persediaan SEKALI (lihat DEPLOYMENT.md §CI):
+#   Settings → Secrets and variables → Actions
+#     Secret   CLASPRC_JSON   kandungan ~/.clasprc.json selepas `npx clasp login` di PC anda
+#     Variable SCRIPT_ID      ID projek Apps Script (Project Settings → Script ID)
+#     Variable DEPLOYMENT_ID  ID deployment Web App (Deploy → Manage deployments) — AKFy…
+#     Variable FIREBASE_*     (pilihan) nilai awam Firebase untuk notifikasi telefon
+#   Settings → Pages → Source: GitHub Actions
+# Tanpa SCRIPT_ID, langkah Apps Script dilangkau (cth. repo templat).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  gas:
+    name: Apps Script (clasp)
+    needs: ci
+    if: ${{ vars.SCRIPT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      base_url: ${{ steps.url.outputs.base_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: URL awam (GitHub Pages)
+        id: url
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"; REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER_LC=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          if [ -n "${{ vars.PUBLIC_BASE_URL }}" ]; then BASE="${{ vars.PUBLIC_BASE_URL }}";
+          elif [ "$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" = "$OWNER_LC.github.io" ]; then BASE="https://$OWNER_LC.github.io/";
+          else BASE="https://$OWNER_LC.github.io/$REPO/"; fi
+          echo "base_url=$BASE" >> "$GITHUB_OUTPUT"
+          echo "URL awam: $BASE"
+      - name: Tulis DeployInfo.gs
+        run: |
+          cat > src/config/DeployInfo.gs <<EOS
+          /** DITULIS oleh CI — jangan sunting. */
+          const DEPLOY_INFO = Object.freeze({
+            publicBaseUrl: '${{ steps.url.outputs.base_url }}',
+            commit: '${GITHUB_SHA::7}',
+            builtAt: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+          });
+          EOS
+      - name: Kelayakan clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then echo "::error::Secret CLASPRC_JSON belum ditetapkan (lihat DEPLOYMENT.md)"; exit 1; fi
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"src"}\n' "${{ vars.SCRIPT_ID }}" > .clasp.json
+          npm install --no-save --no-audit --no-fund @google/clasp@3
+      - name: clasp push
+        run: npx clasp push --force
+      - name: Kemas kini deployment (URL kekal sama)
+        if: ${{ vars.DEPLOYMENT_ID != '' }}
+        run: npx clasp update-deployment "${{ vars.DEPLOYMENT_ID }}" --description "CI ${GITHUB_SHA::7} $(date -u +%F)"
+      - name: Buang kelayakan
+        if: always()
+        run: rm -f "$HOME/.clasprc.json" .clasp.json
+
+  pages:
+    name: GitHub Pages (web + PWA)
+    needs: [ci, gas]
+    if: ${{ always() && needs.ci.result == 'success' && needs.gas.result != 'failure' && vars.DEPLOYMENT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Bina web
+        env:
+          WEB_APP_URL: https://script.google.com/macros/s/${{ vars.DEPLOYMENT_ID }}/exec
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_VAPID_KEY: ${{ vars.FIREBASE_VAPID_KEY }}
+        run: node tools/build-web.js --out web
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - name: Terbit
+        id: deployment
+        uses: actions/deploy-pages@v4

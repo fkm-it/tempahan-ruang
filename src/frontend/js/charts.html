@@ -1,0 +1,88 @@
+<script>
+/**
+ * KD.charts — carta SVG ringan tanpa pustaka luar. Setiap carta ada <title> & jadual tersembunyi untuk pembaca skrin.
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, esc, fmtNum } = KD.utils;
+
+  const shortDay = (k) => { const p = String(k).split('-'); return p.length === 3 ? Number(p[2]) + '/' + Number(p[1]) : k; };
+  const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+  const shortMonth = (k) => { const p = String(k).split('-'); return p.length === 2 ? MONTHS[Number(p[1]) - 1] : k; };
+
+  function niceMax(v) {
+    if (v <= 5) return 5;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    return Math.ceil(v / p) * p;
+  }
+
+  function srTable(title, data) {
+    return html`<table class="sr-only"><caption>${title}</caption><tbody>${data.map((d) => html`<tr><th>${d.label}</th><td>${d.value}</td></tr>`)}</tbody></table>`;
+  }
+
+  /** Carta bar menegak. */
+  function bars(data, opts) {
+    opts = opts || {};
+    const W = 640, H = opts.height || 220, P = { t: 12, r: 8, b: 26, l: 32 };
+    const max = niceMax(Math.max(1, ...data.map((d) => d.value)));
+    const iw = W - P.l - P.r, ih = H - P.t - P.b;
+    const bw = iw / Math.max(1, data.length);
+    const fmt = opts.labelFormat === 'month' ? shortMonth : opts.labelFormat === 'day' ? shortDay : (x) => x;
+    const every = Math.ceil(data.length / 10);
+    let s = '';
+    for (let i = 0; i <= 4; i++) {
+      const y = P.t + ih - (ih * i) / 4;
+      s += '<line class="grid-line" x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + y + '" y2="' + y + '"/>';
+      s += '<text x="' + (P.l - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + fmtNum((max * i) / 4) + '</text>';
+    }
+    data.forEach((d, i) => {
+      const h = (d.value / max) * ih;
+      const x = P.l + i * bw + bw * 0.18;
+      s += '<rect class="bar" rx="3" x="' + x + '" y="' + (P.t + ih - h) + '" width="' + bw * 0.64 + '" height="' + Math.max(h, d.value ? 2 : 0) + '"><title>' + esc(fmt(d.label)) + ': ' + d.value + '</title></rect>';
+      if (i % every === 0) s += '<text x="' + (x + bw * 0.32) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(fmt(d.label)) + '</text>';
+    });
+    return html`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.title || 'Carta'}">${raw(s)}</svg>${srTable(opts.title || 'Carta', data)}`;
+  }
+
+  /** Carta garis + kawasan. */
+  function line(data, opts) {
+    opts = opts || {};
+    const W = 640, H = opts.height || 220, P = { t: 12, r: 12, b: 26, l: 32 };
+    const max = niceMax(Math.max(1, ...data.map((d) => d.value)));
+    const iw = W - P.l - P.r, ih = H - P.t - P.b;
+    const step = data.length > 1 ? iw / (data.length - 1) : 0;
+    const fmt = opts.labelFormat === 'month' ? shortMonth : opts.labelFormat === 'day' ? shortDay : (x) => x;
+    const pts = data.map((d, i) => [P.l + i * step, P.t + ih - (d.value / max) * ih]);
+    let s = '';
+    for (let i = 0; i <= 4; i++) {
+      const y = P.t + ih - (ih * i) / 4;
+      s += '<line class="grid-line" x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + y + '" y2="' + y + '"/>';
+      s += '<text x="' + (P.l - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + fmtNum((max * i) / 4) + '</text>';
+    }
+    if (pts.length) {
+      const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+      s += '<path class="area" d="' + path + ' L' + pts[pts.length - 1][0] + ' ' + (P.t + ih) + ' L' + pts[0][0] + ' ' + (P.t + ih) + 'Z"/>';
+      s += '<path class="line" d="' + path + '"/>';
+      const every = Math.ceil(data.length / 8);
+      pts.forEach((p, i) => {
+        s += '<circle class="dot" r="3.5" cx="' + p[0] + '" cy="' + p[1] + '"><title>' + esc(fmt(data[i].label)) + ': ' + data[i].value + '</title></circle>';
+        if (i % every === 0 || i === pts.length - 1) s += '<text x="' + p[0] + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(fmt(data[i].label)) + '</text>';
+      });
+    }
+    return html`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.title || 'Carta'}">${raw(s)}</svg>${srTable(opts.title || 'Carta', data)}`;
+  }
+
+  /** Bar mendatar (kategori). */
+  function hbars(data, opts) {
+    opts = opts || {};
+    if (!data.length) return html`<p class="muted small">Tiada data lagi.</p>`;
+    const max = Math.max(1, ...data.map((d) => d.value));
+    return html`<div class="hbars" role="list" aria-label="${opts.title || 'Taburan'}">${data.slice(0, opts.limit || 10).map((d) => html`
+      <div class="hbar" role="listitem"><span class="nowrap" style="overflow:hidden;text-overflow:ellipsis">${d.label}</span>
+      <div class="hbar__track"><div class="hbar__fill" style="width:${Math.round((d.value / max) * 100)}%"></div></div>
+      <span class="hbar__val">${fmtNum(d.value)}</span></div>`)}</div>`;
+  }
+
+  KD.charts = { bars, line, hbars };
+})(window.KD);
+</script>

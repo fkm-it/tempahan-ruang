@@ -1,0 +1,11 @@
+node_modules/
+.clasp.json
+.clasprc.json
+.env
+secrets/
+*.log
+.DS_Store
+web/
+.verify-web/
+e2e-shots/
+*firebase-adminsdk*.json

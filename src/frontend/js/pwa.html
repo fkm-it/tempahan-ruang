@@ -1,0 +1,335 @@
+<script>
+/**
+ * KD.pwa — pasang sistem sebagai aplikasi di telefon.
+ * Aktif HANYA dalam versi web (GitHub Pages); dalam Apps Script modul ini senyap.
+ *  - Android/Chrome: dialog pasang asli (beforeinstallprompt), ditangkap awal oleh bridge.js.
+ *  - iPhone/iPad: tiada dialog asli, jadi panduan langkah demi langkah dipaparkan.
+ *  - Banner kecil untuk pengguna telefon yang belum memasang (boleh ditutup; dipapar semula selepas 14 hari).
+ * Nota: jangan tulis dua garis condong berturut-turut dalam kod ini (Apps Script membuangnya).
+ */
+(function (KD) {
+  'use strict';
+  const appName = () => (KD.config && KD.config.SYSTEM_NAME) || document.title.split(' — ').pop() || 'Aplikasi';
+  const { html, qs } = KD.utils;
+  const DISMISS_KEY = KD.utils.nsKey('installDismissedAt');
+  const DISMISS_DAYS = 14;
+  const BANNER_DELAY_MS = 4000;
+  let deferred = null;
+
+  const isWeb = () => !!window.KD_WEB;
+  const isStandalone = () => !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true);
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = () => /android/i.test(navigator.userAgent);
+  const isMobile = () => isIOS() || isAndroid();
+
+  /** Boleh dipasang dari sini: dialog asli tersedia, atau telefon (panduan manual). */
+  const available = () => isWeb() && !isStandalone() && (!!deferred || isMobile());
+
+  function dismissedRecently() {
+    try {
+      const t = Number(localStorage.getItem(DISMISS_KEY) || 0);
+      return t && Date.now() - t < DISMISS_DAYS * 86400000;
+    } catch (e) { return false; }
+  }
+  function setDismissed() { try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch (e) { /* mod peribadi */ } }
+
+  /** Tunjuk/sembunyi semua elemen [data-pwa-install] (menu, profil). */
+  function refresh() {
+    document.querySelectorAll('[data-pwa-install]').forEach((el) => el.classList.toggle('hidden', !available()));
+    document.querySelectorAll('[data-pwa-installed]').forEach((el) => el.classList.toggle('hidden', !(isWeb() && isStandalone())));
+    document.querySelectorAll('[data-pwa-hint]').forEach((el) => el.classList.toggle('hidden', isStandalone()));
+  }
+
+  async function install() {
+    hideBanner();
+    if (deferred) {
+      const prompt = deferred;
+      deferred = null;
+      try {
+        prompt.prompt();
+        const choice = await prompt.userChoice;
+        if (!choice || choice.outcome !== 'accepted') setDismissed();
+      } catch (e) { showGuide(); }
+      refresh();
+      return;
+    }
+    showGuide();
+  }
+
+  function showGuide() {
+    setDismissed(); /* pengguna sudah melihat panduan — banner tidak dipapar semula selama 14 hari */
+    const ios = isIOS();
+    const steps = ios ? [
+      ['share', 'Tekan butang Kongsi', 'Ikon segi empat dengan anak panah ke atas — di bar bawah Safari (iPhone) atau atas kanan (iPad).'],
+      ['plus', 'Pilih “Tambah ke Skrin Utama”', 'Leret senarai ke bawah jika tidak kelihatan. Dalam bahasa Inggeris: “Add to Home Screen”.'],
+      ['check', 'Tekan “Tambah”', 'Ikon aplikasi akan muncul di skrin utama. Mulai sekarang, buka dari ikon tersebut.']
+    ] : [
+      ['menu', 'Buka menu pelayar', 'Tekan ⋮ (tiga titik) di atas kanan Chrome, atau ☰ di bawah Samsung Internet.'],
+      ['download', 'Pilih “Pasang aplikasi”', 'Atau “Tambah ke skrin utama” / “Install app”.'],
+      ['check', 'Sahkan “Pasang”', 'Ikon aplikasi akan muncul di skrin utama dan senarai aplikasi.']
+    ];
+    const m = KD.ui.modal({
+      title: 'Pasang ' + appName(),
+      body: html`<div class="install-guide">
+        <div class="install-guide__app"><img src="icons/icon-192.png" alt="" width="56" height="56"><div><strong>${appName()}</strong><div class="xs muted">${location.host}</div></div></div>
+        <ol class="install-guide__steps">${steps.map((s, i) => html`<li><span class="install-guide__num">${i + 1}</span><div><div class="install-guide__title">${KD.ui.icon(s[0], 'i-sm')}${s[1]}</div><div class="small muted">${s[2]}</div></div></li>`)}</ol>
+        ${ios ? html`<p class="xs muted">Pada iPhone, gunakan <strong>Safari</strong>. Jika anda membuka pautan ini dalam WhatsApp atau Facebook, tekan “Buka dalam Safari” dahulu.</p>`
+          : html`<p class="xs muted">Jika pilihan pasang tiada, buka pautan ini dalam <strong>Google Chrome</strong>.</p>`}
+      </div>`
+    });
+    const foot = document.createElement('div');
+    foot.className = 'modal__foot';
+    foot.innerHTML = html`<button class="btn btn-primary" data-close>Faham</button>`.s;
+    qs('.modal', m.el).appendChild(foot);
+    foot.querySelector('[data-close]').addEventListener('click', () => m.close());
+  }
+
+  function hideBanner() {
+    const b = qs('.install-banner');
+    if (b) b.remove();
+    document.body.classList.remove('has-install-banner');
+  }
+
+  function maybeBanner() {
+    if (!available() || !isMobile() || dismissedRecently() || qs('.install-banner')) return;
+    /* jangan ganggu borang awam */
+    if (location.hash.indexOf('#/borang/') === 0) return;
+    const el = document.createElement('div');
+    el.className = 'install-banner';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Pasang aplikasi ' + appName());
+    el.innerHTML = html`<img src="icons/icon-192.png" alt="" width="40" height="40">
+      <div class="install-banner__text"><strong>Pasang ${appName()}</strong><span>Buka terus dari skrin utama, seperti aplikasi biasa.</span></div>
+      <button class="btn btn-accent btn-sm" data-pwa="install">Pasang</button>
+      <button class="icon-btn" data-pwa="dismiss" aria-label="Tutup">${KD.ui.icon('x')}</button>`.s;
+    document.body.appendChild(el);
+    document.body.classList.add('has-install-banner');
+    el.querySelector('[data-pwa="install"]').addEventListener('click', install);
+    el.querySelector('[data-pwa="dismiss"]').addEventListener('click', () => { setDismissed(); hideBanner(); });
+  }
+
+  function init() {
+    if (!isWeb()) return;
+    document.body.classList.toggle('is-standalone', isStandalone());
+    deferred = window.__kdInstallPrompt || null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      refresh();
+      maybeBanner();
+    });
+    window.addEventListener('appinstalled', () => {
+      deferred = null;
+      window.__kdInstallPrompt = null;
+      hideBanner();
+      refresh();
+      KD.ui.toast(appName() + ' telah dipasang. Buka dari skrin utama anda.');
+    });
+    window.addEventListener('hashchange', () => { if (location.hash.indexOf('#/borang/') === 0) hideBanner(); });
+    refresh();
+    setTimeout(maybeBanner, BANNER_DELAY_MS);
+    syncPush();
+    document.addEventListener('visibilitychange', onVisible);
+  }
+
+  // ================================================================ Notifikasi telefon (FCM)
+  const FB_VERSION = '10.14.1';
+  const FB_BASE = 'https:' + '\/\/www.gstatic.com/firebasejs/' + FB_VERSION + '/';
+  const TOKEN_KEY = KD.utils.nsKey('pushToken');
+  const PROMPT_KEY = KD.utils.nsKey('pushPromptDismissedAt');
+  let fbMessaging = null;
+
+  function fbConfig() {
+    const c = window.APP_CONFIG || {};
+    const f = c.firebase || {};
+    return f.projectId && f.apiKey && f.messagingSenderId && f.appId && c.vapidKey ? { fb: f, vapidKey: c.vapidKey } : null;
+  }
+  const storedToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
+  const setStoredToken = (t) => { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* abaikan */ } };
+  const serverEnabled = () => !!(KD.config && KD.config.PUSH_ENABLED);
+  /** Pilihan "mahu notifikasi" disimpan PER PENGGUNA pada peranti ini — kekal selepas log keluar/masuk. */
+  const wantKey = () => { const u = KD.auth && KD.auth.user && KD.auth.user(); return u && u.id ? KD.utils.nsKey('pushWanted.' + u.id) : ''; };
+  const wanted = () => { try { const k = wantKey(); return !!k && localStorage.getItem(k) === '1'; } catch (e) { return false; } };
+  const setWanted = (on) => { try { const k = wantKey(); if (!k) return; if (on) localStorage.setItem(k, '1'); else localStorage.removeItem(k); } catch (e) { /* abaikan */ } };
+  const platform = () => (isIOS() ? 'IOS' : isAndroid() ? 'ANDROID' : 'DESKTOP');
+
+  /**
+   * Keadaan notifikasi peranti ini:
+   * 'unconfigured' | 'unsupported' | 'needs-install' (iPhone belum pasang) | 'denied' | 'on' | 'off'
+   */
+  function pushState() {
+    if (!isWeb() || !fbConfig() || !serverEnabled()) return 'unconfigured';
+    if (isIOS() && !isStandalone()) return 'needs-install';
+    if (!('serviceWorker' in navigator) || !('Notification' in window) || !('PushManager' in window)) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    return Notification.permission === 'granted' && (storedToken() || wanted()) ? 'on' : 'off';
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src; s.async = true;
+      s.onload = resolve; s.onerror = () => reject(new Error('Gagal memuatkan ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function messaging() {
+    if (fbMessaging) return fbMessaging;
+    if (!window.firebase || !window.firebase.messaging) {
+      await loadScript(FB_BASE + 'firebase-app-compat.js');
+      await loadScript(FB_BASE + 'firebase-messaging-compat.js');
+    }
+    if (!window.firebase.apps.length) window.firebase.initializeApp(fbConfig().fb);
+    fbMessaging = window.firebase.messaging();
+    fbMessaging.onMessage((payload) => {
+      const n = (payload && payload.notification) || {};
+      KD.ui.toast((n.title ? n.title + ': ' : '') + (n.body || 'Notifikasi baharu'));
+      if (KD.app && KD.app.refreshUnread) KD.app.refreshUnread();
+    });
+    return fbMessaging;
+  }
+
+  async function currentToken() {
+    const reg = await navigator.serviceWorker.ready;
+    const m = await messaging();
+    return m.getToken({ vapidKey: fbConfig().vapidKey, serviceWorkerRegistration: reg });
+  }
+
+  /** Mesti dipanggil daripada klik pengguna (kebenaran pelayar). @return {Promise<boolean>} */
+  async function enablePush() {
+    const state = pushState();
+    if (state === 'needs-install') { showGuide(); KD.ui.toast('Pada iPhone, pasang aplikasi di skrin utama dahulu, kemudian hidupkan notifikasi dari aplikasi.'); return false; }
+    if (state === 'unconfigured' || state === 'unsupported') { KD.ui.toast('Notifikasi telefon tidak disokong pada pelayar ini.', 'error'); return false; }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      KD.ui.toast('Kebenaran notifikasi tidak diberikan. Anda boleh menghidupkannya dalam tetapan pelayar.', 'error');
+      refreshPushUi();
+      return false;
+    }
+    try {
+      const token = await currentToken();
+      if (!token) throw new Error('Tiada token');
+      await KD.api.pushRegister({ token, platform: platform() });
+      setStoredToken(token);
+      setWanted(true);
+      KD.ui.toast('Notifikasi telefon dihidupkan. Anda akan dimaklumkan serta-merta.');
+      refreshPushUi();
+      return true;
+    } catch (err) {
+      console.error('[push]', err);
+      KD.ui.toastError(err && err.code ? err : { message: 'Notifikasi tidak dapat dihidupkan. Cuba lagi sebentar.' });
+      return false;
+    }
+  }
+
+  /**
+   * Butang "Matikan": putuskan peranti daripada akaun DAN lupakan pilihan.
+   * Log keluar (opts.keepPreference): peranti diputuskan di pelayan (orang lain yang log masuk tidak menerima
+   * notifikasi anda), tetapi pilihan diingati — dihidupkan semula secara automatik apabila anda log masuk.
+   */
+  async function disablePush(silent, opts) {
+    const keep = !!(opts && opts.keepPreference);
+    const token = storedToken();
+    setStoredToken('');
+    if (!keep) setWanted(false);
+    if (token) {
+      try { await KD.api.pushUnregister({ token }); } catch (e) { /* sesi mungkin sudah tamat */ }
+      if (!keep) { try { if (fbConfig()) await (await messaging()).deleteToken(); } catch (e) { /* abaikan */ } }
+    }
+    if (!silent) KD.ui.toast('Notifikasi telefon dimatikan untuk peranti ini.');
+    refreshPushUi();
+  }
+
+  /**
+   * Selepas log masuk / buka app: daftar semula peranti tanpa perlu klik — jika pengguna ini pernah
+   * menghidupkan notifikasi pada peranti ini dan kebenaran telefon masih "Allow". Juga mengemas kini token FCM.
+   */
+  async function syncPush() {
+    if (!KD.auth.loggedIn() || pushState() !== 'on') return;
+    try {
+      const token = await currentToken();
+      if (!token) return;
+      await KD.api.pushRegister({ token, platform: platform() });
+      setStoredToken(token);
+      setWanted(true);
+    } catch (e) { /* senyap — pengguna boleh tekan Hidupkan secara manual */ }
+    refreshPushUi();
+  }
+
+  const PUSH_TEXT = {
+    'on': 'Hidup pada peranti ini. Anda akan dimaklumkan apabila ada rekod baharu atau status dikemas kini.',
+    'off': 'Dapatkan notifikasi di telefon apabila ada kemas kini untuk anda.',
+    'denied': 'Notifikasi disekat oleh pelayar. Benarkan dalam tetapan pelayar/telefon untuk laman ini, kemudian cuba semula.',
+    'needs-install': 'Pada iPhone, pasang aplikasi di skrin utama dahulu, kemudian hidupkan notifikasi dari aplikasi.',
+    'unsupported': 'Pelayar ini tidak menyokong notifikasi telefon. Cuba Google Chrome (Android) atau Safari (iPhone).',
+    'unconfigured': ''
+  };
+
+  /** Kemas kini semua elemen [data-push-panel] dan kad [data-push-prompt]. */
+  function refreshPushUi() {
+    const state = pushState();
+    document.querySelectorAll('[data-push-panel]').forEach((el) => {
+      el.classList.toggle('hidden', state === 'unconfigured');
+      const txt = el.querySelector('[data-push-text]');
+      if (txt) txt.textContent = PUSH_TEXT[state] || '';
+      const on = el.querySelector('[data-push-on]');
+      const off = el.querySelector('[data-push-off]');
+      const test = el.querySelector('[data-push-test]');
+      if (on) on.classList.toggle('hidden', !(state === 'off' || state === 'needs-install'));
+      if (off) off.classList.toggle('hidden', state !== 'on');
+      if (test) test.classList.toggle('hidden', state !== 'on');
+    });
+    document.querySelectorAll('[data-push-prompt]').forEach((el) => {
+      let dismissed = false;
+      try { dismissed = Date.now() - Number(localStorage.getItem(PROMPT_KEY) || 0) < 30 * 86400000; } catch (e) { /* abaikan */ }
+      el.classList.toggle('hidden', state !== 'off' || dismissed);
+    });
+  }
+  function dismissPushPrompt() { try { localStorage.setItem(PROMPT_KEY, String(Date.now())); } catch (e) { /* abaikan */ } refreshPushUi(); }
+
+  /** Pengendali klik dikongsi (dipanggil oleh app shell). */
+  function bindPush(root) {
+    root.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-push-on],[data-push-off],[data-push-test],[data-push-dismiss]');
+      if (!b || !root.contains(b)) return;
+      e.preventDefault();
+      if (b.hasAttribute('data-push-on')) KD.ui.busy(b, enablePush);
+      else if (b.hasAttribute('data-push-off')) KD.ui.busy(b, () => disablePush(false));
+      else if (b.hasAttribute('data-push-dismiss')) dismissPushPrompt();
+      else KD.ui.busy(b, async () => {
+        try { const r = await KD.api.pushTest(); KD.ui.toast(r.sent ? 'Notifikasi ujian dihantar. Semak telefon anda.' : 'Tiada peranti menerima — cuba matikan dan hidupkan semula.'); } catch (err) { KD.ui.toastError(err); }
+      });
+    });
+  }
+
+  // ================================================================ Lencana ikon app
+  /**
+   * Kemas kini nombor pada ikon app (Badging API: iPhone app dipasang, Chrome/Edge desktop).
+   * Apabila tiada lagi notifikasi belum dibaca → buang notifikasi dari bar notifikasi telefon juga
+   * (titik pada ikon Android hilang), seperti WhatsApp selepas mesej dibaca.
+   */
+  function setBadge(count) {
+    if (!isWeb()) return;
+    const n = Math.max(0, Number(count) || 0);
+    try {
+      if ('setAppBadge' in navigator) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+    } catch (e) { /* tidak disokong */ }
+    if (n === 0 && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'KD_CLEAR_NOTIFICATIONS' });
+    }
+  }
+
+  /** Apabila app dibuka semula dari latar belakang → segarkan kiraan (maks sekali setiap 20 s). */
+  let lastFocusRefresh = 0;
+  function onVisible() {
+    if (document.visibilityState !== 'visible' || !KD.auth.loggedIn()) return;
+    if (Date.now() - lastFocusRefresh < 20000) return;
+    lastFocusRefresh = Date.now();
+    if (KD.app && KD.app.refreshUnread) KD.app.refreshUnread();
+  }
+
+  KD.pwa = { init, install, showGuide, refresh, available, isStandalone, isIOS, isWeb, setBadge,
+    pushState, enablePush, disablePush, syncPush, refreshPushUi, bindPush };
+})(window.KD);
+</script>

@@ -1,0 +1,64 @@
+# CI: setiap push & pull request — semak modul dijana, ujian unit/integrasi (2 susunan muat),
+# semakan frontend & rahsia, binaan web, dan E2E pelayar (termasuk semakan telefon 360px).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main] # main → deploy.yml (yang memanggil aliran ini dahulu)
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Ujian & semakan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Modul dijana terkini (modules/*.json ↔ src/)
+        run: node tools/gen.js --check
+      - name: Ujian (susunan muat abjad & terbalik)
+        run: node tools/run-tests.js && node tools/run-tests.js --reverse
+      - name: Semakan frontend & imbasan rahsia
+        run: node tools/check-frontend.js && node tools/scan-secrets.js
+      - name: Binaan web (percubaan)
+        run: node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
+
+  e2e:
+    name: E2E pelayar
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pasang Playwright
+        run: pip install playwright && python -m playwright install --with-deps chromium
+      - name: Jalankan E2E
+        env:
+          KD_SHOTS: e2e-shots
+        run: |
+          node tools/dev-server.js --seed --port 8080 > dev-server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/ > /dev/null && break; sleep 1; done
+          python tools/e2e.py
+      - name: Simpan tangkapan skrin telefon
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-shots
+          path: |
+            e2e-shots
+            dev-server.log
+          retention-days: 7

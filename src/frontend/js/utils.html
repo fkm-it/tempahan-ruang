@@ -1,0 +1,150 @@
+<script>
+/**
+ * KD.utils — templat HTML selamat (auto-escape), format tarikh, pembantu DOM.
+ * SEMUA nilai dinamik dimasukkan ke HTML melalui html`` → di-escape secara lalai (cegah XSS).
+ * Hanya nilai yang dibalut raw() (dijana oleh kod kita sendiri) dimasukkan tanpa escape.
+ */
+window.KD = window.KD || {};
+(function (KD) {
+  'use strict';
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' };
+  const esc = (v) => String(v === null || v === undefined ? '' : v).replace(/[&<>"'`]/g, (c) => ESC[c]);
+
+  class Raw { constructor(s) { this.s = String(s); } toString() { return this.s; } }
+  const raw = (s) => (s instanceof Raw ? s : new Raw(s));
+  const renderVal = (v) => {
+    if (v instanceof Raw) return v.s;
+    if (Array.isArray(v)) return v.map(renderVal).join('');
+    if (v === false || v === null || v === undefined) return '';
+    return esc(v);
+  };
+  /** Tagged template: html`<p>${userText}</p>` → Raw (selamat). */
+  function html(strings, ...vals) {
+    let out = '';
+    strings.forEach((s, i) => { out += s; if (i < vals.length) out += renderVal(vals[i]); });
+    return new Raw(out);
+  }
+
+  const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+  function toDate(iso) { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d : null; }
+  function fmtDate(iso, withTime) {
+    const d = toDate(iso);
+    if (!d) return '—';
+    const s = d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    return withTime ? s + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : s;
+  }
+  function relTime(iso) {
+    const d = toDate(iso);
+    if (!d) return '';
+    const s = Math.round((Date.now() - d.getTime()) / 1000);
+    if (s < 60) return 'baru sahaja';
+    if (s < 3600) return Math.floor(s / 60) + ' minit yang lalu';
+    if (s < 86400) return Math.floor(s / 3600) + ' jam yang lalu';
+    if (s < 86400 * 7) return Math.floor(s / 86400) + ' hari yang lalu';
+    return fmtDate(iso);
+  }
+  const fmtNum = (n) => Number(n || 0).toLocaleString('ms-MY');
+  const fmtBytes = (b) => (b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : (b / 1048576).toFixed(1) + ' MB');
+  const todayKey = (offsetDays) => {
+    const d = new Date(Date.now() + (offsetDays || 0) * 86400000);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+
+  /** ID permintaan unik (idempotensi borang). */
+  function requestId() {
+    const a = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    return 'r' + Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  const qs = (sel, root) => (root || document).querySelector(sel);
+  const qsa = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  /** Delegasi acara: on(root, 'click', '[data-act]', fn) */
+  function on(root, type, selector, fn) {
+    const handler = (e) => {
+      const el = e.target.closest(selector);
+      if (el && root.contains(el)) fn(e, el);
+    };
+    root.addEventListener(type, handler);
+    return () => root.removeEventListener(type, handler);
+  }
+  function debounce(fn, ms) {
+    let t;
+    return function () { const args = arguments; clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+  }
+  /** Data borang → objek (checkbox → boolean). */
+  function formData(form) {
+    const out = {};
+    qsa('input, select, textarea', form).forEach((el) => {
+      if (!el.name || el.disabled) return;
+      if (el.type === 'checkbox') out[el.name] = el.checked;
+      else if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; }
+      else if (el.type !== 'file') out[el.name] = el.value;
+    });
+    return out;
+  }
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''));
+      r.onerror = () => reject(new Error('Gagal membaca fail.'));
+      r.readAsDataURL(file);
+    });
+  }
+  function base64ToBlob(b64, mime) {
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+  function downloadBase64(b64, mime, filename) {
+    const url = URL.createObjectURL(base64ToBlob(b64, mime));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  /** CSV selamat (escape petikan + cegah formula injection dalam Excel/Sheets). */
+  function toCsv(rows) {
+    return rows.map((r) => r.map((v) => {
+      let s = String(v === null || v === undefined ? '' : v);
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return '"' + s.replace(/"/g, '""') + '"';
+    }).join(',')).join('\r\n');
+  }
+  function downloadText(text, mime, filename) {
+    const url = URL.createObjectURL(new Blob(['﻿' + text], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      ta.remove();
+      return ok;
+    }
+  }
+  /**
+   * Ruang nama storan per sistem: beberapa sistem di bawah origin yang sama (cth. org.github.io/sistem-a/ dan /sistem-b/)
+   * berkongsi localStorage — tanpa awalan, sesi satu sistem akan bertindih dengan sistem lain.
+   */
+  const NS = 'kd.' + ((document.body && document.body.getAttribute('data-app')) || 'app') + '.';
+  const nsKey = (k) => NS + String(k).replace(/^kd\./, '');
+  const storage = {
+    get(k) { try { return localStorage.getItem(nsKey(k)) || sessionStorage.getItem(nsKey(k)); } catch (e) { return null; } },
+    set(k, v, persist) {
+      k = nsKey(k);
+      try { (persist ? localStorage : sessionStorage).setItem(k, v); (persist ? sessionStorage : localStorage).removeItem(k); } catch (e) { /* mod peribadi */ }
+    },
+    remove(k) { k = nsKey(k); try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) { /* abaikan */ } }
+  };
+
+  KD.utils = { nsKey, esc, raw, html, Raw, fmtDate, relTime, fmtNum, fmtBytes, todayKey, requestId, qs, qsa, on, debounce, formData, fileToBase64, downloadBase64, toCsv, downloadText, copyText, storage };
+})(window.KD);
+</script>

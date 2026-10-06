@@ -1,0 +1,101 @@
+<script>
+/**
+ * KD.api — SATU-SATUNYA lapisan komunikasi dengan backend (google.script.run → api()).
+ * Frontend tidak pernah mengakses perkhidmatan Google secara terus atau menyimpan rahsia.
+ */
+(function (KD) {
+  'use strict';
+
+  class ApiError extends Error {
+    constructor(message, code, meta) { super(message); this.code = code; this.meta = meta || {}; }
+  }
+
+  function call(action, payload) {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !google.script || !google.script.run) {
+        reject(new ApiError('Aplikasi mesti dibuka melalui pautan Web App.', 'NO_RUNTIME'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res && res.success) return resolve(res.data);
+          const err = new ApiError((res && res.message) || 'Permintaan tidak dapat diproses.', res && res.code, res && res.meta);
+          if (err.code === 'UNAUTHENTICATED' && KD.auth && KD.auth.token() && action !== 'auth.login') KD.auth.expired();
+          if (err.code === 'MAINTENANCE' && KD.app) KD.app.maintenance(err.message);
+          reject(err);
+        })
+        .withFailureHandler((e) => {
+          console.error('[api]', action, e);
+          reject(new ApiError('Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.', 'NETWORK'));
+        })
+        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent } });
+    });
+  }
+
+  KD.api = {
+    call,
+    ApiError,
+    // Awam
+    getConfig: () => call('public.config'),
+    getCategories: () => call('public.categories'),
+    sendFeedback: (p) => call('public.feedback', p),
+    // Auth
+    register: (p) => call('auth.register', p),
+    login: (p) => call('auth.login', p),
+    logout: () => call('auth.logout'),
+    getCurrentUser: () => call('auth.me'),
+    changePassword: (p) => call('auth.changePassword', p),
+    requestReset: (p) => call('auth.requestReset', p),
+    resetPassword: (p) => call('auth.resetPassword', p),
+    // Pengguna
+    updateProfile: (p) => call('user.updateProfile', p),
+    getDashboard: () => call('user.dashboard'),
+    // Modul (enjin CRUD generik) — `module` = key modul, cth. 'aduan'
+    getModules: () => call('crud.meta'),
+    getSummary: () => call('crud.summary'),
+    list: (module, filters) => call('crud.list', Object.assign({ module }, filters || {})),
+    exportRows: (module, filters) => call('crud.export', Object.assign({ module }, filters || {})),
+    get: (module, id) => call('crud.get', { module, id }),
+    create: (module, p) => call('crud.create', Object.assign({ module }, p)),
+    update: (module, id, p) => call('crud.update', Object.assign({ module, id }, p)),
+    remove: (module, id) => call('crud.delete', { module, id }),
+    restore: (module, id) => call('crud.restore', { module, id }),
+    setStatus: (module, id, status, note) => call('crud.setStatus', { module, id, status, note }),
+    getAttachment: (id) => call('crud.attachment', { id }),
+    publicForm: (module) => call('crud.publicForm', { module }),
+    publicCreate: (module, p) => call('crud.publicCreate', Object.assign({ module }, p)),
+    // Notifikasi telefon
+    pushStatus: () => call('push.status'),
+    pushRegister: (p) => call('push.register', p),
+    pushUnregister: (p) => call('push.unregister', p),
+    pushTest: () => call('push.test'),
+    // Notifikasi
+    getNotifications: (p) => call('notification.list', p),
+    markNotificationRead: (id) => call('notification.markRead', { id }),
+    markAllNotificationsRead: () => call('notification.markAllRead'),
+    // Admin
+    admin: {
+      getStatistics: () => call('admin.stats'),
+      getUsers: (f) => call('admin.users', f),
+      setUserStatus: (p) => call('admin.user.status', p),
+      setUserRole: (p) => call('admin.user.role', p),
+      revokeSessions: (userId) => call('admin.user.revokeSessions', { userId }),
+      sendReset: (userId) => call('admin.user.sendReset', { userId }),
+      getCategories: () => call('admin.categories'),
+      createCategory: (p) => call('admin.category.create', p),
+      updateCategory: (p) => call('admin.category.update', p),
+      broadcast: (p) => call('admin.broadcast', p),
+      getBroadcasts: () => call('admin.broadcastHistory'),
+      getAuditLogs: (f) => call('admin.audit', f),
+      getFeedback: (f) => call('admin.feedback', f),
+      setFeedbackStatus: (p) => call('admin.feedback.status', p),
+      getSettings: () => call('admin.settings'),
+      updateSettings: (changes) => call('admin.settings.update', { changes }),
+      getHealth: () => call('admin.health'),
+      runBackup: () => call('admin.backup'),
+      getMigrations: () => call('admin.migrations'),
+      getSystemLogs: () => call('admin.systemLogs')
+    }
+  };
+})(window.KD);
+</script>

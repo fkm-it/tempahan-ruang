@@ -1,0 +1,379 @@
+<script>
+/**
+ * KD.auth (keadaan sesi), KD.router (navigasi hash + kawalan akses UI), KD.app (shell & but).
+ * NOTA: kawalan akses di sini hanyalah UX — semua kebenaran sebenar dikuatkuasa di backend.
+ */
+(function (KD) {
+  'use strict';
+  const { html, raw, qs, qsa, on, storage } = KD.utils;
+  const { icon, star } = KD.ui;
+
+  // ================================================================ AUTH
+  const SESSION_KEY = 'kd.session.v1';
+  const auth = {
+    state: null, // { token, user, expiresAt }
+    load() {
+      try { auth.state = JSON.parse(storage.get(SESSION_KEY) || 'null'); } catch (e) { auth.state = null; }
+      if (auth.state && auth.state.expiresAt && new Date(auth.state.expiresAt) < new Date()) auth.clear();
+    },
+    token: () => (auth.state && auth.state.token) || '',
+    user: () => (auth.state && auth.state.user) || null,
+    loggedIn: () => !!auth.token(),
+    role: () => (auth.user() && auth.user().role) || 'PUBLIC',
+    isAdmin: () => ['ADMIN', 'SUPER_ADMIN'].indexOf(auth.role()) >= 0,
+    isSuper: () => auth.role() === 'SUPER_ADMIN',
+    set(data, remember) {
+      auth.state = { token: data.token, user: data.user, expiresAt: data.expiresAt, remember: !!remember };
+      storage.set(SESSION_KEY, JSON.stringify(auth.state), !!remember);
+    },
+    updateUser(user) {
+      if (!auth.state) return;
+      auth.state.user = user;
+      storage.set(SESSION_KEY, JSON.stringify(auth.state), auth.state.remember);
+    },
+    clear() { auth.state = null; storage.remove(SESSION_KEY); KD.app.unread = 0; },
+    expired() {
+      if (!auth.loggedIn()) return;
+      auth.clear();
+      KD.ui.toast('Sesi anda telah tamat. Sila log masuk semula.', 'error');
+      router.go('/log-masuk');
+    },
+    async logout() {
+      // Matikan notifikasi telefon peranti ini dahulu (sementara sesi masih sah) — elak notifikasi ke pengguna seterusnya
+      if (KD.pwa) { try { await KD.pwa.disablePush(true, { keepPreference: true }); KD.pwa.setBadge(0); } catch (e) { /* abaikan */ } }
+      try { await KD.api.logout(); } catch (e) { /* tetap log keluar di klien */ }
+      auth.clear();
+      KD.ui.toast('Anda telah log keluar.');
+      router.go('/');
+    }
+  };
+
+  // ================================================================ ROUTER
+  const CORE_ROUTES = [
+    { path: '/', view: 'landing', access: 'public', layout: 'public' },
+    { path: '/log-masuk', view: 'login', access: 'guest', layout: 'public', title: 'Log Masuk' },
+    { path: '/daftar', view: 'register', access: 'guest', layout: 'public', title: 'Daftar Baru' },
+    { path: '/lupa-kata-laluan', view: 'forgot', access: 'guest', layout: 'public', title: 'Lupa Kata Laluan' },
+    { path: '/borang/:module', view: 'publicForm', access: 'public', layout: 'public', title: 'Borang' },
+
+    { path: '/utama', view: 'dashboard', access: 'user', layout: 'app', title: 'Utama' },
+    { path: '/notifikasi', view: 'notifications', access: 'user', layout: 'app', title: 'Notifikasi' },
+    { path: '/profil', view: 'profile', access: 'user', layout: 'app', title: 'Profil' },
+
+    { path: '/admin', view: 'adminDashboard', access: 'admin', layout: 'admin', title: 'Dashboard' },
+    { path: '/admin/pengguna', view: 'adminUsers', access: 'admin', layout: 'admin', title: 'Pengguna' },
+    { path: '/admin/kategori', view: 'adminCategories', access: 'admin', layout: 'admin', title: 'Kategori' },
+    { path: '/admin/notifikasi', view: 'adminNotifications', access: 'admin', layout: 'admin', title: 'Notifikasi' },
+    { path: '/admin/maklum-balas', view: 'adminFeedback', access: 'admin', layout: 'admin', title: 'Maklum Balas' },
+    { path: '/admin/audit', view: 'adminAudit', access: 'admin', layout: 'admin', title: 'Audit Log' },
+    { path: '/admin/tetapan', view: 'adminSettings', access: 'admin', layout: 'admin', title: 'Tetapan' },
+    { path: '/admin/pangkalan-data', view: 'adminDatabase', access: 'super', layout: 'admin', title: 'Pangkalan Data' },
+    { path: '/admin/kesihatan', view: 'adminHealth', access: 'super', layout: 'admin', title: 'Kesihatan Sistem' }
+  ];
+
+  /** Laluan modul dijana daripada metadata backend (crud.meta) — tiada kod frontend per modul diperlukan. */
+  function moduleRoutes() {
+    const out = [];
+    (KD.modules || []).forEach((m) => {
+      [['', 'app', 'user'], ['/admin', 'admin', 'admin']].forEach(([pre, layout, access]) => {
+        const base = pre + m.path;
+        out.push({ path: base + '/baru', view: 'crudForm', access, layout, title: m.label + ' baharu', module: m.key, navPath: base, admin: !!pre });
+        out.push({ path: base + '/:id/sunting', view: 'crudForm', access, layout, title: 'Sunting ' + m.label.toLowerCase(), module: m.key, navPath: base, admin: !!pre });
+        out.push({ path: base + '/:id', view: 'crudDetail', access, layout, title: m.label, module: m.key, navPath: base, admin: !!pre });
+        out.push({ path: base, view: 'crudList', access, layout, title: m.labelPlural, module: m.key, navPath: base, admin: !!pre });
+      });
+    });
+    return out;
+  }
+  const allRoutes = () => CORE_ROUTES.concat(moduleRoutes());
+
+  function match(path) {
+    const clean = path.split('?')[0] || '/';
+    for (const r of allRoutes()) {
+      const keys = [];
+      const re = new RegExp('^' + r.path.replace(/:([a-z]+)/g, (_, k) => { keys.push(k); return '([^/]+)'; }) + '/?$');
+      const m = clean.match(re);
+      if (m) {
+        const params = {};
+        keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
+        return { route: r, params };
+      }
+    }
+    return null;
+  }
+
+  function parseQuery(path) {
+    const q = {};
+    const i = path.indexOf('?');
+    if (i < 0) return q;
+    path.slice(i + 1).split('&').forEach((pair) => {
+      const [k, v] = pair.split('=');
+      if (k) q[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    });
+    return q;
+  }
+
+  const router = {
+    current: null,
+    currentPath: () => (location.hash || '#/').slice(1) || '/',
+    go(path, replace) {
+      if (('#' + path) === location.hash) router.render();
+      else if (replace) { history.replaceState(null, '', '#' + path); router.render(); }
+      else location.hash = path;
+    },
+    /** Kemas kini query semasa tanpa menambah sejarah. */
+    setQuery(query) {
+      const base = router.currentPath().split('?')[0];
+      const qsStr = Object.keys(query).filter((k) => query[k] !== '' && query[k] !== undefined && query[k] !== null)
+        .map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(query[k])).join('&');
+      history.replaceState(null, '', '#' + base + (qsStr ? '?' + qsStr : ''));
+      syncTop(base + (qsStr ? '?' + qsStr : ''));
+    },
+    async render() {
+      const path = router.currentPath();
+      const found = match(path);
+      if (!found) return router.go(auth.loggedIn() ? '/utama' : '/', true);
+      const r = found.route;
+      if (r.access === 'guest' && auth.loggedIn()) return router.go('/utama', true);
+      if (r.access !== 'public' && r.access !== 'guest' && !auth.loggedIn()) {
+        storage.set('kd.afterLogin', path, false);
+        return router.go('/log-masuk', true);
+      }
+      if (r.access === 'admin' && !auth.isAdmin()) return router.go('/utama', true);
+      if (r.access === 'super' && !auth.isSuper()) return router.go('/admin', true);
+
+      router.current = { route: r, params: found.params, query: parseQuery(path), path };
+      const view = (r.module && KD.views[r.view + ':' + r.module]) || KD.views[r.view]; /* paparan tersuai modul (pilihan) */
+      const container = KD.app.mount(r);
+      document.title = (r.title ? r.title + ' — ' : '') + ((KD.config && KD.config.SYSTEM_NAME) || '');
+      syncTop(path);
+      window.scrollTo(0, 0);
+      try {
+        await view.render(container, found.params, router.current.query);
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = KD.ui.errorState(err, 'reload').s;
+        on(container, 'click', '[data-act="reload"]', () => router.render());
+      }
+    },
+    start() {
+      window.addEventListener('hashchange', router.render);
+      router.render();
+    }
+  };
+
+  /** Selaraskan URL halaman atas (GAS iframe) supaya muat semula kekal di laluan sama. */
+  function syncTop(path) {
+    try { if (window.google && google.script && google.script.history) google.script.history.replace(null, {}, path); } catch (e) { /* abaikan */ }
+  }
+
+  // ================================================================ APP SHELL
+  const mods = () => KD.modules || [];
+  const canCreate = (m) => m.access.create !== 'ADMIN' || auth.isAdmin();
+  const USER_NAV = () => [['/utama', 'home', 'Utama']]
+    .concat(mods().filter((m) => m.nav.user !== false).map((m) => [m.path, m.icon, m.labelPlural]))
+    .concat([['/notifikasi', 'bell', 'Notifikasi'], ['/profil', 'user', 'Profil']]);
+  const ADMIN_NAV = () => [['/admin', 'chart', 'Dashboard'], ['/admin/pengguna', 'users', 'Pengguna']]
+    .concat(mods().filter((m) => m.nav.admin !== false).map((m) => ['/admin' + m.path, m.icon, m.labelPlural]))
+    .concat([
+      ['/admin/kategori', 'grid', 'Kategori'], ['/admin/notifikasi', 'bell', 'Notifikasi'], ['/admin/maklum-balas', 'feedback', 'Maklum Balas'],
+      ['/admin/audit', 'shield', 'Audit Log'], ['/admin/tetapan', 'settings', 'Tetapan'],
+      ['/admin/pangkalan-data', 'database', 'Pangkalan Data', 'super'], ['/admin/kesihatan', 'activity', 'Kesihatan Sistem', 'super']
+    ]);
+  /** Navigasi bawah telefon (5 slot): Utama · modul 1 · [+ Baharu] · Notifikasi · Profil */
+  function BOTTOM_NAV() {
+    const list = mods().filter((m) => m.nav.user !== false);
+    const creatable = list.filter(canCreate)[0];
+    const items = [['/utama', 'home', 'Utama']];
+    if (list[0]) items.push([list[0].path, list[0].icon, list[0].labelPlural]);
+    if (creatable) items.push([creatable.path + '/baru', 'plus', 'Baharu', true]);
+    else if (list[1]) items.push([list[1].path, list[1].icon, list[1].labelPlural]);
+    items.push(['/notifikasi', 'bell', 'Notifikasi'], ['/profil', 'user', 'Profil']);
+    return items.slice(0, 5);
+  }
+
+  const app = {
+    unread: 0,
+    shellMode: null,
+
+    navItems(mode) {
+      return (mode === 'admin' ? ADMIN_NAV() : USER_NAV()).filter((n) => n[3] !== 'super' || auth.isSuper());
+    },
+
+    /** Sediakan susun atur & pulangkan bekas paparan BAHARU (pendengar lama dibuang bersama elemen lama). */
+    mount(route) {
+      const root = qs('#root');
+      const mode = route.layout;
+      if (mode === 'public') {
+        app.shellMode = 'public';
+        root.innerHTML = '<div class="public" id="view"></div>';
+        return qs('#view');
+      }
+      if (app.shellMode !== mode || !qs('#view')) app.renderShell(mode);
+      app.updateShell(route);
+      const old = qs('#view');
+      const fresh = document.createElement('div');
+      fresh.id = 'view';
+      fresh.className = 'content';
+      old.replaceWith(fresh);
+      qs('.main').scrollTop = 0;
+      return fresh;
+    },
+
+    renderShell(mode) {
+      app.shellMode = mode;
+      const user = auth.user() || {};
+      const nav = app.navItems(mode);
+      qs('#root').innerHTML = html`<div class="shell">
+        <aside class="sidebar" aria-label="Navigasi utama">
+          <a class="side-brand" href="#${mode === 'admin' ? '/admin' : '/utama'}">${star()}<span class="side-brand__name">${(KD.config && KD.config.SYSTEM_NAME) || ''}</span>${mode === 'admin' ? html`<span class="badge badge-accent">Pentadbir</span>` : ''}</a>
+          <nav class="side-nav">${nav.map((n) => html`<a class="side-link" href="#${n[0]}" data-nav="${n[0]}">${icon(n[1])}<span>${n[2]}</span>${n[0] === '/notifikasi' ? html`<span class="badge-dot hidden" data-unread-dot></span>` : ''}</a>`)}</nav>
+          ${auth.isAdmin() ? html`<div class="side-section">${mode === 'admin' ? 'Aplikasi' : 'Pentadbiran'}</div>
+            <nav class="side-nav">${mode === 'admin' ? html`<a class="side-link" href="#/utama">${icon('home')}<span>Kembali ke aplikasi</span></a>` : html`<a class="side-link" href="#/admin">${icon('shield')}<span>Panel pentadbir</span></a>`}</nav>` : ''}
+          <div class="side-foot"><button class="side-link" style="width:100%" data-act="logout">${icon('logout')}<span>Log Keluar</span></button></div>
+        </aside>
+        <div class="main">
+          <header class="topbar">
+            <button class="icon-btn hide-desktop" data-act="menu" aria-label="Menu">${icon('menu')}</button>
+            <a class="topbar__brand" href="#/utama">${star()}<span>${(KD.config && (KD.config.SHORT_NAME || KD.config.SYSTEM_NAME)) || ''}</span></a>
+            <div class="topbar__title" data-title></div>
+            <div class="topbar__actions">
+              <a class="icon-btn" href="#/notifikasi" aria-label="Notifikasi">${icon('bell')}<span class="count-pill hidden" data-unread-count></span></a>
+              <div class="menu">
+                <button class="user-chip" data-act="user-menu" aria-haspopup="true" aria-expanded="false"><span class="avatar">${user.initials || '?'}</span><span class="user-chip__name">${user.fullName || ''}</span>${icon('chev-down', 'i-sm')}</button>
+                <div class="menu__pop hidden" data-user-menu role="menu">
+                  <div style="padding:8px 12px"><div class="small" style="font-weight:600">${user.fullName || ''}</div><div class="xs muted">${user.email || ''}</div></div><hr>
+                  <a href="#/profil" role="menuitem">${icon('user')}Profil saya</a>
+                  <button class="hidden" data-pwa-install data-act="pwa-install" role="menuitem">${icon('download')}Pasang aplikasi</button>
+                  ${auth.isAdmin() ? (mode === 'admin' ? html`<a href="#/utama" role="menuitem">${icon('home')}Mod pengguna</a>` : html`<a href="#/admin" role="menuitem">${icon('shield')}Panel pentadbir</a>`) : ''}
+                  <hr><button data-act="logout" role="menuitem">${icon('logout')}Log keluar</button>
+                </div>
+              </div>
+            </div>
+          </header>
+          <div id="view" class="content"></div>
+        </div>
+      </div>
+      <nav class="bottomnav" aria-label="Navigasi bawah" style="grid-template-columns:repeat(${BOTTOM_NAV().length},1fr)">${BOTTOM_NAV().map((n) => html`<a href="#${n[0]}" data-nav="${n[0]}" class="${n[3] ? 'bn-main' : ''}">${n[3] ? html`<span class="bn-circle">${icon(n[1])}</span>` : icon(n[1])}<span>${n[2]}</span>${n[0] === '/notifikasi' ? html`<span class="count-pill hidden" data-unread-count></span>` : ''}</a>`)}</nav>`.s;
+
+      const root = qs('#root');
+      on(root, 'click', '[data-act="logout"]', () => auth.logout());
+      on(root, 'click', '[data-act="pwa-install"]', () => KD.pwa && KD.pwa.install());
+      on(root, 'click', '[data-act="menu"]', () => app.openNavSheet(mode));
+      on(root, 'click', '[data-act="user-menu"]', (e, btn) => {
+        e.stopPropagation();
+        const pop = qs('[data-user-menu]');
+        const open = pop.classList.toggle('hidden') === false;
+        btn.setAttribute('aria-expanded', String(open));
+      });
+      if (!app.docListener) {
+        app.docListener = true;
+        document.addEventListener('click', () => { const p = qs('[data-user-menu]'); if (p) p.classList.add('hidden'); });
+      }
+      app.setUnread(app.unread, { local: true });
+      if (KD.pwa) { KD.pwa.refresh(); KD.pwa.refreshPushUi(); }
+    },
+
+    /** Muat semula kiraan notifikasi (cth. selepas notifikasi telefon diterima ketika app dibuka). */
+    async refreshUnread() {
+      try {
+        const me = await KD.api.getCurrentUser();
+        app.setUnread(me.unreadNotifications);
+        if ((location.hash || '').indexOf('#/notifikasi') === 0) router.render();
+      } catch (e) { /* abaikan */ }
+    },
+
+    updateShell(route) {
+      const t = qs('[data-title]');
+      if (t) t.textContent = route.title || '';
+      const path = route.navPath || route.path.replace(/\/:.+$/, '');
+      qsa('[data-nav]').forEach((a) => {
+        const active = a.getAttribute('data-nav') === path;
+        a.classList.toggle('is-active', active);
+        if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      });
+    },
+
+    openNavSheet(mode) {
+      const nav = app.navItems(mode);
+      const m = KD.ui.modal({
+        title: mode === 'admin' ? 'Menu pentadbir' : 'Menu',
+        body: html`<nav class="stack" style="gap:4px">${nav.map((n) => html`<a class="btn btn-ghost" style="justify-content:flex-start" href="#${n[0]}">${icon(n[1])}${n[2]}</a>`)}
+          ${auth.isAdmin() ? html`<hr style="border:0;border-top:1px solid var(--line);margin:8px 0">${mode === 'admin' ? html`<a class="btn btn-ghost" style="justify-content:flex-start" href="#/utama">${icon('home')}Kembali ke aplikasi</a>` : html`<a class="btn btn-ghost" style="justify-content:flex-start" href="#/admin">${icon('shield')}Panel pentadbir</a>`}` : ''}
+          <button class="btn btn-ghost" style="justify-content:flex-start" data-act="logout">${icon('logout')}Log keluar</button></nav>`
+      });
+      on(m.el, 'click', 'a', () => m.close());
+      on(m.el, 'click', '[data-act="logout"]', () => { m.close(); auth.logout(); });
+    },
+
+    /** @param {number} n @param {{local?:boolean}} [opts] local = paparan semula sahaja (bukan kiraan baharu dari pelayan) */
+    setUnread(n, opts) {
+      app.unread = n || 0;
+      qsa('[data-unread-count]').forEach((el) => { el.textContent = app.unread > 9 ? '9+' : String(app.unread); el.classList.toggle('hidden', !app.unread); });
+      qsa('[data-unread-dot]').forEach((el) => el.classList.toggle('hidden', !app.unread));
+      // Lencana ikon app hanya dikemas kini dengan kiraan SEBENAR dari pelayan (elak memadam notifikasi telefon secara tidak sengaja)
+      if (KD.pwa && KD.auth.loggedIn() && !(opts && opts.local)) KD.pwa.setBadge(app.unread);
+    },
+
+    maintenance(message) {
+      if (auth.isAdmin()) return;
+      qs('#root').innerHTML = html`<div class="public"><div class="auth"><div class="auth-card" style="text-align:center">${star()}<h2 class="mt-4">Sedang diselenggara</h2><p class="muted mt-2">${message}</p><button class="btn btn-outline mt-6" data-act="reload">${icon('refresh')}Muat semula</button></div></div></div>`.s;
+      const btn = qs('#root [data-act="reload"]');
+      if (btn) btn.addEventListener('click', () => location.reload());
+      app.shellMode = null;
+    },
+
+    async boot() {
+      auth.load();
+      let topHash = '';
+      try {
+        await new Promise((resolve) => {
+          if (window.google && google.script && google.script.url) google.script.url.getLocation((loc) => {
+            topHash = loc && loc.hash;
+            resolve();
+          });
+          else resolve();
+          setTimeout(resolve, 1500);
+        });
+      } catch (e) { /* abaikan */ }
+
+      const tasks = [
+        KD.api.getConfig().then((c) => { KD.config = c; }).catch(() => { KD.config = {}; }),
+        KD.api.getModules().then((m) => { KD.modules = m; }).catch(() => { KD.modules = []; })
+      ];
+      if (auth.loggedIn()) {
+        tasks.push(KD.api.getCurrentUser().then((me) => { auth.updateUser(me.user); app.unread = me.unreadNotifications; }).catch((e) => { if (e.code === 'UNAUTHENTICATED') auth.clear(); }));
+      }
+      await Promise.all(tasks);
+      if (KD.pwa && auth.loggedIn()) KD.pwa.setBadge(app.unread);
+
+      const standalone = !!(KD.pwa && KD.pwa.isWeb() && KD.pwa.isStandalone());
+      if (!location.hash && topHash) history.replaceState(null, '', '#' + topHash.replace(/^#/, ''));
+      else if (!location.hash && auth.loggedIn()) history.replaceState(null, '', '#/utama');
+      else if (!location.hash && standalone) history.replaceState(null, '', '#/log-masuk'); /* app dipasang: terus ke log masuk, bukan halaman pemasaran */
+
+      const boot = qs('#boot');
+      boot.classList.add('is-done');
+      setTimeout(() => boot.remove(), 450);
+      router.start();
+      if (KD.pwa) { KD.pwa.init(); KD.pwa.bindPush(document.body); }
+    },
+
+    /** Selepas log masuk: pergi ke laluan yang diminta sebelum ini. */
+    afterLogin() {
+      const next = storage.get('kd.afterLogin');
+      storage.remove('kd.afterLogin');
+      app.shellMode = null;
+      router.go(next && next.indexOf('/log-masuk') < 0 ? next : (auth.isAdmin() ? '/admin' : '/utama'));
+      if (KD.pwa) KD.pwa.syncPush(); /* hidupkan semula notifikasi telefon jika pernah dipilih pada peranti ini */
+    }
+  };
+
+  KD.auth = auth;
+  KD.router = router;
+  KD.app = app;
+  KD.views = KD.views || {};
+  KD.modules = KD.modules || [];
+  KD.moduleOf = (key) => (KD.modules || []).filter((m) => m.key === key)[0] || null;
+})(window.KD);
+</script>

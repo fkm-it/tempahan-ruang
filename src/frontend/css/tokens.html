@@ -1,0 +1,68 @@
+<style>
+/* ==========================================================================
+   Design tokens — SATU tempat untuk jenama. `npm run init` menukar warna --brand.
+   Gaya: minimal, profesional (Linear / Stripe / Vercel): kanvas cerah, satu warna jenama, aksen hemat.
+   ========================================================================== */
+:root {
+  --brand: #4F46E5;      /* @init:brand */
+  --brand-900: #312E81;  /* @init:brand900 */
+  --brand-100: #E0E7FF;  /* @init:brand100 */
+  --brand-50: #EEF2FF;   /* @init:brand50 */
+  --brand-ring: rgba(79, 70, 229, .16); /* @init:brandRing */
+  --brand2: #0EA5E9;
+  --brand2-900: #0C4A6E;
+  --brand2-100: #E0F2FE;
+  --brand2-50: #F0F9FF;
+  --canvas: #F8FAFC;
+  --canvas-200: #F1F5F9;
+  --white: #FFFFFF;
+  --accent: #F59E0B;
+  --accent-200: #FDE68A;
+  --accent-50: #FFFBEB;
+  --accent-ink: #451A03;
+  --ink: #0F172A;
+  --muted: #64748B;
+  --line: #E2E8F0;
+  --line-strong: #CBD5E1;
+
+  --success: #15803D;
+  --success-50: #F0FDF4;
+  --danger: #B91C1C;
+  --danger-50: #FEF2F2;
+  --warn: #B45309;
+  --warn-50: #FFFBEB;
+
+  --grad-brand: linear-gradient(135deg, var(--brand-900) 0%, var(--brand) 100%);
+  --grad-side: linear-gradient(180deg, #0F172A 0%, #111827 100%);
+
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --fs-xs: .75rem;
+  --fs-sm: .875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.3rem;
+  --fs-2xl: 1.6rem;
+  --fs-3xl: 2.1rem;
+  --fs-4xl: 3rem;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -12px rgba(15, 23, 42, .16);
+  --shadow-pop: 0 20px 50px -20px rgba(15, 23, 42, .35);
+  --focus: 0 0 0 3px var(--brand-ring);
+
+  --sidebar-w: 248px;
+  --topbar-h: 60px;
+  --bottomnav-h: 64px;
+  --content-max: 1180px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+</style>
