@@ -68,4 +68,11 @@
 @media (max-width: 760px) { .public-top .brand .brand__full { display: none; } .public-top .brand .brand__short { display: inline; } }
 .public-foot { margin-top: auto; padding: var(--sp-8); text-align: center; color: var(--muted); font-size: var(--fs-sm); border-top: 1px solid var(--line); }
 .public-foot nav { display: flex; gap: var(--sp-5); justify-content: center; flex-wrap: wrap; margin-bottom: var(--sp-3); }
+/* Menu halaman awam (KD.publicNav) */
+.public-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 var(--sp-6); border-bottom: 1px solid var(--line); background: var(--white); scrollbar-width: none; }
+.public-tabs::-webkit-scrollbar { display: none; }
+.public-tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 10px 12px; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+.public-tabs a:hover { color: var(--ink, #0F172A); }
+.public-tabs a.is-active { color: var(--brand); border-bottom-color: var(--brand); }
+@media (max-width: 720px) { .public-tabs { padding: 0 var(--sp-3); } }
 </style>

@@ -68,6 +68,8 @@ const AdminController = {
   userRole: function (p, ctx) { return UserService.setRole(ctx, p); },
   userRevokeSessions: function (p, ctx) { return UserService.revokeSessions(ctx, p); },
   userSendReset: function (p, ctx) { return UserService.sendReset(ctx, p); },
+  userCreate: function (p, ctx) { return UserService.createByAdmin(ctx, p); },
+  userUnlock: function (p, ctx) { return UserService.unlock(ctx, p); },
 
   categories: function () { return CategoryService.listAll(); },
   categoryCreate: function (p, ctx) { return CategoryService.create(ctx, p); },

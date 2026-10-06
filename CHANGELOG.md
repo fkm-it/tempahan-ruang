@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.3.0 — 2026-10-06
+Ciri daripada sistem lama (FKM i-Space):
+- **Borang tempahan baharu**: pilihan Staf FKM / Pelajar (No. Matrik + emel UTM), isi-automatik nama & emel staf, butang "Semak kekosongan" sebelum hantar, pilihan berbilang hari.
+- **Waktu operasi, hari operasi & tarikh tutup** (lalai Isnin–Jumaat, 08:00–18:00, cuti umum) dikuatkuasa di pelayan. Pentadbir boleh menempah hujung minggu; cuti & waktu tetap disemak.
+- **Cari slot untuk saya** (bilangan orang, tempoh, pagi/petang, julat 14 hari), **Kalendar bulanan**, **Tempahan saya** (No. Staf/Matrik + emel), menu awam, kiraan pada Papan paparan.
+- Pentadbir: **Analitik** (KPI, pecahan status, trend 6 bulan, ruang & blok teratas), **Tetapan tempahan** (waktu, hari, tarikh tutup, pelajar, peringatan pagi & sebelum mula, emel pentadbir berbilang), **Tempah bagi pihak** (staf/pelajar/pihak luar → terus diluluskan, emel pilihan), **Jalankan sekarang** untuk auto-selesai, **Tambah pengguna** (kod set kata laluan melalui emel) & **Buka kunci log masuk**.
+- Peringatan pagi hari tempahan (lalai 07:00).
+- Generik (templat): borang awam tersuai `KD.views['publicForm:<key>']`, fail paparan tambahan `modules/<key>-*.html`, `KD.publicNav`, tetapan `hidden`/`pattern`/`check`, `AppTests.setup`.
+
 ## 1.2.0 — 2026-10-06
 - Isolat sejuk memuat semua data teras dalam satu perjalanan pangkalan data; panggilan pekerja dipaksa ke wilayah Singapura (`x-region`).
 - Data dipindahkan (pindahKeSupabase); laman web kini memanggil Supabase terus (`backend.json` webUsesEdge).

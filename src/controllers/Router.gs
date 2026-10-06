@@ -64,6 +64,8 @@ const Router = {
       'admin.user.role': { role: S, fn: AdminController.userRole, allowInMaintenance: true },
       'admin.user.revokeSessions': { role: A, fn: AdminController.userRevokeSessions, allowInMaintenance: true },
       'admin.user.sendReset': { role: A, fn: AdminController.userSendReset, allowInMaintenance: true },
+      'admin.user.create': { role: S, fn: AdminController.userCreate, allowInMaintenance: true },
+      'admin.user.unlock': { role: A, fn: AdminController.userUnlock, allowInMaintenance: true },
       'admin.categories': { role: A, fn: AdminController.categories, allowInMaintenance: true },
       'admin.category.create': { role: A, fn: AdminController.categoryCreate, allowInMaintenance: true },
       'admin.category.update': { role: A, fn: AdminController.categoryUpdate, allowInMaintenance: true },

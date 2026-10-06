@@ -77,7 +77,7 @@
   // ================================================================ Pengguna
   KD.views.adminUsers = {
     async render(el) {
-      el.innerHTML = html`${head('Pengguna', 'Urus akaun, status dan peranan. Kata laluan tidak pernah boleh dilihat.')}
+      el.innerHTML = html`${head('Pengguna', 'Urus akaun, status dan peranan. Kata laluan tidak pernah boleh dilihat.', KD.auth.isSuper() ? html`<button class="btn btn-primary" data-act="create-user">${icon('plus')}Tambah pengguna</button>` : '')}
         <div class="toolbar"><div class="search">${icon('search')}<input class="input" type="search" data-f="q" placeholder="Cari nama, email atau ID…" aria-label="Cari pengguna"></div>
           <select class="select" data-f="role" aria-label="Peranan"><option value="">Semua peranan</option><option value="USER">Pengguna</option><option value="ADMIN">Admin</option><option value="SUPER_ADMIN">Super Admin</option></select>
           <select class="select" data-f="status" aria-label="Status"><option value="">Semua status</option><option value="ACTIVE">Aktif</option><option value="INACTIVE">Tidak aktif</option><option value="BLOCKED">Disekat</option></select>
@@ -87,7 +87,7 @@
       const t = pagedTable(el, {
         box: '[data-box]', fetch: A.getUsers, emptyTitle: 'Tiada pengguna',
         table: (items) => html`<table class="table"><thead><tr><th>Pengguna</th><th>Peranan</th><th>Status</th><th>Rekod</th><th>Log masuk terakhir</th><th>Daftar</th><th><span class="sr-only">Tindakan</span></th></tr></thead><tbody>
-          ${items.map((u) => html`<tr><td><div class="cell-strong">${u.fullName}</div><div class="xs muted">${u.email}</div></td><td>${roleBadge(u.role)}</td><td>${statusBadge(u.status)}</td><td>${fmtNum(u.recordCount)}</td><td class="nowrap">${u.lastLoginAt ? relTime(u.lastLoginAt) : '—'}</td><td class="nowrap">${fmtDate(u.createdAt)}</td>
+          ${items.map((u) => html`<tr><td><div class="cell-strong">${u.fullName}</div><div class="xs muted">${u.email}</div></td><td>${roleBadge(u.role)}</td><td>${statusBadge(u.status)}${u.locked ? html` <span class="badge badge-warn">${icon('lock', 'i-sm')}Dikunci</span>` : ''}</td><td>${fmtNum(u.recordCount)}</td><td class="nowrap">${u.lastLoginAt ? relTime(u.lastLoginAt) : '—'}</td><td class="nowrap">${fmtDate(u.createdAt)}</td>
           <td>${u.id === me.id ? html`<span class="xs muted">Anda</span>` : html`<button class="btn btn-outline btn-sm" data-manage="${u.id}">Urus</button>`}</td></tr>`)}</tbody></table>`
       });
       on(el, 'click', '[data-manage]', (e, b) => {
@@ -101,7 +101,7 @@
               ${u.status !== 'INACTIVE' ? html`<button class="btn btn-outline btn-sm" data-status="INACTIVE">Nyahaktifkan</button>` : ''}
               ${u.status !== 'BLOCKED' ? html`<button class="btn btn-danger btn-sm" data-status="BLOCKED">${icon('lock', 'i-sm')}Sekat</button>` : ''}</div></div>
             ${isSuper ? html`<div class="mt-6"><label class="label" for="m-role">Peranan</label><div class="row mt-2"><select class="select" id="m-role">${['USER', 'ADMIN', 'SUPER_ADMIN'].map((r) => html`<option value="${r}" ${u.role === r ? raw('selected') : ''}>${r === 'USER' ? 'Pengguna' : r === 'ADMIN' ? 'Admin' : 'Super Admin'}</option>`)}</select><button class="btn btn-primary btn-sm" data-act="role">Tukar</button></div><span class="hint">Pengguna akan dilog keluar supaya peranan baharu berkuat kuasa.</span></div>` : ''}
-            <div class="mt-6"><div class="label">Keselamatan</div><div class="row row-wrap mt-2"><button class="btn btn-outline btn-sm" data-act="revoke">${icon('logout', 'i-sm')}Tamatkan semua sesi</button><button class="btn btn-outline btn-sm" data-act="reset">${icon('mail', 'i-sm')}Hantar email set semula</button></div></div>`
+            <div class="mt-6"><div class="label">Keselamatan</div><div class="row row-wrap mt-2"><button class="btn btn-outline btn-sm" data-act="revoke">${icon('logout', 'i-sm')}Tamatkan semua sesi</button><button class="btn btn-outline btn-sm" data-act="reset">${icon('mail', 'i-sm')}Hantar email set semula</button>${u.locked ? html`<button class="btn btn-outline btn-sm" data-act="unlock">${icon('lock', 'i-sm')}Buka kunci log masuk</button>` : ''}</div></div>`
         });
         const done = (msg) => { toast(msg); m.close(); t.load(); };
         on(m.el, 'click', '[data-status]', async (e2, sb) => {
@@ -113,6 +113,30 @@
         on(m.el, 'click', '[data-act="role"]', async (e2, rb) => busy(rb, async () => { try { await A.setUserRole({ userId: u.id, role: qs('#m-role', m.el).value }); done('Peranan dikemas kini.'); } catch (err) { toastError(err); } }));
         on(m.el, 'click', '[data-act="revoke"]', async (e2, rb) => busy(rb, async () => { try { const r = await A.revokeSessions(u.id); toast(r.revoked + ' sesi ditamatkan.'); } catch (err) { toastError(err); } }));
         on(m.el, 'click', '[data-act="reset"]', async (e2, rb) => busy(rb, async () => { try { await A.sendReset(u.id); toast('Email set semula dihantar kepada pengguna.'); } catch (err) { toastError(err); } }));
+        on(m.el, 'click', '[data-act="unlock"]', async (e2, rb) => busy(rb, async () => { try { await A.unlockUser(u.id); done('Kunci log masuk dibuka.'); } catch (err) { toastError(err); } }));
+      });
+      /* SUPER_ADMIN: cipta akaun — pengguna menetapkan kata laluan sendiri melalui kod emel */
+      on(el, 'click', '[data-act="create-user"]', () => {
+        const m = modal({
+          title: 'Tambah pengguna',
+          body: html`<form data-form="cu" novalidate>
+            <div class="field"><label class="label" for="cu-name">Nama penuh</label><input class="input" id="cu-name" name="fullName" required maxlength="120"></div>
+            <div class="field"><label class="label" for="cu-email">Email</label><input class="input" id="cu-email" name="email" type="email" required autocomplete="off"></div>
+            <div class="field"><label class="label" for="cu-role">Peranan</label><select class="select" id="cu-role" name="role"><option value="ADMIN">Admin</option><option value="SUPER_ADMIN">Super Admin</option><option value="USER">Pengguna</option></select></div>
+            <p class="hint">Pengguna akan menerima emel dengan kod untuk menetapkan kata laluan sendiri. Pentadbir tidak menetapkan atau melihat kata laluan.</p>
+          </form>`,
+          foot: html`<button class="btn btn-outline" data-close>Batal</button><button class="btn btn-primary" data-ok>${icon('plus')}Cipta akaun</button>`
+        });
+        const f = qs('[data-form="cu"]', m.el);
+        const submit = () => busy(qs('[data-ok]', m.el), async () => {
+          fieldErrors(f, null);
+          try {
+            await A.createUser({ fullName: f.elements.fullName.value.trim(), email: f.elements.email.value.trim(), role: f.elements.role.value });
+            m.close(); toast('Akaun dicipta. Emel set kata laluan dihantar.'); t.load();
+          } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
+        });
+        qs('[data-ok]', m.el).addEventListener('click', submit);
+        f.addEventListener('submit', (e) => { e.preventDefault(); submit(); });
       });
       t.load();
     }

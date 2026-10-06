@@ -389,7 +389,10 @@
   // ================================================================== Borang awam (tanpa log masuk)
 
   KD.views.publicForm = {
-    async render(el, params) {
+    async render(el, params, query) {
+      /* Borang awam tersuai modul (pilihan): KD.views['publicForm:<key>'] */
+      const custom = KD.views['publicForm:' + params.module];
+      if (custom) return custom.render(el, params, query || {});
       el.innerHTML = html`<div class="auth"><div class="auth-card" style="width:min(640px,100%)">${skeletonList(2)}</div></div>`.s;
       let data;
       try { data = await api.publicForm(params.module); } catch (err) {

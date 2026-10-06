@@ -80,6 +80,10 @@
 .pp__brand { font-size: clamp(14px, 1.3vw, 20px); opacity: .8; font-weight: 600; }
 .pp__title { color: #fff; font-size: clamp(24px, 3vw, 48px); font-weight: 700; line-height: 1.1; margin-top: 4px; }
 .pp__date { font-size: clamp(14px, 1.4vw, 22px); opacity: .85; margin-top: 6px; }
+.pp__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.pp__stats { display: flex; gap: clamp(12px, 2vw, 28px); font-size: clamp(11px, 1vw, 15px); opacity: .85; text-transform: uppercase; letter-spacing: .06em; }
+.pp__stats span { display: flex; flex-direction: column; align-items: flex-end; }
+.pp__stats b { font-size: clamp(20px, 2.2vw, 34px); letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
 .pp__clock { font-size: clamp(40px, 6vw, 96px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .pp__sec h2 { color: #fff; font-size: clamp(14px, 1.3vw, 20px); text-transform: uppercase; letter-spacing: .1em; opacity: .75; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
 .pp__dot { width: 12px; height: 12px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 4px rgba(74, 222, 128, .25); }
@@ -219,7 +223,7 @@
             </div>
           </div>
           <div class="jd-bar" data-filters></div>
-          <div class="jd-legend"><span><i class="jd-lg-free"></i>${t('Kosong')}</span><span><i class="jd-lg-ok"></i>${t('Ditempah')}</span><span><i class="jd-lg-wait"></i>${t('Menunggu kelulusan')}</span><span class="muted">${t('Waktu operasi')} 07:00–23:00</span></div>
+          <div class="jd-legend" data-legend></div>
           <div data-body>${skeletonList(3)}</div>
         </main>`.s;
       };
@@ -259,14 +263,26 @@
         };
       };
 
+      /* Tarikh tutup (cuti) → tiada tempahan; bukan hari operasi → borang awam ditutup (admin masih boleh) */
+      const closedInfo = (day) => {
+        const c = (data.tutup || []).filter((x) => x.t === day)[0];
+        if (c) return { cuti: true, n: c.n };
+        if (data.hariOperasi && data.hariOperasi.indexOf(parseKey(day).getDay()) < 0) return { cuti: false, n: '' };
+        return null;
+      };
+      const blocked = (day) => { const c = closedInfo(day); return !!c && (c.cuti || !isAdminLayout()); };
+      const closedNote = (c) => (c.cuti ? t('Ditutup') + (c.n ? ': ' + c.n : '') : t('Bukan hari operasi'));
+
       const bodyByDate = (range, today) => {
         const q = st.q.trim().toLowerCase();
         const rooms = data.ruang.filter((r) => (!st.blok || r.blok === st.blok) && (!st.jenis || r.jenis === st.jenis) && (!q || (r.nama + ' ' + (r.kodRuang || '')).toLowerCase().indexOf(q) >= 0));
         if (!rooms.length) return empty(t('Tiada ruang'), t('Tiada ruang sepadan dengan penapis.'));
         const groups = {};
         rooms.forEach((r) => { (groups[r.blok || '-'] = groups[r.blok || '-'] || []).push(r); });
-        const past = st.tarikh < today;
+        const past = st.tarikh < today || blocked(st.tarikh);
+        const ci = closedInfo(st.tarikh);
         return html`<p class="small mb-2" style="font-weight:600">${dayLabel(st.tarikh)}${st.tarikh === today ? ' (' + t('hari ini') + ')' : ''}</p>
+          ${ci ? html`<div class="alert ${ci.cuti ? 'alert-danger' : 'alert-warn'} mb-4">${icon('info')}<span>${closedNote(ci)}${!ci.cuti && isAdminLayout() ? ' · ' + t('pentadbir masih boleh menempah') : ''}</span></div>` : ''}
           ${Object.keys(groups).sort().map((g) => html`<section class="panel jd-group"><div class="jd-group__head"><span>${t('Blok')} ${g}</span><span class="xs muted">${groups[g].length} ${t('ruang')}</span></div>
           <div class="jd-row" aria-hidden="true"><span class="jd-axis-spacer"></span>${axis(range)}<span></span></div>
           ${groups[g].map((r) => {
@@ -288,11 +304,12 @@
         return html`<section class="panel jd-group"><div class="jd-group__head"><span>${r.nama}</span><span class="xs muted">${[r.blok, t(r.jenis), r.kapasiti ? r.kapasiti + ' ' + t('orang') : ''].filter(Boolean).join(' · ')}</span></div>
           <div class="jd-row" aria-hidden="true"><span class="jd-axis-spacer"></span>${axis(range)}<span></span></div>
           ${days.map((d) => {
-            const past = d < today;
+            const past = d < today || blocked(d);
+            const ci = closedInfo(d);
             const dow = parseKey(d).getDay();
             const tr = track(r.id, d, data.tempahan.filter((b) => b.ruang === r.id && b.tarikh <= d && b.tarikhTamat >= d), range, past);
             return html`<div class="jd-row">
-              <div class="jd-room"><b class="jd-day ${d === today ? 'is-today' : ''} ${dow === 5 || dow === 6 ? 'is-weekend' : ''}">${shortDay(d)}${d === today ? ' · ' + t('hari ini') : ''}</b></div>
+              <div class="jd-room"><b class="jd-day ${d === today ? 'is-today' : ''} ${dow === 5 || dow === 6 ? 'is-weekend' : ''}">${shortDay(d)}${d === today ? ' · ' + t('hari ini') : ''}</b>${ci ? html`<span class="xs ${ci.cuti ? '' : 'muted'}" style="${ci.cuti ? 'color:var(--danger)' : ''}">${closedNote(ci)}</span>` : ''}</div>
               ${tr.bar}
               ${past ? html`<span></span>` : html`<a class="btn btn-sm btn-outline jd-book" href="${bookHref({ ruang: r.id, tarikh: d })}">${t('Tempah')}</a>`}
               <div class="jd-slots">${tr.text}</div>
@@ -302,6 +319,7 @@
 
       const renderBody = () => {
         const range = [mins(data.jam.mula), mins(data.jam.tamat)];
+        qs('[data-legend]', el).innerHTML = html`<span><i class="jd-lg-free"></i>${t('Kosong')}</span><span><i class="jd-lg-ok"></i>${t('Ditempah')}</span><span><i class="jd-lg-wait"></i>${t('Menunggu kelulusan')}</span><span class="muted">${t('Waktu operasi')} ${data.jam.mula}–${data.jam.tamat}</span>`.s;
         qs('[data-filters]', el).innerHTML = filtersHtml().s;
         qs('[data-body]', el).innerHTML = (st.mode === 'ruang' ? bodyByRoom(range, data.hariIni) : bodyByDate(range, data.hariIni)).s;
       };
@@ -473,7 +491,7 @@
       el.innerHTML = html`<div class="pp"><div class="pp__top"><div>
           <div class="pp__brand">${t(cfg().SYSTEM_NAME || '')}${blok ? ' · ' + t('Blok') + ' ' + blok : ''}</div>
           <div class="pp__title">${t('Tempahan ruang hari ini')}</div><div class="pp__date" data-date></div></div>
-          <div class="pp__clock" data-clock aria-live="off"></div></div>
+          <div class="pp__right"><div class="pp__clock" data-clock aria-live="off"></div><div class="pp__stats" data-stats></div></div></div>
         <div class="pp__body" data-body><div class="pp__empty">${t('Memuatkan…')}</div></div>
         <div class="pp__foot"><span>${t('Tempah ruang')}: ${location.host}${location.pathname}</span><span data-updated></span></div></div>`.s;
 
@@ -494,6 +512,8 @@
         const live = list.filter((b) => mins(b.masaMula) <= n && mins(b.masaTamat) > n);
         const next = list.filter((b) => mins(b.masaMula) > n);
         const done = list.length - live.length - next.length;
+        const aktif = data.ruang.filter((r) => !blok || r.blok === blok).length;
+        qs('[data-stats]', el).innerHTML = html`<span><b>${live.length}</b>${t('sedang digunakan')}</span><span><b>${next.length}</b>${t('akan datang')}</span><span><b>${aktif}</b>${t('ruang aktif')}</span>`.s;
         qs('[data-body]', el).innerHTML = html`
           <section class="pp__sec"><h2><span class="pp__dot"></span>${t('Sedang berlangsung')} (${live.length})</h2>
             ${live.length ? html`<div class="pp__grid">${live.map((b) => card(b, rooms[b.ruang], true))}</div>` : html`<div class="pp__empty">${t('Tiada tempahan sedang berlangsung.')}</div>`}</section>
@@ -525,6 +545,9 @@
     }
   };
 
+  /* Dikongsi dengan paparan tambahan (tempahan-ext.html) */
+  KD.tp = { t, en, L, pad, keyOf, parseKey, addDays, isKey, dayLabel, longDay, shortDay, fmtKey, fmtIso, mins, hm, top, cfg, bookHref, isAdminLayout, printSlip, printable, DAYS, MONTHS, STATUS_CLASS, STATUS_TEXT };
+
   // ================================================================== Laluan, menu, landing
 
   KD.extraRoutes.push(
@@ -533,7 +556,7 @@
     { path: '/papan', view: 'papanTempahan', access: 'public', layout: 'public', title: 'Papan paparan' },
     { path: '/admin/jadual', view: 'jadual', access: 'admin', layout: 'admin', title: 'Kalendar' }
   );
-  KD.extraNav.admin.push(['/admin/jadual', 'calendar', 'Kalendar']);
+  KD.extraNav.admin.push(['/admin/jadual', 'grid', 'Jadual ruang']);
   KD.landingCards.push(
     { href: '/jadual', icon: 'calendar', title: 'Kalendar ketersediaan', text: 'Lihat slot kosong setiap ruang mengikut tarikh atau mengikut ruang.' },
     { href: '/borang/tempahan', icon: 'send', title: 'Mohon tempahan', text: 'Isi borang dengan No. Staf anda. Tiada akaun atau kata laluan diperlukan.' },

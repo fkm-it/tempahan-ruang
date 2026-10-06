@@ -63,6 +63,7 @@ const UserService = {
     page.items = page.items.map(function (u) {
       const dto = UserModel.toAdmin(u);
       dto.recordCount = recordCounts[u.user_id] || 0;
+      dto.locked = UserService.isLocked(u.email);
       return dto;
     });
     return page;
@@ -126,6 +127,51 @@ const UserService = {
     const n = AuthService.revokeAllForUser(target.user_id);
     AuditService.log(ctx, AUDIT_ACTIONS.USER_SESSIONS_REVOKED, 'USER', target.user_id, n + ' sesi');
     return { revoked: n };
+  },
+
+  lockKey: function (email) { return 'loginfail:' + SecurityUtils.shortHash(StringUtils.normalizeEmail(email)); },
+
+  /** Akaun dikunci sementara kerana terlalu banyak cubaan log masuk gagal? */
+  isLocked: function (email) {
+    const f = AppCache.get(UserService.lockKey(email));
+    return !!(f && f.n >= CONFIG.LOGIN_MAX_FAILS);
+  },
+
+  /**
+   * SUPER_ADMIN mencipta akaun (cth. apabila pendaftaran ditutup). Tiada kata laluan ditetapkan oleh pentadbir:
+   * pengguna menerima kod set kata laluan melalui email (aliran "Lupa kata laluan").
+   */
+  createByAdmin: function (ctx, payload) {
+    const data = Validator.validate(payload, {
+      fullName: { type: 'string', required: true, min: 3, max: CONFIG.NAME_MAX, label: 'Nama penuh' },
+      email: { type: 'email', required: true, label: 'Email' },
+      role: { type: 'enum', values: [ROLES.USER, ROLES.ADMIN, ROLES.SUPER_ADMIN], required: true, label: 'Peranan' }
+    });
+    SecurityService.rateLimit('auth.register.global', 'all');
+    const user = Database.withLock(function () {
+      UserRepository.base().invalidate();
+      if (UserRepository.findByEmail(data.email)) throw Errors.conflict('Email ini telah didaftarkan.');
+      return UserRepository.create({ email: data.email, full_name: data.fullName, phone: '', role: data.role });
+    });
+    AuditService.log(ctx, AUDIT_ACTIONS.USER_CREATED, 'USER', user.user_id, StringUtils.maskEmail(user.email) + ' · ' + data.role);
+    const name = SettingsService.get('SYSTEM_NAME');
+    NotificationService.email(user.email, 'Akaun anda telah dicipta', [
+      'Salam ' + user.full_name + ',',
+      'Akaun ' + (data.role === ROLES.USER ? 'pengguna' : 'pentadbir') + ' ' + name + ' telah dicipta untuk anda oleh ' + ((ctx.user && ctx.user.full_name) || 'pentadbir') + '.',
+      'Kod untuk menetapkan kata laluan dihantar dalam email berasingan. Buka halaman "Lupa kata laluan", masukkan email ini dan kod tersebut. Jika kod telah luput, minta kod baharu di halaman yang sama.'
+    ], { path: '#/lupa-kata-laluan' });
+    AuthService.requestPasswordReset({ email: user.email }, ctx, true);
+    return UserModel.toAdmin(user);
+  },
+
+  /** Buka kunci log masuk (selepas terlalu banyak cubaan gagal). */
+  unlock: function (ctx, payload) {
+    const data = Validator.validate(payload, { userId: { type: 'id', prefix: 'U', required: true, label: 'Pengguna' } });
+    const target = UserRepository.findById(data.userId);
+    UserService.assertCanManage(ctx, target);
+    AppCache.remove(UserService.lockKey(target.email));
+    AuditService.log(ctx, AUDIT_ACTIONS.USER_UNLOCKED, 'USER', target.user_id, StringUtils.maskEmail(target.email));
+    return { unlocked: true };
   },
 
   /** Admin mencetuskan email set semula — admin tidak pernah melihat/menetapkan kata laluan. */

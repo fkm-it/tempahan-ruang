@@ -22,7 +22,15 @@
     return html`<header class="public-top"><a class="brand" href="#/">${star()}<span class="brand__full">${t(cfg().SYSTEM_NAME || '')}</span><span class="brand__short">${t(cfg().SHORT_NAME || cfg().SYSTEM_NAME || '')}</span></a>
       <nav class="row">${langBtn(dark)}${loggedIn
         ? html`<a class="btn ${dark ? 'btn-light' : 'btn-outline'} btn-sm" href="#/utama">${t('Buka aplikasi')}</a>`
-        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">${t('Log Masuk')}</a>${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">${t('Daftar')}</a>` : ''}`}</nav></header>`;
+        : html`<a class="btn ${dark ? 'btn-light' : 'btn-ghost'} btn-sm" href="#/log-masuk">${t('Log Masuk')}</a>${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a class="btn ${dark ? 'btn-light' : 'btn-primary'} btn-sm" href="#/daftar">${t('Daftar')}</a>` : ''}`}</nav></header>${dark ? '' : publicTabs()}`;
+  }
+
+  /** Menu halaman awam (pilihan): KD.publicNav = [[path, icon, label], …] — jalur tab boleh skrol di bawah pengepala. */
+  function publicTabs() {
+    const items = KD.publicNav || [];
+    if (!items.length) return '';
+    const cur = (location.hash || '#/').slice(1).split('?')[0];
+    return html`<nav class="public-tabs" aria-label="${t('Menu')}">${items.map((x) => html`<a href="#${x[0]}" class="${cur === x[0] ? 'is-active' : ''}" ${cur === x[0] ? html`aria-current="page"` : ''}>${icon(x[1], 'i-sm')}<span>${t(x[2])}</span></a>`)}</nav>`;
   }
 
   function publicFoot() {
@@ -67,7 +75,7 @@
         <div class="section" id="ciri" style="padding-top:0">
           <div class="feature-grid">${(KD.landingCards || []).concat((publicMods.length ? publicMods : mods).map((m) => ({
             href: m.publicForm && c.ALLOW_PUBLIC_SUBMISSION !== false ? '/borang/' + m.key : '/log-masuk',
-            icon: m.icon, title: m.publicForm ? (m.publicForm.title || m.label) : m.labelPlural, text: m.description || '' }))).slice(0, 3)
+            icon: m.icon, title: m.publicForm ? (m.publicForm.title || m.label) : m.labelPlural, text: m.description || '' }))).slice(0, Math.max(3, (KD.landingCards || []).length))
             .map((x) => html`<a class="feature" href="#${x.href}">${icon(x.icon)}<h3>${t(x.title)}</h3><p>${t(x.text)}</p></a>`)}</div>
         </div>
 

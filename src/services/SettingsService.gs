@@ -45,7 +45,7 @@ const SettingsService = {
     const s = SettingsService.all();
     const rows = {};
     SettingsRepository.rows().forEach(function (r) { rows[r.setting_key] = r; });
-    return Object.keys(SETTINGS_DEFS).map(function (k) {
+    return Object.keys(SETTINGS_DEFS).filter(function (k) { return !SETTINGS_DEFS[k].hidden; }).map(function (k) {
       const def = SETTINGS_DEFS[k];
       return {
         key: k,
@@ -79,7 +79,9 @@ const SettingsService = {
       if (ROLE_LEVEL[ctx.role] < ROLE_LEVEL[def.minRole]) { errors[k] = 'Memerlukan peranan ' + def.minRole + '.'; return; }
       try {
         const v = Validator.coerce(changes[k], SettingModel.rule(k, def), k);
-        if (k === 'ADMIN_EMAIL' && v && !Validator.EMAIL_RE.test(v)) throw new Error('Email tidak sah.');
+        /* ADMIN_EMAIL: satu atau beberapa alamat dipisah koma */
+        if (k === 'ADMIN_EMAIL' && v && String(v).split(',').some(function (e) { return !Validator.EMAIL_RE.test(e.trim()); })) throw new Error('Email tidak sah.');
+        if (def.check) { const msg = def.check(v); if (msg) throw new Error(msg); }
         values[k] = SettingModel.serialize(def, v);
       } catch (e) {
         errors[k] = e.message;

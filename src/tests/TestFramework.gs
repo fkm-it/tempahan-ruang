@@ -97,6 +97,8 @@ const TestRunner = {
     Migration.run({});
     // Ujian teras menganggap pendaftaran dibuka (lalai projek mungkin menutupnya)
     SettingsRepository.setMany({ ALLOW_REGISTRATION: 'TRUE' }, 'TEST');
+    /* Projek boleh menyediakan keadaan asas ujian domain: const AppTests = { setup: function (sandbox) {…}, suites: … } */
+    if (typeof AppTests !== 'undefined' && AppTests.setup) AppTests.setup(sandbox);
     return sandbox;
   },
 

@@ -4,7 +4,10 @@
  * Dalam Apps Script: runTestsPart5. Dalam Node: npm test.
  */
 const AppTests = {
-  suites: function () { return [TestSuiteTempahan]; }
+  suites: function () { return [TestSuiteTempahan, TestSuiteTempahanV2]; },
+  /** Keadaan asas: semua hari dibuka 07:00–23:00, tiada cuti, peringatan pagi ditutup (ujian khusus menetapkannya sendiri). */
+  BASE: { WAKTU_MULA: '07:00', WAKTU_TAMAT: '23:00', HARI_OPERASI: '0,1,2,3,4,5,6', TARIKH_TUTUP: '[]', PERINGATAN_PAGI: '0', PELAJAR_DIBENARKAN: 'TRUE' },
+  setup: function () { SettingsRepository.setMany(AppTests.BASE, 'TEST'); }
 };
 
 const AppFixtures = {
@@ -237,7 +240,7 @@ const TestSuiteTempahan = {
       const soon = AppFixtures.booking({ ruang: room.id, tarikh: AppFixtures.day(-1), tarikh_tamat: AppFixtures.day(1), status: 'DILULUSKAN', masa_mula: hm(now + 60), masa_tamat: hm(now + 61), emel: 'jam@test.local' });
       const far = AppFixtures.booking({ ruang: room.id, tarikh: today, tarikh_tamat: today, status: 'DILULUSKAN', masa_mula: hm(now + 300), masa_tamat: hm(now + 301), emel: 'jauh@test.local' });
       const pending = AppFixtures.booking({ ruang: room.id, tarikh: today, tarikh_tamat: today, status: 'MENUNGGU', masa_mula: hm(now + 30), masa_tamat: hm(now + 31), emel: 'tunggu@test.local' });
-      if (now + 61 > 23 * 60 + 59) return; /* lewat malam: tiada tetingkap untuk diuji */
+      if (now + 301 > 23 * 60 + 59) return; /* lewat malam: tiada tetingkap untuk diuji */
       const before = typeof __mails !== 'undefined' ? __mails.length : 0;
       const r1 = TempahanHooks.hourly();
       t.ok(r1.peringatanJam >= 1, JSON.stringify(r1));

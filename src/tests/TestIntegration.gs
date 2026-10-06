@@ -379,6 +379,25 @@ const TestSuiteAdmin = {
       } finally {
         globalThis.__setActiveUser('owner@example.com');
       }
-    }, { nodeOnly: true }]
+    }, { nodeOnly: true }],
+    ['SUPER_ADMIN cipta akaun (tanpa kata laluan, kod emel); buka kunci log masuk', function (t) {
+      const sup = TestHelpers.admin(ROLES.SUPER_ADMIN);
+      const adm = TestHelpers.admin();
+      const email = TestHelpers.email('baru');
+      TestAssert.apiFail(TestHelpers.call(adm.token, 'admin.user.create', { fullName: 'Admin Baru', email: email, role: 'ADMIN' }), ERROR_CODES.FORBIDDEN);
+      const u = TestAssert.apiOk(TestHelpers.call(sup.token, 'admin.user.create', { fullName: 'Admin Baru', email: email, role: 'ADMIN' }));
+      t.eq(u.role, 'ADMIN');
+      TestAssert.apiFail(TestHelpers.call(sup.token, 'admin.user.create', { fullName: 'Admin Baru', email: email, role: 'ADMIN' }), ERROR_CODES.CONFLICT);
+      TestAssert.apiFail(api({ action: 'auth.login', payload: { email: email, password: 'Apa-apa123' } }), ERROR_CODES.UNAUTHENTICATED);
+      if (typeof __mails !== 'undefined') t.ok(__mails.some(function (m) { return m.to === email && /Kod set semula/.test(m.subject); }), 'kod set kata laluan diemel');
+      /* Kunci selepas cubaan gagal → admin buka kunci */
+      const target = TestHelpers.user('kunci');
+      for (let i = 0; i < CONFIG.LOGIN_MAX_FAILS; i++) api({ action: 'auth.login', payload: { email: target.email, password: 'Salah-' + i } });
+      TestAssert.apiFail(api({ action: 'auth.login', payload: { email: target.email, password: 'Rahsia123' } }), ERROR_CODES.RATE_LIMITED);
+      const list = TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.users', { q: target.email }));
+      t.ok(list.items[0].locked, 'ditanda dikunci');
+      TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.user.unlock', { userId: target.user.id }));
+      TestAssert.apiOk(api({ action: 'auth.login', payload: { email: target.email, password: 'Rahsia123' } }));
+    }]
   ]
 };

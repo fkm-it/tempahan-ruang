@@ -229,9 +229,16 @@ function plan() {
   const migFile = path.join(SRC, 'database', 'Migration.gs');
   out[migFile] = replaceBlock(fs.readFileSync(migFile, 'utf8'), 'migrations', mods.map(migrationEntry).join(''), migFile);
   const idxFile = path.join(SRC, 'frontend', 'index.html');
-  const custom = mods.filter((m) => fs.existsSync(path.join(SRC, 'frontend', 'modules', m.key + '.html')));
+  /* Paparan tersuai: <key>.html dan fail tambahan <key>-<bahagian>.html (dimuat selepas <key>.html) */
+  const feDir = path.join(SRC, 'frontend', 'modules');
+  const feFiles = fs.existsSync(feDir) ? fs.readdirSync(feDir) : [];
+  const custom = [];
+  mods.forEach((m) => {
+    if (feFiles.indexOf(m.key + '.html') >= 0) custom.push(m.key);
+    feFiles.filter((f) => new RegExp('^' + m.key + '-[a-z0-9-]+\\.html$').test(f)).sort().forEach((f) => custom.push(f.replace(/\.html$/, '')));
+  });
   out[idxFile] = replaceBlock(fs.readFileSync(idxFile, 'utf8'), 'frontend',
-    custom.map((m) => '  <?!= include(\'frontend/modules/' + m.key + '\'); ?>\n').join(''), idxFile);
+    custom.map((k) => '  <?!= include(\'frontend/modules/' + k + '\'); ?>\n').join(''), idxFile);
 
   // Folder modul yatim (JSON telah dibuang)
   const orphans = fs.existsSync(path.join(SRC, 'modules')) ? fs.readdirSync(path.join(SRC, 'modules'), { withFileTypes: true })

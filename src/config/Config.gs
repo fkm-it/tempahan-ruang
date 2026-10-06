@@ -15,7 +15,7 @@ const CONFIG = Object.freeze({
   APP_SLUG: 'TempahanRuangFKM', // @init:slug
   /** Warna jenama (email, dsb.). */
   BRAND_COLOR: '#7A0019', // @init:brandColor
-  VERSION: '1.2.0',
+  VERSION: '1.3.0',
   TIMEZONE_FALLBACK: 'Asia/Kuala_Lumpur',
 
   DEFAULT_PAGE_SIZE: 20,
@@ -85,6 +85,8 @@ const CONFIG = Object.freeze({
     'tempahan.jadual.global': [3000, 3600],
     'tempahan.semak': [20, 3600],
     'tempahan.semak.global': [600, 3600],
-    'tempahan.batal': [10, 3600]
+    'tempahan.batal': [10, 3600],
+    'tempahan.staf': [40, 3600],
+    'tempahan.staf.global': [2000, 3600]
   })
 });

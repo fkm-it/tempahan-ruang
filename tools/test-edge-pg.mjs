@@ -94,6 +94,8 @@ let sup;
 await test('Log masuk dengan kata laluan sedia ada (AUTH_PEPPER dibawa bersama)', async () => {
   sup = ok(await call(A, 'auth.login', { email: 'super@demo.local', password: 'Demo1234' }));
   const me = ok(await call(B, 'auth.me', {}, sup.token));
+  /* Ujian konkurensi menggunakan tarikh relatif: buka semua hari & tiada tarikh tutup */
+  ok(await call(A, 'admin.settings.update', { changes: { HARI_OPERASI: '0,1,2,3,4,5,6', TARIKH_TUTUP: '[]', WAKTU_MULA: '07:00', WAKTU_TAMAT: '23:00' } }, sup.token));
   assert(me.user.role === 'SUPER_ADMIN', 'peranan');
 });
 

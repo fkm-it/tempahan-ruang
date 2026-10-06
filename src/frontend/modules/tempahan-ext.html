@@ -1,0 +1,742 @@
+<style>
+/* ===== Tempahan v1.3: borang, cari slot, kalendar bulanan, tempahan saya, analitik, tetapan, bagi pihak ===== */
+.tp-page { width: min(860px, 100%); margin: 0 auto; padding: var(--sp-6); }
+.tp-page--wide { width: min(1180px, 100%); }
+.tp-head h1 { font-size: var(--fs-3xl, 1.875rem); }
+.tp-head p { color: var(--muted); margin-top: var(--sp-1); max-width: 70ch; }
+.tp-head { margin-bottom: var(--sp-5); display: flex; justify-content: space-between; align-items: flex-end; gap: var(--sp-4); flex-wrap: wrap; }
+.tp-card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg, 14px); padding: var(--sp-6); }
+.tp-card + .tp-card { margin-top: var(--sp-5); }
+.tp-card h2 { font-size: var(--fs-lg); display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-4); }
+.tp-info { display: flex; gap: 8px; align-items: flex-start; padding: 10px 14px; border-radius: var(--r-md); background: var(--brand-50); border: 1px solid var(--brand-100); color: var(--brand-900); font-size: var(--fs-sm); margin-bottom: var(--sp-5); }
+.tp-info details { margin-top: 4px; }
+.tp-info summary { cursor: pointer; font-weight: 600; }
+.tp-who { background: var(--canvas-200, #F8FAFC); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-4); margin-bottom: var(--sp-5); }
+.tp-who .label { margin-bottom: 8px; }
+.tp-radios { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); }
+.tp-radio { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--white); cursor: pointer; font-weight: 600; font-size: var(--fs-sm); }
+.tp-radio:has(input:checked) { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); background: var(--brand-50); }
+.tp-autofill { margin-top: 2px; font-size: var(--fs-sm); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tp-autofill.is-ok { color: var(--success); }
+.tp-autofill.is-err { color: var(--danger); }
+.tp-card .field { margin: 0 0 var(--sp-4); }
+.tp-card .field + .field { margin-top: 0; }
+.tp-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--sp-4); }
+.tp-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-5); }
+.tp-check { display: flex; gap: 8px; align-items: flex-start; margin-top: var(--sp-3); padding: 12px 14px; border-radius: var(--r-md); font-size: var(--fs-sm); border: 1px solid; }
+.tp-check.is-ok { background: var(--success-50); border-color: #BBF7D0; color: var(--success); }
+.tp-check.is-bad { background: var(--danger-50); border-color: #FECACA; color: var(--danger); }
+.tp-check.is-info { background: var(--canvas-200, #F8FAFC); border-color: var(--line); color: var(--ink, #0F172A); }
+.tp-check ul { margin: 6px 0 0 18px; }
+.tp-checkline { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); font-weight: 500; margin: var(--sp-2) 0 var(--sp-4); }
+/* Cari slot */
+.cs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 var(--sp-4); }
+.cs-day { margin-top: var(--sp-5); }
+.cs-day__head { font-weight: 700; margin-bottom: var(--sp-3); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.cs-room { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--sp-4); align-items: center; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--white); margin-bottom: var(--sp-2); }
+.cs-room b { display: block; }
+.cs-free { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.cs-free span { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--success-50); color: var(--success); border: 1px solid #BBF7D0; font-weight: 600; }
+/* Kalendar bulanan */
+.cal-bar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+.cal-bar h2 { font-size: var(--fs-xl); min-width: 160px; text-align: center; }
+.cal-bar .select { width: auto; flex: 1 1 200px; min-width: 0; margin-left: auto; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal__dow { text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--brand); padding: 4px 0; }
+.cal__cell { min-height: 104px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); padding: 6px; display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: inherit; min-width: 0; }
+.cal__cell:hover { border-color: var(--brand); color: inherit; }
+.cal__cell.is-out { background: var(--canvas-200, #F8FAFC); opacity: .6; }
+.cal__cell.is-today { border: 2px solid var(--brand); background: var(--brand-50); }
+.cal__cell.is-closed { background: repeating-linear-gradient(135deg, #F8FAFC 0 6px, #F1F5F9 6px 12px); }
+.cal__num { font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; gap: 4px; }
+.cal__note { font-size: 10px; color: var(--danger); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal__ev { font-size: 10.5px; line-height: 1.25; padding: 2px 5px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.cal__ev.is-ok { background: #DCFCE7; color: #166534; }
+.cal__ev.is-wait { background: #FEF3C7; color: #92400E; }
+.cal__ev.is-done { background: #DBEAFE; color: #1E40AF; }
+.cal__more { font-size: 10px; color: var(--muted); }
+.cal__dots { display: none; }
+.cal-legend { display: flex; gap: var(--sp-4); flex-wrap: wrap; font-size: var(--fs-xs); color: var(--muted); margin-top: var(--sp-4); align-items: center; }
+.cal-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+/* Tempahan saya */
+.ts-item { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-4); background: var(--white); margin-top: var(--sp-3); }
+.ts-item__top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ts-item__ref { font-weight: 700; letter-spacing: .02em; }
+.ts-item__meta { font-size: var(--fs-sm); color: var(--muted); margin-top: 6px; }
+.ts-item__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: var(--sp-3); }
+/* Analitik */
+.an-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-4); }
+.an-kpi { border-top: 4px solid var(--line); }
+.an-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5); margin-top: var(--sp-5); }
+.donut { display: flex; gap: var(--sp-5); align-items: center; flex-wrap: wrap; }
+.donut svg { width: 180px; height: 180px; flex: none; }
+.donut ul { list-style: none; padding: 0; margin: 0; font-size: var(--fs-sm); display: grid; gap: 6px; }
+.donut li { display: flex; align-items: center; gap: 8px; }
+.donut li i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+/* Tetapan */
+.tt-days { display: flex; gap: 8px; flex-wrap: wrap; }
+.tt-days label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.tt-days label:has(input:checked) { border-color: var(--brand); color: var(--brand); background: var(--brand-50); }
+.tt-holi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: var(--sp-3); }
+.tt-holi span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--canvas-200, #F1F5F9); font-size: 12px; font-weight: 600; }
+.tt-holi button { border: 0; background: none; color: var(--danger); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; }
+.tt-add { display: grid; grid-template-columns: 170px 1fr auto; gap: 8px; }
+@media (max-width: 900px) { .an-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .an-two { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 720px) {
+  .tp-page { padding: var(--sp-4); }
+  .tp-card { padding: var(--sp-4); }
+  .tp-row2, .cs-grid { grid-template-columns: minmax(0, 1fr); }
+  .tt-add { grid-template-columns: minmax(0, 1fr); }
+  .cal { gap: 3px; }
+  .cal__cell { min-height: 56px; padding: 4px; border-radius: 6px; }
+  .cal__ev, .cal__more, .cal__note { display: none; }
+  .cal__dots { display: flex; gap: 2px; flex-wrap: wrap; }
+  .cal__dots i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .cal__dots i.is-ok { background: #16A34A; } .cal__dots i.is-wait { background: #F59E0B; } .cal__dots i.is-done { background: #3B82F6; }
+  .cal__dow { font-size: 9px; letter-spacing: 0; }
+  .cal-bar h2 { min-width: 0; font-size: var(--fs-lg); }
+  .donut svg { width: 140px; height: 140px; }
+}
+</style>
+<script>
+/*
+ * Tempahan v1.3 — ciri daripada sistem lama:
+ *   Borang tempahan baharu (staf/pelajar, isi-automatik, semak kekosongan), Cari slot, Kalendar bulanan, Tempahan saya,
+ *   dan untuk pentadbir: Analitik, Tetapan tempahan (waktu operasi, tarikh tutup, peringatan, emel), Tempah bagi pihak.
+ * Pembantu dikongsi: KD.tp (modules/tempahan.html).
+ */
+(function (KD) {
+  'use strict';
+  const { html, qs, qsa, on, todayKey, fmtNum, requestId } = KD.utils;
+  const { icon, toast, toastError, busy, fieldErrors, modal, skeletonList, errorState, empty, toneBadge } = KD.ui;
+  const P = KD.tp;
+  const t = P.t;
+  const cfg = P.cfg;
+  const HARI = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+  const HARI_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const hariName = (d) => (P.en() ? HARI_EN : HARI)[d];
+
+  /** Waktu operasi daripada tetapan awam (public.config). */
+  const waktu = () => {
+    const c = cfg();
+    let tutup = [];
+    try { tutup = JSON.parse(c.TARIKH_TUTUP || '[]'); } catch (e) { tutup = []; }
+    const hari = String(c.HARI_OPERASI || '1,2,3,4,5').split(',').filter((x) => /^[0-6]$/.test(x)).map(Number);
+    return { mula: c.WAKTU_MULA || '08:00', tamat: c.WAKTU_TAMAT || '18:00', hari, tutup: Array.isArray(tutup) ? tutup : [], pelajar: c.PELAJAR_DIBENARKAN !== false };
+  };
+  const hariText = (hari) => {
+    const s = hari.slice().sort();
+    const run = s.length > 2 && s.every((d, i) => i === 0 || d === s[i - 1] + 1);
+    return run ? hariName(s[0]) + ' – ' + hariName(s[s.length - 1]) : s.map(hariName).join(', ');
+  };
+  const tones = () => { const m = KD.moduleOf('tempahan'); const o = {}; ((m && m.statuses) || []).forEach((x) => { o[x.value] = x.tone; }); return o; };
+  const stLabel = (v) => { const m = KD.moduleOf('tempahan'); const s = ((m && m.statuses) || []).filter((x) => x.value === v)[0]; return s ? s.label : v; };
+  const roomOptions = (list, sel) => html`<option value="">${t('— Pilih ruang —')}</option>${list.map((o) => html`<option value="${o.value}" ${o.value === sel ? 'selected' : ''}>${o.label}</option>`)}`;
+  const timeInput = (id, name, value, w) => html`<input class="input" type="time" id="${id}" name="${name}" step="1800" min="${w.mula}" max="${w.tamat}" value="${value || ''}" required>`;
+
+  /** Semak kekosongan ruang untuk tarikh & masa dipilih (klien; pelayan menyemak semula semasa hantar). */
+  async function checkSlot(p) {
+    if (!p.ruang || !P.isKey(p.tarikh) || !p.masaMula || !p.masaTamat) return { kind: 'info', msg: t('Pilih ruang, tarikh dan masa dahulu.') };
+    if (p.masaTamat <= p.masaMula) return { kind: 'bad', msg: t('Masa tamat mesti selepas masa mula.') };
+    const hingga = P.isKey(p.tarikhTamat) && p.tarikhTamat >= p.tarikh ? p.tarikhTamat : p.tarikh;
+    const data = await KD.api.call('tempahan.jadual', { dari: p.tarikh, hingga, ruang: p.ruang });
+    const issues = [];
+    if (p.masaMula < data.jam.mula || p.masaTamat > data.jam.tamat) issues.push(t('Di luar waktu operasi') + ' (' + data.jam.mula + '–' + data.jam.tamat + ')');
+    (data.tutup || []).forEach((x) => issues.push(t('Ditutup') + ': ' + P.fmtKey(x.t) + (x.n ? ' (' + x.n + ')' : '')));
+    if (!p.admin) {
+      for (let d = p.tarikh, i = 0; d <= hingga && i < 20; d = P.addDays(d, 1), i++) {
+        if (data.hariOperasi && data.hariOperasi.indexOf(P.parseKey(d).getDay()) < 0) issues.push(t('Bukan hari operasi') + ': ' + P.fmtKey(d) + ' (' + hariName(P.parseKey(d).getDay()) + ')');
+      }
+    }
+    const clash = data.tempahan.filter((b) => b.ruang === p.ruang && b.status !== 'SELESAI' && b.tarikh <= hingga && b.tarikhTamat >= p.tarikh && b.masaMula < p.masaTamat && p.masaMula < b.masaTamat);
+    clash.forEach((b) => issues.push(t('Bertindih') + ': ' + P.fmtKey(b.tarikh > p.tarikh ? b.tarikh : p.tarikh) + ' ' + b.masaMula + '–' + b.masaTamat + ' (' + t(b.status === 'DILULUSKAN' ? 'Diluluskan' : 'Menunggu kelulusan') + (b.refNo ? ', ' + b.refNo : '') + ')'));
+    const sameDay = data.tempahan.filter((b) => b.ruang === p.ruang && b.status !== 'SELESAI' && b.tarikh <= p.tarikh && b.tarikhTamat >= p.tarikh)
+      .sort((a, b) => (a.masaMula < b.masaMula ? -1 : 1)).map((b) => b.masaMula + '–' + b.masaTamat);
+    if (issues.length) return { kind: 'bad', msg: t('Slot ini tidak boleh ditempah:'), list: issues };
+    return { kind: 'ok', msg: t('Slot ini kosong. Anda boleh menghantar permohonan.') + (sameDay.length ? ' ' + t('Tempahan lain pada hari itu') + ': ' + sameDay.join(', ') : '') };
+  }
+  const checkHtml = (r) => html`<div class="tp-check is-${r.kind}">${icon(r.kind === 'ok' ? 'check' : r.kind === 'bad' ? 'alert' : 'info', 'i-sm')}<div>${r.msg}${r.list ? html`<ul>${r.list.map((x) => html`<li>${x}</li>`)}</ul>` : ''}</div></div>`;
+
+  // ================================================================== Borang tempahan baharu (awam)
+
+  KD.views['publicForm:tempahan'] = {
+    async render(el, params, query) {
+      el.innerHTML = html`${P.top()}<main class="tp-page"><div class="tp-card">${skeletonList(3)}</div></main>`.s;
+      let meta;
+      try { meta = await KD.api.publicForm('tempahan'); } catch (err) {
+        el.innerHTML = html`${P.top()}<main class="tp-page"><div class="tp-card">${errorState(err)}</div></main>`.s;
+        return;
+      }
+      const w = waktu();
+      const rooms = (meta.refOptions && meta.refOptions.ruang) || [];
+      const st = { jenis: query.jenis === 'PELAJAR' && w.pelajar ? 'PELAJAR' : 'STAF', multi: P.isKey(query.tarikhTamat) && query.tarikhTamat !== query.tarikh };
+      const v = {
+        ruang: query.ruang || '', tarikh: P.isKey(query.tarikh) ? query.tarikh : todayKey(), tarikhTamat: P.isKey(query.tarikhTamat) ? query.tarikhTamat : '',
+        masaMula: query.masaMula || w.mula, masaTamat: query.masaTamat || P.hm(Math.min(P.mins(w.mula) + 120, P.mins(w.tamat)))
+      };
+      const upcoming = w.tutup.filter((x) => x.t >= todayKey()).sort((a, b) => (a.t < b.t ? -1 : 1));
+
+      const render = () => {
+        el.innerHTML = html`${P.top()}<main class="tp-page">
+          <div class="tp-head"><div><h1>${t('Tempahan baharu')}</h1><p>${t('Isi borang di bawah untuk menempah ruang. Sistem menyemak pertindihan secara automatik sebelum permohonan dihantar.')}</p></div></div>
+          <div class="tp-card">
+            <h2>${icon('edit')}${t('Borang tempahan')}</h2>
+            <div class="tp-info">${icon('clock', 'i-sm')}<div>${t('Dibuka')} ${hariText(w.hari)}, ${w.mula}–${w.tamat}.${upcoming.length ? html` <details><summary>${upcoming.length} ${t('tarikh tutup akan datang')}</summary>${upcoming.map((x) => html`<div class="xs">${P.fmtKey(x.t)} · ${x.n}</div>`)}</details>` : ''}</div></div>
+            <form data-public-form novalidate>
+              <fieldset class="tp-who"><legend class="label">${t('Saya:')}</legend><div class="tp-radios">
+                <label class="tp-radio"><input type="radio" name="jenisPemohon" id="pf-jenis-STAF" value="STAF" ${st.jenis === 'STAF' ? 'checked' : ''}>${icon('user', 'i-sm')}${t('Staf FKM')}</label>
+                ${w.pelajar ? html`<label class="tp-radio"><input type="radio" name="jenisPemohon" id="pf-jenis-PELAJAR" value="PELAJAR" ${st.jenis === 'PELAJAR' ? 'checked' : ''}>${icon('book', 'i-sm')}${t('Pelajar')}</label>` : ''}
+              </div></fieldset>
+              <div class="field"><label class="label" for="pf-noStaf">${t(st.jenis === 'STAF' ? 'No. Staf' : 'No. Matrik')} <span class="req">*</span></label>
+                <input class="input" id="pf-noStaf" name="noStaf" required maxlength="20" autocomplete="off" placeholder="${t(st.jenis === 'STAF' ? 'cth. 9515' : 'cth. A21MJ1234')}">
+                ${st.jenis === 'STAF' ? html`<div class="tp-autofill hint" data-autofill>${t('Masukkan No. Staf — nama & emel akan diisi automatik.')}</div>` : ''}</div>
+              ${st.jenis === 'PELAJAR' ? html`<div class="tp-row2">
+                <div class="field"><label class="label" for="pf-nama">${t('Nama penuh')} <span class="req">*</span></label><input class="input" id="pf-nama" name="nama" required maxlength="120" autocomplete="name"></div>
+                <div class="field"><label class="label" for="pf-emel">${t('Emel UTM')} <span class="req">*</span></label><input class="input" id="pf-emel" name="emel" type="email" required autocomplete="email" placeholder="${t('cth.')} nama@graduate.utm.my"><span class="hint">${t('Digunakan untuk menyemak tempahan anda kemudian.')}</span></div>
+              </div>` : ''}
+              <div class="field"><label class="label" for="pf-noTelefon">${t('No. telefon')} <span class="req">*</span></label><input class="input" id="pf-noTelefon" name="noTelefon" type="tel" required maxlength="20" autocomplete="tel" placeholder="${t('cth. 012-345 6789')}"><span class="hint">${t('Supaya pejabat boleh menghubungi anda jika perlu.')}</span></div>
+              <div class="field"><label class="label" for="pf-ruang">${t('Ruang')} <span class="req">*</span></label><select class="select" id="pf-ruang" name="ruang" required>${roomOptions(rooms, v.ruang)}</select></div>
+              <div class="field"><label class="label" for="pf-tarikh">${t('Tarikh')} <span class="req">*</span></label><input class="input" id="pf-tarikh" name="tarikh" type="date" required min="${todayKey()}" value="${v.tarikh}"></div>
+              <label class="tp-checkline"><input type="checkbox" data-multi ${st.multi ? 'checked' : ''}>${t('Saya perlukan ruang ini lebih daripada satu hari')}</label>
+              ${st.multi ? html`<div class="field"><label class="label" for="pf-tarikhTamat">${t('Hingga tarikh')}</label><input class="input" id="pf-tarikhTamat" name="tarikhTamat" type="date" min="${v.tarikh}" value="${v.tarikhTamat}"><span class="hint">${t('Slot masa yang sama setiap hari (maksimum 14 hari).')}</span></div>` : ''}
+              <div class="tp-row2">
+                <div class="field"><label class="label" for="pf-masaMula">${t('Masa mula')} <span class="req">*</span></label>${timeInput('pf-masaMula', 'masaMula', v.masaMula, w)}</div>
+                <div class="field"><label class="label" for="pf-masaTamat">${t('Masa tamat')} <span class="req">*</span></label>${timeInput('pf-masaTamat', 'masaTamat', v.masaTamat, w)}</div>
+              </div>
+              <div class="field"><label class="label" for="pf-bilanganPeserta">${t('Bilangan peserta')}</label><input class="input" id="pf-bilanganPeserta" name="bilanganPeserta" type="number" min="1" max="2000" inputmode="numeric"></div>
+              <div class="field"><label class="label" for="pf-tujuan">${t('Tujuan / aktiviti')} <span class="req">*</span></label><textarea class="textarea" id="pf-tujuan" name="tujuan" required minlength="3" maxlength="500" rows="3" placeholder="${t('cth. Kuliah ganti SKMM 1013, mesyuarat jabatan, bengkel pelajar…')}"></textarea></div>
+              <div class="sr-only" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
+              <div data-check></div>
+              <div class="tp-actions"><button class="btn btn-outline" type="button" data-act="check">${icon('search')}${t('Semak kekosongan')}</button><button class="btn btn-primary" type="submit">${icon('send')}${t('Hantar permohonan')}</button></div>
+            </form>
+          </div></main>`.s;
+        bind();
+      };
+
+      const form = () => qs('[data-public-form]', el);
+      const values = () => {
+        const f = form();
+        const g = (n) => (f.elements[n] ? String(f.elements[n].value || '').trim() : '');
+        const p = { jenisPemohon: st.jenis, noStaf: g('noStaf'), noTelefon: g('noTelefon'), ruang: g('ruang'), tarikh: g('tarikh'), masaMula: g('masaMula'), masaTamat: g('masaTamat'), tujuan: g('tujuan') };
+        if (st.multi && g('tarikhTamat')) p.tarikhTamat = g('tarikhTamat');
+        if (g('bilanganPeserta')) p.bilanganPeserta = Number(g('bilanganPeserta'));
+        if (st.jenis === 'PELAJAR') { p.nama = g('nama'); p.emel = g('emel'); }
+        return p;
+      };
+      /* Simpan nilai semasa sebelum lukis semula (tukar jenis / berbilang hari) */
+      const keep = () => { const p = values(); Object.assign(v, p); return p; };
+      const restore = (p) => { const f = form(); Object.keys(p).forEach((k) => { if (f.elements[k] && f.elements[k].type !== 'radio' && p[k] !== undefined) f.elements[k].value = p[k]; }); };
+
+      let lookupSeq = 0;
+      const lookup = async () => {
+        const box = qs('[data-autofill]', el);
+        if (!box) return;
+        const no = form().elements.noStaf.value.trim();
+        if (no.length < 2) { box.className = 'tp-autofill hint'; box.textContent = t('Masukkan No. Staf — nama & emel akan diisi automatik.'); return; }
+        const seq = ++lookupSeq;
+        box.className = 'tp-autofill hint'; box.textContent = t('Menyemak…');
+        try {
+          const r = await KD.api.call('tempahan.staf', { noStaf: no });
+          if (seq !== lookupSeq) return;
+          box.className = 'tp-autofill is-ok'; box.innerHTML = html`${icon('check', 'i-sm')}<span><b>${r.nama}</b> · ${r.emel}</span>`.s;
+        } catch (err) {
+          if (seq !== lookupSeq) return;
+          box.className = 'tp-autofill is-err';
+          box.textContent = err.code === 'NOT_FOUND' ? t('No. Staf tidak dijumpai dalam senarai staf FKM.') : t(err.message);
+        }
+      };
+
+      const bind = () => {
+        const f = form();
+        on(f, 'change', 'input[name="jenisPemohon"]', (e, r) => { const p = keep(); st.jenis = r.value; render(); restore(p); });
+        on(f, 'change', '[data-multi]', (e, c) => { const p = keep(); st.multi = c.checked; render(); restore(p); if (st.multi) qs('#pf-tarikhTamat', el).focus(); });
+        let timer = null;
+        on(f, 'input', '#pf-noStaf', () => { clearTimeout(timer); timer = setTimeout(lookup, 500); });
+        on(f, 'change', '#pf-tarikh', (e, i) => { const te = qs('#pf-tarikhTamat', el); if (te) te.min = i.value; });
+        on(f, 'click', '[data-act="check"]', (e, b) => busy(b, async () => {
+          try { qs('[data-check]', el).innerHTML = checkHtml(await checkSlot(values())).s; } catch (err) { toastError(err); }
+        }));
+        f.addEventListener('submit', (e) => {
+          e.preventDefault();
+          busy(qs('button[type="submit"]', f), async () => {
+            fieldErrors(f, null);
+            const p = values();
+            p.formToken = meta.formToken;
+            p.website = f.elements.website.value;
+            p.requestId = requestId();
+            try {
+              const res = await KD.api.publicCreate('tempahan', p);
+              el.innerHTML = html`${P.top()}<div class="auth"><div class="auth-card success-card">${icon('check', 'i-lg')}
+                <h2>${t('Berjaya dihantar')}</h2><p class="muted">${t('Permohonan anda telah diterima dan sedang menunggu kelulusan. Pengesahan & keputusan akan dihantar ke emel anda. Simpan No. Rujukan untuk semakan atau pembatalan.')}</p>
+                ${res.refNo ? html`<div class="rec-ref">${res.refNo}</div><p class="xs muted mt-2">${t('Simpan nombor rujukan ini.')}</p>` : ''}
+                <div class="row row-wrap mt-6" style="justify-content:center">
+                  ${res.refNo ? html`<a class="btn btn-primary" href="#/semak?ref=${encodeURIComponent(res.refNo)}">${t('Semak status')}</a>` : ''}
+                  <a class="btn btn-outline" href="#/tempahan-saya">${t('Tempahan saya')}</a>
+                  <a class="btn btn-outline" href="#/borang/tempahan">${t('Tempahan lain')}</a></div></div></div>`.s;
+            } catch (err) {
+              if (!fieldErrors(f, err)) toastError(err);
+              if (err.code === 'CONFLICT') qs('[data-check]', el).innerHTML = checkHtml({ kind: 'bad', msg: t(err.message) }).s;
+              if (err.code === 'VALIDATION_ERROR' && /tamat tempoh|terlalu cepat/.test(err.message)) {
+                try { meta.formToken = (await KD.api.publicForm('tempahan')).formToken; } catch (e2) { /* abaikan */ }
+              }
+            }
+          });
+        });
+      };
+      render();
+    }
+  };
+
+  // ================================================================== Cari slot untuk saya
+
+  KD.views.cariSlot = {
+    async render(el, params, query) {
+      const w = waktu();
+      const today = todayKey();
+      const st = { peserta: query.peserta || '', tempoh: query.tempoh || '120', masa: query.masa || 'any', dari: P.isKey(query.dari) ? query.dari : today, hingga: P.isKey(query.hingga) ? query.hingga : P.addDays(today, 13) };
+      const opt = (val, label, cur) => html`<option value="${val}" ${String(val) === String(cur) ? 'selected' : ''}>${label}</option>`;
+      el.innerHTML = html`${P.top()}<main class="tp-page">
+        <div class="tp-head"><div><h1>${t('Cari slot untuk saya')}</h1><p>${t('Cari ruang kosong mengikut tarikh, saiz kumpulan dan tempoh yang diperlukan.')}</p></div></div>
+        <div class="tp-card"><h2>${icon('filter')}${t('Apa yang anda perlukan?')}</h2>
+          <form data-form="cs" novalidate>
+            <div class="cs-grid">
+              <div class="field"><label class="label" for="cs-peserta">${t('Berapa orang?')}</label><input class="input" id="cs-peserta" name="peserta" type="number" min="1" max="2000" value="${st.peserta}" placeholder="${t('cth.')} 40"><span class="hint">${t('Kosongkan jika saiz tidak penting.')}</span></div>
+              <div class="field"><label class="label" for="cs-tempoh">${t('Berapa lama?')}</label><select class="select" id="cs-tempoh" name="tempoh">
+                ${[[30, '30 minit'], [60, '1 jam'], [90, '1.5 jam'], [120, '2 jam'], [180, '3 jam'], [240, '4 jam'], [360, '6 jam'], [P.mins(w.tamat) - P.mins(w.mula), 'Sepanjang hari']].map((x) => opt(x[0], t(x[1]), st.tempoh))}</select></div>
+              <div class="field"><label class="label" for="cs-masa">${t('Masa pilihan')}</label><select class="select" id="cs-masa" name="masa">${opt('any', t('Bila-bila masa'), st.masa)}${opt('pagi', t('Pagi (sebelum 1 tengah hari)'), st.masa)}${opt('petang', t('Petang (selepas 1 tengah hari)'), st.masa)}</select></div>
+              <div class="field"><label class="label" for="cs-dari">${t('Dari')}</label><input class="input" id="cs-dari" name="dari" type="date" min="${today}" value="${st.dari}"></div>
+              <div class="field"><label class="label" for="cs-hingga">${t('Hingga')}</label><input class="input" id="cs-hingga" name="hingga" type="date" min="${today}" value="${st.hingga}"><span class="hint">${t('Maksimum 14 hari; setiap hari disemak.')}</span></div>
+              <div class="field" style="align-self:end"><button class="btn btn-primary btn-block" type="submit">${icon('search')}${t('Cari')}</button></div>
+            </div>
+          </form></div>
+        <div data-out></div></main>`.s;
+      const f = qs('[data-form="cs"]', el);
+      const out = qs('[data-out]', el);
+      const search = async (btn) => {
+        const g = (n) => f.elements[n].value;
+        const p = { tempoh: Number(g('tempoh')), masa: g('masa'), dari: g('dari'), hingga: g('hingga') };
+        if (g('peserta')) p.peserta = Number(g('peserta'));
+        if (P.isKey(p.dari) && P.isKey(p.hingga) && p.hingga > P.addDays(p.dari, 13)) { p.hingga = P.addDays(p.dari, 13); f.elements.hingga.value = p.hingga; }
+        KD.router.setQuery({ peserta: g('peserta'), tempoh: g('tempoh'), masa: g('masa'), dari: p.dari, hingga: p.hingga });
+        const run = async () => {
+          out.innerHTML = skeletonList(3).s;
+          try {
+            const r = await KD.api.call('tempahan.cariSlot', p);
+            const found = r.hari.reduce((a, d) => a + d.ruang.length, 0);
+            out.innerHTML = html`<p class="small mt-6"><b>${found}</b> ${t('pilihan ruang ditemui')} · ${P.fmtKey(r.dari)} – ${P.fmtKey(r.hingga)}</p>
+              ${r.hari.map((d) => html`<section class="cs-day"><div class="cs-day__head">${P.dayLabel(d.tarikh)}${d.tutup ? html`<span class="xs" style="color:var(--danger)">${t(d.tutup)}</span>` : d.ruang.length ? html`<span class="xs muted">${d.jumlah} ${t('ruang')}</span>` : html`<span class="xs muted">${t('Tiada ruang sesuai')}</span>`}</div>
+                ${d.ruang.map((x) => html`<div class="cs-room"><div><b>${x.nama}</b><span class="xs muted">${[x.blok, x.aras ? t('Aras') + ' ' + x.aras : '', t(x.jenis), x.kapasiti ? x.kapasiti + ' ' + t('orang') : ''].filter(Boolean).join(' · ')}</span></div>
+                  <a class="btn btn-sm btn-primary" href="${P.bookHref({ ruang: x.ruang, tarikh: d.tarikh, masaMula: x.mula, masaTamat: x.tamat })}">${t('Tempah')} ${x.mula}–${x.tamat}</a>
+                  <div class="cs-free">${x.kosong.map((k) => html`<span>${t('Kosong')} ${k.mula}–${k.tamat}</span>`)}</div></div>`)}</section>`)}`.s;
+          } catch (err) { out.innerHTML = errorState(err).s; }
+        };
+        if (btn) await busy(btn, run); else await run();
+      };
+      f.addEventListener('submit', (e) => { e.preventDefault(); search(qs('button[type="submit"]', f)); });
+      if (query.tempoh) search(null);
+    }
+  };
+
+  // ================================================================== Kalendar bulanan
+
+  KD.views.kalendarBulan = {
+    async render(el, params, query) {
+      const admin = P.isAdminLayout();
+      const today = todayKey();
+      const st = { bulan: /^\d{4}-\d{2}$/.test(query.bulan || '') ? query.bulan : today.slice(0, 7), ruang: query.ruang || '' };
+      let rooms = null;
+      el.innerHTML = html`${P.top()}<main class="tp-page tp-page--wide">
+        <div class="tp-head"><div><h1>${t('Kalendar tempahan')}</h1><p>${t('Semua tempahan diluluskan dan menunggu kelulusan.')} ${t('Klik tarikh untuk melihat jadual ruang hari itu.')}</p></div></div>
+        <div class="tp-card"><div class="cal-bar">
+          <button class="icon-btn" type="button" data-act="prev" aria-label="${t('Sebelum')}">${icon('chev-left')}</button>
+          <h2 data-title></h2>
+          <button class="icon-btn" type="button" data-act="next" aria-label="${t('Seterusnya')}">${icon('chev-right')}</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-act="today">${icon('calendar', 'i-sm')}${t('Hari ini')}</button>
+          <select class="select" name="ruang" aria-label="${t('Ruang')}"><option value="">${t('Semua ruang')}</option></select>
+        </div>
+        <div data-cal>${skeletonList(3)}</div>
+        <div class="cal-legend"><span><i style="background:#F59E0B"></i>${t('Menunggu kelulusan')}</span><span><i style="background:#16A34A"></i>${t('Diluluskan')}</span><span><i style="background:#3B82F6"></i>${t('Selesai')}</span><span><i style="background:#E2E8F0"></i>${t('Ditutup / bukan hari operasi')}</span><span>${t('Tempahan ditolak & dibatalkan tidak dipaparkan.')}</span></div>
+        </div></main>`.s;
+      const MONTH_LONG = { ms: ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'], en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] };
+      const DOW = { ms: ['ISN', 'SEL', 'RAB', 'KHA', 'JUM', 'SAB', 'AHD'], en: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] };
+      const load = async () => {
+        const first = st.bulan + '-01';
+        const d0 = P.parseKey(first);
+        const start = P.addDays(first, -((d0.getDay() + 6) % 7));
+        const end = P.addDays(start, 41);
+        qs('[data-title]', el).textContent = MONTH_LONG[P.L()][d0.getMonth()] + ' ' + d0.getFullYear();
+        qs('[data-cal]', el).innerHTML = skeletonList(3).s;
+        try {
+          const p = { dari: start, hingga: end };
+          if (st.ruang) p.ruang = st.ruang;
+          const data = await KD.api.call('tempahan.jadual', p);
+          if (!rooms) {
+            rooms = data.ruang;
+            qs('select[name="ruang"]', el).innerHTML = html`<option value="">${t('Semua ruang')}</option>${rooms.map((r) => html`<option value="${r.id}" ${r.id === st.ruang ? 'selected' : ''}>${r.nama}</option>`)}`.s;
+          }
+          const roomName = {};
+          rooms.forEach((r) => { roomName[r.id] = r.nama; });
+          const tutup = {};
+          (data.tutup || []).forEach((x) => { tutup[x.t] = x.n; });
+          const cells = [];
+          for (let i = 0; i < 42; i++) {
+            const d = P.addDays(start, i);
+            const dow = P.parseKey(d).getDay();
+            const closed = tutup[d] !== undefined;
+            const offDay = data.hariOperasi && data.hariOperasi.indexOf(dow) < 0;
+            const evs = data.tempahan.filter((b) => b.tarikh <= d && b.tarikhTamat >= d).sort((a, b) => (a.masaMula < b.masaMula ? -1 : 1));
+            const href = admin ? '#/admin/jadual?tarikh=' + d : '#/jadual?tarikh=' + d;
+            cells.push(html`<a class="cal__cell ${d.slice(0, 7) !== st.bulan ? 'is-out' : ''} ${d === today ? 'is-today' : ''} ${closed || offDay ? 'is-closed' : ''}" href="${href}" aria-label="${P.dayLabel(d)}: ${evs.length} ${t('tempahan')}">
+              <span class="cal__num"><span>${P.parseKey(d).getDate()}</span>${evs.length ? html`<span class="cal__dots">${evs.slice(0, 4).map((b) => html`<i class="${P.STATUS_CLASS[b.status] || ''}"></i>`)}</span>` : ''}</span>
+              ${closed ? html`<span class="cal__note">${tutup[d]}</span>` : ''}
+              ${evs.slice(0, 3).map((b) => html`<span class="cal__ev ${P.STATUS_CLASS[b.status] || ''}" title="${b.masaMula}–${b.masaTamat} ${roomName[b.ruang] || ''}${b.refNo ? ' · ' + b.refNo + ' · ' + b.nama : ''}">${b.masaMula}–${b.masaTamat} ${st.ruang ? '' : roomName[b.ruang] || ''}</span>`)}
+              ${evs.length > 3 ? html`<span class="cal__more">+${evs.length - 3} ${t('lagi')}</span>` : ''}</a>`);
+          }
+          qs('[data-cal]', el).innerHTML = html`<div class="cal">${DOW[P.L()].map((x) => html`<div class="cal__dow">${x}</div>`)}${cells}</div>`.s;
+          KD.router.setQuery({ bulan: st.bulan, ruang: st.ruang });
+        } catch (err) { qs('[data-cal]', el).innerHTML = errorState(err).s; }
+      };
+      const shift = (n) => { const d = P.parseKey(st.bulan + '-01'); d.setMonth(d.getMonth() + n); st.bulan = P.keyOf(d).slice(0, 7); load(); };
+      on(el, 'click', '[data-act="prev"]', () => shift(-1));
+      on(el, 'click', '[data-act="next"]', () => shift(1));
+      on(el, 'click', '[data-act="today"]', () => { st.bulan = today.slice(0, 7); load(); });
+      on(el, 'change', 'select[name="ruang"]', (e, s) => { st.ruang = s.value; load(); });
+      await load();
+    }
+  };
+
+  // ================================================================== Tempahan saya (No. Staf/Matrik + emel)
+
+  KD.views.tempahanSaya = {
+    async render(el, params, query) {
+      const tn = tones();
+      el.innerHTML = html`${P.top()}<main class="tp-page">
+        <div class="tp-head"><div><h1>${t('Tempahan saya')}</h1><p>${t('Masukkan No. Staf / No. Matrik dan emel yang digunakan semasa menempah.')}</p></div></div>
+        <div class="tp-card"><form data-form="ts" novalidate><div class="tp-row2">
+          <div class="field"><label class="label" for="ts-no">${t('No. Staf / No. Matrik')}</label><input class="input" id="ts-no" name="noStaf" required maxlength="20" autocomplete="off" value="${query.no || ''}"></div>
+          <div class="field"><label class="label" for="ts-emel">${t('Emel')}</label><input class="input" id="ts-emel" name="emel" type="email" required autocomplete="email"></div></div>
+          <button class="btn btn-primary" type="submit">${icon('list')}${t('Semak tempahan')}</button></form></div>
+        <div data-out></div></main>`.s;
+      const f = qs('[data-form="ts"]', el);
+      const out = qs('[data-out]', el);
+      let creds = null;
+      let items = [];
+      const draw = () => {
+        out.innerHTML = items.length ? html`<p class="small mt-6"><b>${items.length}</b> ${t('tempahan')}</p>${items.map((v, i) => html`<div class="ts-item">
+          <div class="ts-item__top"><span class="ts-item__ref">${v.refNo}</span>${toneBadge(t(v.statusLabel), tn[v.status])}</div>
+          <div class="ts-item__meta">${P.fmtKey(v.tarikh)}${v.tarikhTamat && v.tarikhTamat !== v.tarikh ? ' – ' + P.fmtKey(v.tarikhTamat) : ''} · ${v.masaMula}–${v.masaTamat} · <b>${v.ruang}</b></div>
+          <div class="ts-item__meta">${v.tujuan}${v.statusNote ? html`<br><i>${t('Catatan')}: ${v.statusNote}</i>` : ''}</div>
+          <div class="ts-item__actions">
+            ${P.printable(v.status) ? html`<button class="btn btn-sm btn-primary" type="button" data-slip="${i}">${icon('download', 'i-sm')}${t('Slip tempahan')}</button>` : ''}
+            ${v.bolehBatal ? html`<button class="btn btn-sm btn-outline" type="button" data-batal="${i}" style="color:var(--danger)">${icon('x', 'i-sm')}${t('Batalkan')}</button>` : ''}
+          </div></div>`)}`.s
+          : html`<div class="tp-card mt-6">${empty(t('Tiada tempahan'), t('Tiada tempahan sepadan dengan No. Staf / No. Matrik dan emel ini.'))}</div>`.s;
+      };
+      const load = async (btn) => busy(btn, async () => {
+        const p = { noStaf: f.elements.noStaf.value.trim(), emel: f.elements.emel.value.trim() };
+        fieldErrors(f, null);
+        try { const r = await KD.api.call('tempahan.saya', p); creds = p; items = r.items; draw(); } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
+      });
+      f.addEventListener('submit', (e) => { e.preventDefault(); load(qs('button[type="submit"]', f)); });
+      on(out, 'click', '[data-slip]', (e, b) => {
+        const v = items[Number(b.getAttribute('data-slip'))];
+        P.printSlip({ refNo: v.refNo, statusLabel: v.statusLabel, nama: v.nama, noStaf: v.noStaf, noTelefon: v.noTelefon, ruang: v.ruang, blok: v.ruangBlok, aras: v.ruangAras, kod: v.ruangKod, pic: v.ruangPic,
+          tarikh: v.tarikh, tarikhTamat: v.tarikhTamat, masaMula: v.masaMula, masaTamat: v.masaTamat, peserta: v.bilanganPeserta, tujuan: v.tujuan, oleh: v.statusOleh, pada: v.statusPada });
+      });
+      on(out, 'click', '[data-batal]', (e, b) => {
+        const v = items[Number(b.getAttribute('data-batal'))];
+        const dlg = modal({
+          title: t('Batalkan tempahan?'),
+          body: html`<p class="small">${t('Tempahan ini akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.')} <b>${v.refNo}</b></p>
+            <div class="field mt-4"><label class="label" for="tsb-sebab">${t('Sebab (pilihan)')}</label><input class="input" id="tsb-sebab" maxlength="300"></div>`,
+          foot: html`<button class="btn btn-outline" data-close>${t('Tidak')}</button><button class="btn btn-danger" data-ok>${icon('x')}${t('Ya, batalkan')}</button>`
+        });
+        qs('[data-ok]', dlg.el).addEventListener('click', () => busy(qs('[data-ok]', dlg.el), async () => {
+          try {
+            const r = await KD.api.call('tempahan.batal', { refNo: v.refNo, noStaf: creds.noStaf, emel: creds.emel, sebab: qs('#tsb-sebab', dlg.el).value.trim() });
+            items = items.map((x) => (x.refNo === r.refNo ? r : x));
+            dlg.close(); draw(); toast(t('Tempahan telah dibatalkan. Pengesahan dihantar ke emel anda.'));
+          } catch (err) { toastError(err); }
+        }));
+      });
+    }
+  };
+
+  // ================================================================== Analitik tempahan (pentadbir)
+
+  const TONE_COLOR = { warn: '#F59E0B', success: '#16A34A', danger: '#DC2626', muted: '#94A3B8', info: '#2563EB', brand: '#7A0019' };
+  function donut(parts) {
+    const total = parts.reduce((a, p) => a + p.count, 0);
+    const R = 60, C = 2 * Math.PI * R;
+    let off = 0;
+    const segs = parts.filter((p) => p.count).map((p) => {
+      const len = (p.count / total) * C;
+      const s = '<circle r="' + R + '" cx="90" cy="90" fill="none" stroke="' + (TONE_COLOR[p.tone] || '#64748B') + '" stroke-width="28" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 90 90)"><title>' + KD.utils.esc(p.label) + ': ' + p.count + '</title></circle>';
+      off += len;
+      return s;
+    }).join('');
+    return html`<div class="donut"><svg viewBox="0 0 180 180" role="img" aria-label="${t('Pecahan status')}">${KD.utils.raw(total ? segs : '<circle r="60" cx="90" cy="90" fill="none" stroke="#E2E8F0" stroke-width="28"/>')}<text x="90" y="86" text-anchor="middle" font-size="24" font-weight="700" fill="currentColor">${total}</text><text x="90" y="106" text-anchor="middle" font-size="11" fill="#64748B">${t('tempahan')}</text></svg>
+      <ul>${parts.map((p) => html`<li><i style="background:${TONE_COLOR[p.tone] || '#64748B'}"></i>${p.label}<b class="muted" style="margin-left:auto;padding-left:12px">${p.count}</b></li>`)}</ul></div>`;
+  }
+
+  KD.views.analitikTempahan = {
+    async render(el) {
+      const C = KD.charts;
+      const st = { bulan: '' };
+      el.innerHTML = html`<div class="page-head"><div><h1>Analitik tempahan</h1><p>Gambaran keseluruhan tempahan ruang. Metrik penggunaan tidak mengira tempahan yang ditolak atau dibatalkan.</p></div>
+        <div class="row row-wrap"><select class="select" data-bulan aria-label="Tapis bulan"><option value="">Sepanjang masa</option></select><button class="btn btn-outline" data-act="reload">${icon('refresh')}Muat semula</button></div></div>
+        <div data-box>${skeletonList(4)}</div>`.s;
+      const MON = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+      const monthText = (m) => { const p = m.split('-'); return MON[Number(p[1]) - 1] + ' ' + p[0]; };
+      const stat = (label, value, ic, note, color) => html`<div class="stat an-kpi" style="border-top-color:${color}"><div class="stat__label">${icon(ic)}${label}</div><div class="stat__value">${typeof value === 'number' ? fmtNum(value) : value}</div>${note ? html`<div class="stat__note">${note}</div>` : ''}</div>`;
+      const load = async () => {
+        const box = qs('[data-box]', el);
+        box.innerHTML = skeletonList(4).s;
+        try {
+          const a = await KD.api.call('tempahan.analitik', st.bulan ? { bulan: st.bulan } : {});
+          qs('[data-bulan]', el).innerHTML = html`<option value="">Sepanjang masa</option>${a.bulan.map((m) => html`<option value="${m}" ${m === st.bulan ? 'selected' : ''}>${monthText(m)}</option>`)}`.s;
+          const k = a.kpi;
+          box.innerHTML = html`<div class="an-grid">
+              ${stat('Jumlah tempahan', k.jumlah, 'calendar', 'semua status', '#7A0019')}
+              ${stat('Menunggu', k.menunggu, 'clock', 'perlu tindakan admin', '#F59E0B')}
+              ${stat('Diluluskan', k.diluluskan, 'check', 'termasuk akan datang · ' + k.selesai + ' selesai', '#16A34A')}
+              ${stat('Ditolak', k.ditolak, 'x', k.dibatalkan + ' dibatalkan', '#DC2626')}
+              ${stat('Jam terkumpul', fmtNum(k.jam) + ' j', 'activity', 'purata ' + fmtNum(k.purataJam) + ' jam / tempahan', '#2563EB')}
+            </div>
+            <div class="an-two">
+              <section class="panel"><div class="panel-head"><h3>Pecahan status</h3></div>${donut(a.status)}</section>
+              <section class="panel"><div class="panel-head"><h3>Trend 6 bulan</h3><span class="xs muted">tempahan mengikut bulan tarikh</span></div>${C.line(a.trend, { title: 'Trend 6 bulan', labelFormat: 'month', height: 200 })}</section>
+              <section class="panel"><div class="panel-head"><h3>8 ruang paling kerap ditempah</h3></div>${C.hbars(a.ruang, { title: 'Ruang paling kerap ditempah', limit: 8 })}</section>
+              <section class="panel"><div class="panel-head"><h3>Tempahan mengikut blok</h3></div>${a.blok.length ? C.bars(a.blok, { title: 'Tempahan mengikut blok', height: 200 }) : html`<p class="muted small">Tiada data lagi.</p>`}
+                <div class="panel-head mt-6"><h3>Kategori pemohon</h3></div>${C.hbars(a.pemohon, { title: 'Kategori pemohon' })}</section>
+            </div>`.s;
+        } catch (err) { box.innerHTML = errorState(err, 'reload').s; }
+      };
+      on(el, 'change', '[data-bulan]', (e, s) => { st.bulan = s.value; load(); });
+      on(el, 'click', '[data-act="reload"]', () => load());
+      await load();
+    }
+  };
+
+  // ================================================================== Tetapan tempahan (pentadbir)
+
+  KD.views.tetapanTempahan = {
+    async render(el) {
+      el.innerHTML = html`<div class="page-head"><div><h1>Tetapan tempahan</h1><p>Waktu operasi, tarikh tutup, pemohon pelajar, peringatan dan emel notifikasi.</p></div></div><div data-box>${skeletonList(4)}</div>`.s;
+      const box = qs('[data-box]', el);
+      let s;
+      try { s = await KD.api.call('tempahan.tetapan'); } catch (err) { box.innerHTML = errorState(err).s; return; }
+      let tutup = s.tutup.slice();
+      const hours = (cur, offLabel) => html`${offLabel ? html`<option value="0" ${!cur ? 'selected' : ''}>${offLabel}</option>` : ''}${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => html`<option value="${h}" ${Number(cur) === h ? 'selected' : ''}>${h}</option>`)}`;
+      const holi = () => html`${tutup.length ? tutup.map((x, i) => html`<span>${P.fmtKey(x.t)} · ${x.n}<button type="button" data-del="${i}" aria-label="Buang">×</button></span>`) : html`<span class="muted">Tiada tarikh tutup.</span>`}`;
+      box.innerHTML = html`<form data-form="tt" novalidate>
+        <section class="tp-card"><h2>${icon('clock')}Waktu operasi fakulti</h2><p class="small muted mb-4">Tempahan di luar waktu ini ditolak secara automatik. Hari bukan operasi ditutup untuk borang awam; pentadbir masih boleh menempah (cth. program hujung minggu).</p>
+          <div class="tp-row2"><div class="field"><label class="label" for="tt-mula">Waktu mula</label><input class="input" type="time" id="tt-mula" name="waktuMula" step="1800" value="${s.waktuMula}"></div>
+            <div class="field"><label class="label" for="tt-tamat">Waktu tamat</label><input class="input" type="time" id="tt-tamat" name="waktuTamat" step="1800" value="${s.waktuTamat}"></div></div>
+          <div class="field"><span class="label">Hari operasi</span><div class="tt-days">${[1, 2, 3, 4, 5, 6, 0].map((d) => html`<label><input type="checkbox" name="hari" value="${d}" ${s.hari.indexOf(d) >= 0 ? 'checked' : ''}>${HARI[d]}</label>`)}</div></div></section>
+        <section class="tp-card"><h2>${icon('calendar')}Tarikh tutup (cuti umum, cuti semester)</h2>
+          <div class="tt-add"><input class="input" type="date" data-new-t aria-label="Tarikh"><input class="input" data-new-n maxlength="80" placeholder="cth. Hari Kebangsaan" aria-label="Nama"><button class="btn btn-outline" type="button" data-act="add">${icon('plus')}Tambah</button></div>
+          <div class="tt-holi" data-holi>${holi()}</div></section>
+        <section class="tp-card"><h2>${icon('users')}Pemohon</h2>
+          <label class="tp-checkline"><input type="checkbox" name="pelajar" ${s.pelajar ? 'checked' : ''}>Benarkan pelajar memohon melalui borang awam (No. Matrik + emel UTM)</label></section>
+        <section class="tp-card"><h2>${icon('bell')}Peringatan emel kepada pemohon</h2><p class="small muted mb-4">Peringatan sehari sebelum (H-1) sentiasa dihantar untuk tempahan diluluskan.</p>
+          <div class="tp-row2"><div class="field"><label class="label" for="tt-pagi">Peringatan pagi hari tempahan (jam)</label><select class="select" id="tt-pagi" name="peringatanPagi">${hours(s.peringatanPagi, 'Tutup')}</select><span class="hint">Cth. 7 = dihantar sekitar 7:00 pagi.</span></div>
+            <div class="field"><label class="label" for="tt-jam">Peringatan sebelum masa mula (jam)</label><select class="select" id="tt-jam" name="peringatanJam">${hours(s.peringatanJam, 'Tutup')}</select><span class="hint">Dihantar sekali sehari, beberapa jam sebelum slot bermula.</span></div></div></section>
+        <section class="tp-card"><h2>${icon('mail')}Notifikasi emel</h2>
+          <div class="field"><label class="label" for="tt-emel">Emel pentadbir (penerima notifikasi tempahan baharu)</label><input class="input" id="tt-emel" name="emelAdmin" maxlength="500" value="${s.emelAdmin}" placeholder="admin@utm.my, ketua@utm.my"><span class="hint">Boleh beberapa alamat, dipisah koma. PIC ruang menerima emel bila ruangnya diluluskan/dibatalkan.</span></div>
+          <label class="tp-checkline"><input type="checkbox" name="emelAktif" ${s.emelAktif ? 'checked' : ''}>Hantar emel notifikasi</label>
+          <label class="tp-checkline"><input type="checkbox" name="papanTujuan" ${s.papanTujuan ? 'checked' : ''}>Papar tujuan tempahan pada Papan Paparan awam (nama pemohon tidak pernah dipaparkan)</label></section>
+        <div class="tp-actions"><button class="btn btn-primary" type="submit">${icon('check')}Simpan tetapan</button></div>
+      </form>
+      <section class="tp-card"><h2>${icon('refresh')}Tandakan tempahan selesai</h2><p class="small muted">Tempahan diluluskan yang telah berlalu ditandakan "Selesai" secara automatik setiap hari. Tiada emel dihantar.</p>
+        <div class="tp-actions"><button class="btn btn-outline" type="button" data-act="selesai">${icon('check')}Jalankan sekarang</button></div></section>`.s;
+      const f = qs('[data-form="tt"]', box);
+      on(box, 'click', '[data-act="add"]', () => {
+        const ti = qs('[data-new-t]', box);
+        const ni = qs('[data-new-n]', box);
+        if (!P.isKey(ti.value)) { toast('Pilih tarikh.', 'error'); return; }
+        tutup = tutup.filter((x) => x.t !== ti.value).concat([{ t: ti.value, n: ni.value.trim() || 'Ditutup' }]).sort((a, b) => (a.t < b.t ? -1 : 1));
+        ti.value = ''; ni.value = '';
+        qs('[data-holi]', box).innerHTML = holi().s;
+      });
+      on(box, 'click', '[data-del]', (e, b) => { tutup.splice(Number(b.getAttribute('data-del')), 1); qs('[data-holi]', box).innerHTML = holi().s; });
+      f.addEventListener('submit', (e) => {
+        e.preventDefault();
+        busy(qs('button[type="submit"]', f), async () => {
+          fieldErrors(f, null);
+          const p = {
+            waktuMula: f.elements.waktuMula.value, waktuTamat: f.elements.waktuTamat.value,
+            hari: qsa('input[name="hari"]:checked', f).map((c) => Number(c.value)), tutup,
+            pelajar: f.elements.pelajar.checked, peringatanPagi: Number(f.elements.peringatanPagi.value), peringatanJam: Number(f.elements.peringatanJam.value),
+            emelAdmin: f.elements.emelAdmin.value, emelAktif: f.elements.emelAktif.checked, papanTujuan: f.elements.papanTujuan.checked
+          };
+          try {
+            await KD.api.call('tempahan.tetapanSimpan', p);
+            /* tetapan awam (waktu, tarikh tutup) dimuat semula untuk paparan lain */
+            try { KD.config = Object.assign({}, KD.config, await KD.api.call('public.config')); } catch (e2) { /* abaikan */ }
+            toast('Tetapan tempahan disimpan.');
+          } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
+        });
+      });
+      on(box, 'click', '[data-act="selesai"]', (e, b) => busy(b, async () => {
+        try { const r = await KD.api.call('tempahan.selesaiKini'); toast(r.selesai ? r.selesai + ' tempahan ditandakan selesai.' : 'Tiada tempahan untuk ditandakan.'); } catch (err) { toastError(err); }
+      }));
+    }
+  };
+
+  // ================================================================== Tempah bagi pihak pemohon (pentadbir)
+
+  KD.views.bagiPihak = {
+    async render(el, params, query) {
+      el.innerHTML = html`<div class="page-head"><div><h1>Tempah bagi pihak pemohon</h1><p>Tempahan di sini terus diluluskan. Hari bukan operasi (cth. Sabtu &amp; Ahad) dibenarkan; tarikh tutup, waktu operasi dan pertindihan tetap disemak.</p></div></div><div data-box>${skeletonList(3)}</div>`.s;
+      const box = qs('[data-box]', el);
+      let rooms = [];
+      try { rooms = await KD.api.refOptions('tempahan', 'ruang'); } catch (err) { box.innerHTML = errorState(err).s; return; }
+      const w = waktu();
+      const st = { jenis: 'STAF' };
+      const v = { ruang: query.ruang || '', tarikh: P.isKey(query.tarikh) ? query.tarikh : todayKey(), masaMula: query.masaMula || w.mula, masaTamat: query.masaTamat || P.hm(Math.min(P.mins(w.mula) + 120, P.mins(w.tamat))), hantarEmel: true };
+      const LBL = { STAF: 'No. Staf', PELAJAR: 'No. Matrik', LUAR: 'No. rujukan / IC (pilihan)' };
+      const render = () => {
+        box.innerHTML = html`<form class="tp-card" data-form="bp" novalidate style="max-width:860px">
+          <fieldset class="tp-who"><legend class="label">Kategori pemohon</legend><div class="tp-radios">
+            ${[['STAF', 'Staf FKM', 'user'], ['PELAJAR', 'Pelajar', 'book'], ['LUAR', 'Pihak luar', 'briefcase']].map((x) => html`<label class="tp-radio"><input type="radio" name="jenisPemohon" value="${x[0]}" ${st.jenis === x[0] ? 'checked' : ''}>${icon(x[2], 'i-sm')}${x[1]}</label>`)}</div></fieldset>
+          <div class="tp-row2">
+            <div class="field"><label class="label" for="bp-no">${LBL[st.jenis]}</label><input class="input" id="bp-no" name="noStaf" maxlength="20" autocomplete="off" value="${v.noStaf || ''}">${st.jenis === 'STAF' ? html`<span class="hint">Nama &amp; emel diisi daripada direktori staf.</span>` : ''}</div>
+            <div class="field"><label class="label" for="bp-nama">Nama penuh</label><input class="input" id="bp-nama" name="nama" maxlength="120" value="${v.nama || ''}" ${st.jenis === 'STAF' ? 'readonly' : ''}></div>
+            <div class="field"><label class="label" for="bp-emel">Emel</label><input class="input" id="bp-emel" name="emel" type="email" value="${v.emel || ''}" ${st.jenis === 'STAF' ? 'readonly' : ''}></div>
+            <div class="field"><label class="label" for="bp-tel">No. telefon</label><input class="input" id="bp-tel" name="noTelefon" type="tel" maxlength="20" value="${v.noTelefon || ''}" placeholder="cth. 013-3456789"></div>
+            <div class="field"><label class="label" for="bp-ruang">Ruang</label><select class="select" id="bp-ruang" name="ruang">${roomOptions(rooms, v.ruang)}</select></div>
+            <div class="field"><label class="label" for="bp-peserta">Bilangan peserta</label><input class="input" id="bp-peserta" name="bilanganPeserta" type="number" min="1" max="2000" value="${v.bilanganPeserta || ''}"></div>
+            <div class="field"><label class="label" for="bp-tarikh">Tarikh mula</label><input class="input" id="bp-tarikh" name="tarikh" type="date" value="${v.tarikh}"></div>
+            <div class="field"><label class="label" for="bp-tamat">Tarikh tamat (pilihan)</label><input class="input" id="bp-tamat" name="tarikhTamat" type="date" value="${v.tarikhTamat || ''}"></div>
+            <div class="field"><label class="label" for="bp-mula">Masa mula</label>${timeInput('bp-mula', 'masaMula', v.masaMula, w)}</div>
+            <div class="field"><label class="label" for="bp-akhir">Masa tamat</label>${timeInput('bp-akhir', 'masaTamat', v.masaTamat, w)}</div>
+          </div>
+          <div class="field"><label class="label" for="bp-tujuan">Tujuan</label><textarea class="textarea" id="bp-tujuan" name="tujuan" rows="3" maxlength="500" placeholder="cth. Program Hari Terbuka FKM">${v.tujuan || ''}</textarea></div>
+          <label class="tp-checkline"><input type="checkbox" name="hantarEmel" ${v.hantarEmel ? 'checked' : ''}>Hantar emel pengesahan kepada pemohon</label>
+          <div data-check></div>
+          <div class="tp-actions"><button class="btn btn-outline" type="button" data-act="check">${icon('search')}Semak kekosongan</button><button class="btn btn-primary" type="submit">${icon('check')}Simpan &amp; luluskan</button><button class="btn btn-ghost" type="button" data-act="clear" style="margin-left:auto">${icon('x')}Kosongkan borang</button></div>
+        </form>`.s;
+      };
+      const f = () => qs('[data-form="bp"]', box);
+      const values = () => {
+        const fm = f();
+        const g = (n) => String(fm.elements[n].value || '').trim();
+        const p = { jenisPemohon: st.jenis, noStaf: g('noStaf'), nama: g('nama'), emel: g('emel'), noTelefon: g('noTelefon'), ruang: g('ruang'), tarikh: g('tarikh'), masaMula: g('masaMula'), masaTamat: g('masaTamat'), tujuan: g('tujuan'), hantarEmel: fm.elements.hantarEmel.checked };
+        if (g('tarikhTamat')) p.tarikhTamat = g('tarikhTamat');
+        if (g('bilanganPeserta')) p.bilanganPeserta = Number(g('bilanganPeserta'));
+        return p;
+      };
+      render();
+      on(box, 'change', 'input[name="jenisPemohon"]', (e, r) => { Object.assign(v, values()); st.jenis = r.value; if (st.jenis !== 'STAF') { v.nama = ''; v.emel = ''; } render(); });
+      let timer = null;
+      on(box, 'input', '#bp-no', () => {
+        if (st.jenis !== 'STAF') return;
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const no = qs('#bp-no', box).value.trim();
+          if (no.length < 2) return;
+          try {
+            const r = await KD.api.call('crud.list', { module: 'staf', q: no, pageSize: 5 });
+            const hit = (r.items || []).filter((x) => String(x.values.noStaf).toUpperCase() === no.toUpperCase())[0];
+            qs('#bp-nama', box).value = hit ? hit.values.nama : '';
+            qs('#bp-emel', box).value = hit ? hit.values.emel : '';
+          } catch (err) { /* abaikan */ }
+        }, 450);
+      });
+      on(box, 'click', '[data-act="check"]', (e, b) => busy(b, async () => {
+        try { qs('[data-check]', box).innerHTML = checkHtml(await checkSlot(Object.assign(values(), { admin: true }))).s; } catch (err) { toastError(err); }
+      }));
+      on(box, 'click', '[data-act="clear"]', () => { Object.keys(v).forEach((k) => { if (['tarikh', 'masaMula', 'masaTamat', 'hantarEmel'].indexOf(k) < 0) delete v[k]; }); st.jenis = 'STAF'; render(); });
+      on(box, 'submit', '[data-form="bp"]', (e) => {
+        e.preventDefault();
+        const fm = f();
+        busy(qs('button[type="submit"]', fm), async () => {
+          fieldErrors(fm, null);
+          const p = values();
+          p.requestId = requestId();
+          try {
+            const r = await KD.api.call('tempahan.bagiPihak', p);
+            toast('Tempahan ' + r.refNo + ' disimpan & diluluskan.');
+            qs('[data-check]', box).innerHTML = html`<div class="tp-check is-ok">${icon('check', 'i-sm')}<div>Tempahan <b>${r.refNo}</b> diluluskan. <a href="#/admin/tempahan/${r.id}">Buka rekod</a></div></div>`.s;
+          } catch (err) {
+            if (!fieldErrors(fm, err)) toastError(err);
+            if (err.code === 'CONFLICT') qs('[data-check]', box).innerHTML = checkHtml({ kind: 'bad', msg: err.message }).s;
+          }
+        });
+      });
+    }
+  };
+
+  // ================================================================== Laluan & menu
+
+  KD.extraRoutes.push(
+    { path: '/cari-slot', view: 'cariSlot', access: 'public', layout: 'public', title: 'Cari slot' },
+    { path: '/kalendar', view: 'kalendarBulan', access: 'public', layout: 'public', title: 'Kalendar tempahan' },
+    { path: '/tempahan-saya', view: 'tempahanSaya', access: 'public', layout: 'public', title: 'Tempahan saya' },
+    { path: '/admin/kalendar', view: 'kalendarBulan', access: 'admin', layout: 'admin', title: 'Kalendar' },
+    { path: '/admin/analitik', view: 'analitikTempahan', access: 'admin', layout: 'admin', title: 'Analitik tempahan' },
+    { path: '/admin/tetapan-tempahan', view: 'tetapanTempahan', access: 'admin', layout: 'admin', title: 'Tetapan tempahan' },
+    { path: '/admin/bagi-pihak', view: 'bagiPihak', access: 'admin', layout: 'admin', title: 'Tempah bagi pihak' }
+  );
+  KD.extraNav.admin.push(
+    ['/admin/kalendar', 'calendar', 'Kalendar'],
+    ['/admin/bagi-pihak', 'plus', 'Tempah bagi pihak'],
+    ['/admin/analitik', 'chart', 'Analitik'],
+    ['/admin/tetapan-tempahan', 'settings', 'Tetapan tempahan']
+  );
+  /* Menu awam (sama seperti sistem lama) */
+  KD.publicNav.push(
+    ['/borang/tempahan', 'send', 'Tempahan baharu'],
+    ['/cari-slot', 'sparkle', 'Cari slot'],
+    ['/jadual', 'search', 'Semak kekosongan'],
+    ['/kalendar', 'calendar', 'Kalendar'],
+    ['/papan', 'grid', 'Papan paparan'],
+    ['/tempahan-saya', 'list', 'Tempahan saya'],
+    ['/semak', 'download', 'Slip tempahan']
+  );
+  KD.landingCards.push(
+    { href: '/cari-slot', icon: 'sparkle', title: 'Cari slot untuk saya', text: 'Masukkan bilangan orang dan tempoh; sistem mencadangkan ruang yang kosong.' },
+    { href: '/kalendar', icon: 'calendar', title: 'Kalendar tempahan', text: 'Paparan bulanan semua tempahan diluluskan dan menunggu kelulusan.' },
+    { href: '/tempahan-saya', icon: 'list', title: 'Tempahan saya', text: 'Senarai semua tempahan anda, cetak slip atau batalkan.' }
+  );
+
+  // ================================================================== Kamus Bahasa Inggeris (halaman awam)
+
+  KD.i18n.add('en', {
+    'Tempahan baharu': 'New booking', 'Isi borang di bawah untuk menempah ruang. Sistem menyemak pertindihan secara automatik sebelum permohonan dihantar.': 'Fill in the form below to book a room. The system checks for conflicts automatically before your request is submitted.',
+    'Borang tempahan': 'Booking form', 'Dibuka': 'Open', 'tarikh tutup akan datang': 'upcoming closed dates', 'Saya:': 'I am:', 'Staf FKM': 'FKM staff', 'Pelajar': 'Student',
+    'No. Matrik': 'Matric No.', 'cth. A21MJ1234': 'e.g. A21MJ1234', 'Masukkan No. Staf — nama & emel akan diisi automatik.': 'Enter your staff number — your name & email are filled in automatically.',
+    'Nama penuh': 'Full name', 'Emel UTM': 'UTM email', 'Digunakan untuk menyemak tempahan anda kemudian.': 'Used to check your booking later.',
+    'Supaya pejabat boleh menghubungi anda jika perlu.': 'So the office can reach you if something comes up.', '— Pilih ruang —': '— Pick a room —',
+    'Saya perlukan ruang ini lebih daripada satu hari': 'I need this room on more than one day', 'Slot masa yang sama setiap hari (maksimum 14 hari).': 'Same time slot every day (up to 14 days).',
+    'cth. Kuliah ganti SKMM 1013, mesyuarat jabatan, bengkel pelajar…': 'e.g. Make-up lecture SKMM 1013, department meeting, student workshop…',
+    'Semak kekosongan': 'Check availability', 'Hantar permohonan': 'Send request', 'Menyemak…': 'Checking…', 'No. Staf tidak dijumpai dalam senarai staf FKM.': 'Staff number not found in the FKM staff list.',
+    'Pilih ruang, tarikh dan masa dahulu.': 'Pick a room, date and time first.', 'Di luar waktu operasi': 'Outside opening hours', 'Ditutup': 'Closed', 'Bukan hari operasi': 'Not an operating day', 'Bertindih': 'Overlaps',
+    'Slot ini tidak boleh ditempah:': 'This slot cannot be booked:', 'Slot ini kosong. Anda boleh menghantar permohonan.': 'This slot is free. You can send your request.', 'Tempahan lain pada hari itu': 'Other bookings that day',
+    'Permohonan anda telah diterima dan sedang menunggu kelulusan. Pengesahan & keputusan akan dihantar ke emel anda. Simpan No. Rujukan untuk semakan atau pembatalan.': 'Your request has been received and is awaiting approval. A confirmation and the decision will be sent to your email. Keep the Reference No. to check or cancel.',
+    'Tempahan saya': 'My bookings', 'Tempahan lain': 'Another booking', 'pentadbir masih boleh menempah': 'administrators can still book',
+    'Cari slot untuk saya': 'Find me a slot', 'Cari slot': 'Find me a slot', 'Cari ruang kosong mengikut tarikh, saiz kumpulan dan tempoh yang diperlukan.': 'Find a free room by date, group size and how long you need it.',
+    'Apa yang anda perlukan?': 'What do you need?', 'Berapa orang?': 'How many people?', 'Kosongkan jika saiz tidak penting.': "Leave blank if size doesn't matter.", 'Berapa lama?': 'How long?',
+    '30 minit': '30 minutes', '1 jam': '1 hour', '1.5 jam': '1.5 hours', '2 jam': '2 hours', '3 jam': '3 hours', '4 jam': '4 hours', '6 jam': '6 hours', 'Sepanjang hari': 'All day',
+    'Masa pilihan': 'Preferred time', 'Bila-bila masa': 'Any time', 'Pagi (sebelum 1 tengah hari)': 'Morning (before 1 pm)', 'Petang (selepas 1 tengah hari)': 'Afternoon (after 1 pm)',
+    'Dari': 'From', 'Hingga': 'To', 'Maksimum 14 hari; setiap hari disemak.': 'Up to 14 days; every day is checked.', 'Cari': 'Search', 'pilihan ruang ditemui': 'room options found',
+    'Tiada ruang sesuai': 'No suitable room', 'Kalendar tempahan': 'Booking calendar', 'Semua tempahan diluluskan dan menunggu kelulusan.': 'Everything approved or pending.',
+    'Klik tarikh untuk melihat jadual ruang hari itu.': 'Click a date to see that day’s room schedule.', 'Semua ruang': 'All rooms', 'Ditutup / bukan hari operasi': 'Closed / non-operating day',
+    'Tempahan ditolak & dibatalkan tidak dipaparkan.': 'Rejected & cancelled bookings are hidden.', 'tempahan': 'bookings', 'lagi': 'more',
+    'Masukkan No. Staf / No. Matrik dan emel yang digunakan semasa menempah.': 'Enter the staff/matric number and email you used when booking.', 'No. Staf / No. Matrik': 'Staff / Matric No.',
+    'Semak tempahan': 'Check bookings', 'Slip tempahan': 'Booking slip', 'Batalkan': 'Cancel', 'Tiada tempahan sepadan dengan No. Staf / No. Matrik dan emel ini.': 'No bookings match this staff/matric number and email.',
+    'Semak kekosongan ruang': 'Check availability', 'Papan paparan': 'Live board', 'Menu': 'Menu', 'sedang digunakan': 'in use', 'akan datang': 'upcoming', 'ruang aktif': 'active rooms',
+    'Masukkan bilangan orang dan tempoh; sistem mencadangkan ruang yang kosong.': 'Enter the group size and duration; the system suggests free rooms.',
+    'Paparan bulanan semua tempahan diluluskan dan menunggu kelulusan.': 'Monthly view of all approved and pending bookings.', 'Senarai semua tempahan anda, cetak slip atau batalkan.': 'All your bookings: print slips or cancel.',
+    'Kategori pemohon tidak sah.': 'Invalid applicant category.', 'Tidak dibenarkan.': 'Not allowed.', 'No. Matrik diperlukan.': 'Matric No. is required.', 'Nama diperlukan.': 'Name is required.', 'Emel diperlukan.': 'Email is required.',
+    'Guna emel UTM (…utm.my).': 'Use your UTM email (…utm.my).', 'Tidak dibuka.': 'Not open.', 'Tarikh ditutup.': 'Date closed.', 'Bukan hari operasi.': 'Not an operating day.',
+    'Tempahan oleh pelajar tidak dibuka buat masa ini. Sila hubungi pentadbir atau minta penyelia membuat tempahan.': 'Student bookings are not open at the moment. Please contact the administrator or ask your supervisor to book.',
+    'Tidak dijumpai.': 'Not found.', 'Kategori pemohon': 'Applicant category', 'Pihak luar': 'External'
+  }, [
+    [/^Fakulti ditutup pada (.+) \((.+)\)\.$/, (m) => 'The faculty is closed on ' + m[1] + ' (' + m[2] + ').'],
+    [/^Tempahan hanya dibuka pada hari (.+)\. (.+) ialah hari (.+)\.$/, (m) => 'Bookings are only open on ' + m[1] + '. ' + m[2] + ' is a ' + m[3] + '.'],
+    [/^Julat carian maksimum (\d+) hari\.$/, (m) => 'Search range is limited to ' + m[1] + ' days.']
+  ]);
+})(window.KD);
+</script>

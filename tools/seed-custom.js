@@ -6,6 +6,8 @@
 
 module.exports = function seedTempahan({ api, ok, sup }) {
   const admin = (action, payload) => ok(api({ action, token: sup.token, payload }));
+  /* Data demo: tiada tarikh tutup (elak kegagalan seed bila tarikh demo jatuh pada cuti lalai) */
+  admin('admin.settings.update', { changes: { TARIKH_TUTUP: '[]' } });
   const create = (module, p) => admin('crud.create', Object.assign({ module }, p));
   const day = (n) => { const d = new Date(Date.now() + n * 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
@@ -37,7 +39,7 @@ module.exports = function seedTempahan({ api, ok, sup }) {
     ['D1004', 4, 1, '08:00', '18:00', 'Seminar penyelidikan fakulti', 'DILULUSKAN', 180, 2],
     ['D1005', 6, 2, '10:00', '11:30', 'Mesyuarat kumpulan projek', 'MENUNGGU', 20],
     ['D1001', 5, 3, '13:00', '15:00', 'Kelas tambahan', 'DITOLAK', 25, 0, 'Ruang digunakan untuk peperiksaan.'],
-    ['D1002', 3, 5, '20:00', '22:00', 'Latihan pembentangan', 'DILULUSKAN', 30],
+    ['D1002', 3, 5, '15:00', '17:00', 'Latihan pembentangan', 'DILULUSKAN', 30],
     ['D1003', 2, 0, '16:00', '18:00', 'Taklimat pelajar baharu', 'MENUNGGU', 50]
   ];
   B.forEach(([noStaf, r, d, masaMula, masaTamat, tujuan, st, peserta, span, note]) => {

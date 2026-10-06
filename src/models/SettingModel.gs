@@ -19,8 +19,29 @@ const SETTINGS_DEFS = Object.freeze({
   },
   DEFAULT_PAGE_SIZE: { type: 'int', default: 20, min: 5, max: 100, minRole: 'ADMIN', public: true, description: 'Saiz halaman senarai' },
   NOTIFY_EMAIL_ENABLED: { type: 'bool', default: true, minRole: 'ADMIN', public: false, description: 'Hantar email untuk notifikasi rekod (rekod baharu kepada admin, perubahan status kepada pemilik)' },
-  ADMIN_EMAIL: { type: 'string', default: '', max: 254, minRole: 'SUPER_ADMIN', public: false, description: 'Email pentadbir untuk maklum balas & amaran' },
-  PERINGATAN_JAM: { type: 'int', default: 2, min: 0, max: 12, minRole: 'ADMIN', public: false, description: 'Tempahan: emel peringatan berapa jam sebelum slot bermula setiap hari (0 = tutup). Peringatan sehari sebelum tetap dihantar.' },
+  ADMIN_EMAIL: { type: 'string', default: '', max: 500, minRole: 'ADMIN', public: false, description: 'Email pentadbir (boleh beberapa, dipisah koma) — menerima notifikasi rekod baharu, maklum balas & amaran' },
+  PERINGATAN_JAM: { type: 'int', default: 2, min: 0, max: 12, minRole: 'ADMIN', public: false, hidden: true, description: 'Tempahan: emel peringatan berapa jam sebelum slot bermula setiap hari (0 = tutup). Peringatan sehari sebelum tetap dihantar.' },
+  /* Tempahan: waktu operasi & tarikh tutup — diurus melalui panel "Tetapan tempahan" (hidden = tidak dipapar dalam skrin Tetapan umum) */
+  WAKTU_MULA: { type: 'string', default: '08:00', max: 5, pattern: /^([01]\d|2[0-3]):[0-5]\d$/, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: waktu operasi mula (HH:MM)' },
+  WAKTU_TAMAT: { type: 'string', default: '18:00', max: 5, pattern: /^([01]\d|2[0-4]):[0-5]\d$/, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: waktu operasi tamat (HH:MM)' },
+  HARI_OPERASI: { type: 'string', default: '1,2,3,4,5', max: 20, pattern: /^[0-6](,[0-6]){0,6}$/, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: hari operasi untuk borang awam (0 = Ahad … 6 = Sabtu)' },
+  TARIKH_TUTUP: {
+    type: 'text', max: 8000, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: tarikh tutup (cuti umum, cuti semester) — senarai JSON [{t, n}]',
+    default: '[{"t":"2026-07-21","n":"Hari Hol Almarhum Sultan Iskandar"},{"t":"2026-08-25","n":"Hari Keputeraan Nabi Muhammad S.A.W. (Maulidur Rasul)"},' +
+      '{"t":"2026-08-31","n":"Hari Kebangsaan"},{"t":"2026-09-16","n":"Hari Malaysia"},{"t":"2026-11-18","n":"Hari Deepavali"},{"t":"2026-12-25","n":"Hari Krismas"}]',
+    check: function (v) {
+      let list;
+      try { list = JSON.parse(v || '[]'); } catch (e) { return 'Senarai tarikh tutup tidak sah.'; }
+      if (!Array.isArray(list) || list.length > 200) return 'Senarai tarikh tutup tidak sah (maksimum 200).';
+      for (let i = 0; i < list.length; i++) {
+        const x = list[i];
+        if (!x || !/^\d{4}-\d{2}-\d{2}$/.test(String(x.t)) || String(x.n || '').length > 80) return 'Tarikh tutup tidak sah: ' + JSON.stringify(x).slice(0, 60);
+      }
+      return '';
+    }
+  },
+  PELAJAR_DIBENARKAN: { type: 'bool', default: true, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: pelajar boleh memohon melalui borang awam' },
+  PERINGATAN_PAGI: { type: 'int', default: 7, min: 0, max: 12, minRole: 'ADMIN', public: false, hidden: true, description: 'Tempahan: emel peringatan pada pagi hari tempahan, pada jam ini (0 = tutup)' },
   PAPAN_TUNJUK_TUJUAN: { type: 'bool', default: true, minRole: 'ADMIN', public: false, description: 'Tempahan: papar tujuan tempahan yang diluluskan pada Papan Paparan awam (nama pemohon tidak pernah dipaparkan)' }
 });
 
@@ -45,6 +66,6 @@ const SettingModel = {
   rule: function (key, def) {
     if (def.type === 'bool') return { type: 'boolean', label: key };
     if (def.type === 'int') return { type: 'int', min: def.min, max: def.max, label: key };
-    return { type: def.type === 'text' ? 'text' : 'string', max: def.max, label: key };
+    return { type: def.type === 'text' ? 'text' : 'string', max: def.max, pattern: def.pattern, label: key };
   }
 };

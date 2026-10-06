@@ -1,6 +1,1 @@
-{
-  "tempahan": {
-    "noStaf": "D1001",
-    "public": { "noStaf": "D1002", "masaMula": "07:30", "masaTamat": "08:30" }
-  }
-}
+{"tempahan": {"noStaf": "D1001", "jenisPemohon": "STAF", "masaMula": "11:00", "masaTamat": "12:00", "public": {"noStaf": "D1002", "masaMula": "09:00", "masaTamat": "10:00"}}}

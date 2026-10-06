@@ -60,8 +60,8 @@ const TempahanModule = Object.freeze(Object.assign(
     },
     "publicForm": {
       "title": "Borang Tempahan Ruang",
-      "intro": "Semak kekosongan di Kalendar dahulu. Nama & emel diambil automatik daripada senarai staf berdasarkan No. Staf anda.",
-      "successMessage": "Permohonan anda telah diterima dan sedang menunggu kelulusan. Pengesahan & keputusan akan dihantar ke emel staf anda. Simpan No. Rujukan untuk semakan atau pembatalan.",
+      "intro": "Semak kekosongan di Kalendar dahulu. Staf: nama & emel diambil automatik daripada senarai staf berdasarkan No. Staf. Pelajar: isi No. Matrik, nama dan emel UTM.",
+      "successMessage": "Permohonan anda telah diterima dan sedang menunggu kelulusan. Pengesahan & keputusan akan dihantar ke emel anda. Simpan No. Rujukan untuk semakan atau pembatalan.",
       "contactEmailField": "emel",
       "nameField": "nama",
       "rateKeyField": "noStaf",
@@ -72,30 +72,53 @@ const TempahanModule = Object.freeze(Object.assign(
     },
     "fields": [
       {
+        "key": "jenisPemohon",
+        "label": "Kategori pemohon",
+        "type": "enum",
+        "default": "STAF",
+        "filter": true,
+        "options": [
+          {
+            "value": "STAF",
+            "label": "Staf FKM"
+          },
+          {
+            "value": "PELAJAR",
+            "label": "Pelajar"
+          },
+          {
+            "value": "LUAR",
+            "label": "Pihak luar"
+          }
+        ],
+        "column": "jenis_pemohon"
+      },
+      {
         "key": "noStaf",
-        "label": "No. Staf",
+        "label": "No. Staf / No. Matrik",
         "type": "string",
-        "required": true,
+        "required": false,
         "max": 20,
         "search": true,
         "lockAfterCreate": true,
         "placeholder": "cth. 9515",
+        "hint": "Staf: No. Staf. Pelajar: No. Matrik.",
         "column": "no_staf"
       },
       {
         "key": "nama",
         "label": "Nama pemohon",
         "type": "string",
-        "readonly": true,
         "list": true,
         "search": true,
+        "max": 120,
         "column": "nama"
       },
       {
         "key": "emel",
         "label": "Emel",
         "type": "email",
-        "readonly": true,
+        "search": true,
         "column": "emel"
       },
       {
@@ -198,6 +221,14 @@ const TempahanModule = Object.freeze(Object.assign(
         "readonly": true,
         "adminOnly": true,
         "column": "peringatan_jam_dihantar"
+      },
+      {
+        "key": "peringatanPagiDihantar",
+        "label": "Peringatan pagi dihantar",
+        "type": "string",
+        "readonly": true,
+        "adminOnly": true,
+        "column": "peringatan_pagi_dihantar"
       }
     ],
     "path": "/tempahan",
