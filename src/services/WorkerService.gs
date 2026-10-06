@@ -44,7 +44,9 @@ const WorkerService = {
     const url = WorkerService.apiUrl();
     if (!url) throw new AppError(ERROR_CODES.CONFIG_ERROR, 'URL API Supabase belum ditetapkan.');
     const res = UrlFetchApp.fetch(url, {
-      method: 'post', contentType: 'text/plain; charset=utf-8', payload: JSON.stringify(body), muteHttpExceptions: true, followRedirects: true
+      method: 'post', contentType: 'text/plain; charset=utf-8', payload: JSON.stringify(body), muteHttpExceptions: true, followRedirects: true,
+      /* Pelayan Google berada di AS — paksa fungsi berjalan di Singapura (dekat pangkalan data), bukan us-east */
+      headers: { 'x-region': 'ap-southeast-1' }
     });
     const code = res.getResponseCode();
     const text = res.getContentText();

@@ -20,6 +20,26 @@ export function createPgStore(sql) {
     return { sheets, headers, props: pv.length ? pv[0].v : '0' };
   }
 
+  /** Isolat sejuk: versi + semua sheet (kecuali log besar) + tetapan dalam SATU perjalanan ke pangkalan data. */
+  async function boot(lazy) {
+    const [r] = await sql`select json_build_object(
+        'sheets', (select coalesce(json_object_agg(name, json_build_object('ver', ver::text, 'header', header)), '{}'::json) from private.sheets),
+        'rows', (select coalesce(json_object_agg(sheet, r), '{}'::json) from (
+                   select sheet, json_agg(vals order by pos) as r from private.sheet_rows where not (sheet = any(${lazy})) group by sheet) x),
+        'props', (select coalesce(json_object_agg(k, v), '{}'::json) from private.props),
+        'propsVer', (select v from private.meta where k = 'props_ver')
+      ) as b`;
+    const b = r.b;
+    const vers = { sheets: {}, headers: {}, props: b.propsVer || '0' };
+    const sheets = [];
+    for (const name of Object.keys(b.sheets)) {
+      vers.sheets[name] = b.sheets[name].ver;
+      vers.headers[name] = b.sheets[name].header || [];
+      if (lazy.indexOf(name) < 0) sheets.push({ name, ver: b.sheets[name].ver, header: b.sheets[name].header || [], rows: b.rows[name] || [] });
+    }
+    return { vers, sheets, props: { ver: vers.props, map: b.props } };
+  }
+
   async function loadSheets(names) {
     const [heads, rows] = await Promise.all([
       sql`select name, header, ver::text as ver from private.sheets where name = any(${names})`,
@@ -192,5 +212,5 @@ export function createPgStore(sql) {
     return loadSheets(names);
   }
 
-  return { versions, loadSheets, loadProps, loadKv, commit, claimOutbox, ackOutbox, markOnce, getMeta, housekeeping, outboxStatus, importAll, exportAll };
+  return { versions, boot, loadSheets, loadProps, loadKv, commit, claimOutbox, ackOutbox, markOnce, getMeta, housekeeping, outboxStatus, importAll, exportAll };
 }

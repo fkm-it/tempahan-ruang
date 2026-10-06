@@ -36,7 +36,7 @@ const MAX_IMPORT_BYTES = 40_000_000;
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type, authorization, apikey, x-client-info',
+  'Access-Control-Allow-Headers': 'content-type, authorization, apikey, x-client-info, x-region',
   'Access-Control-Max-Age': '86400'
 };
 const json = (body: unknown, status = 200) =>

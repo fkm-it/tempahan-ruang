@@ -1,6 +1,7 @@
 # CHANGELOG
 
 ## 1.2.0 — 2026-10-06
+- Isolat sejuk memuat semua data teras dalam satu perjalanan pangkalan data; panggilan pekerja dipaksa ke wilayah Singapura (`x-region`).
 - Data dipindahkan (pindahKeSupabase); laman web kini memanggil Supabase terus (`backend.json` webUsesEdge).
 - **Backend berpindah ke Supabase** (Postgres, Singapura) untuk kelajuan & kebolehpercayaan. Kod Apps Script yang SAMA dijalankan dalam Supabase Edge Function (`supabase/functions/api`): `tools/build-edge.js` menghimpun `src/**/*.gs` menjadi satu modul; `runtime.mjs` membekalkan SpreadsheetApp/CacheService/PropertiesService/MailApp di atas Postgres. Semua 86 ujian GAS lulus dalam himpunan itu.
 - Konkurensi optimistik (versi setiap sheet + kunci nasihat): dua tempahan serentak untuk slot sama → hanya satu berjaya (diuji). Idempotensi `meta.rid` disimpan dalam transaksi yang sama dengan tulisan.

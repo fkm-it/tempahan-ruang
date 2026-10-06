@@ -473,7 +473,15 @@ export function createRuntime(opts) {
     const maxPasses = o.maxPasses || 10;
     const kvLoaded = new Map();
     const pre = o.preloadKv && o.preloadKv.length ? store.loadKv(o.preloadKv) : null;
-    let vers = await store.versions();
+    let vers;
+    if (!cache.props && cache.sheets.size === 0 && store.boot) {
+      /* Isolat sejuk: satu perjalanan sahaja untuk semua data teras */
+      stats.loads++;
+      const b = await store.boot(LAZY_SHEETS);
+      for (const s of b.sheets) cache.sheets.set(s.name, entryOf(s));
+      cache.props = b.props;
+      vers = b.vers;
+    } else vers = await store.versions();
     if (pre) { const got = await pre; o.preloadKv.forEach((k) => kvLoaded.set(k, got[k] || null)); }
     const wantedLazy = new Set(o.lazy || []);
     for (let pass = 0; pass < maxPasses; pass++) {
