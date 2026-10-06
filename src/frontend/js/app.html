@@ -85,7 +85,7 @@
     });
     return out;
   }
-  /** Laluan tambahan daripada paparan modul tersuai (src/frontend/modules/*.html): KD.extraRoutes.push({ path, view, access, layout, title }) */
+  /** Laluan tambahan daripada paparan modul tersuai (src/frontend/modules/<key>.html): KD.extraRoutes.push({ path, view, access, layout, title }) */
   const allRoutes = () => CORE_ROUTES.concat(KD.extraRoutes || [], moduleRoutes());
 
   function match(path) {

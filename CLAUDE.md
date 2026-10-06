@@ -31,7 +31,7 @@ Pengguna (Za) biasanya hanya memberi **penerangan atau mockup**, contohnya "Saya
 
 ## Peraturan wajib (pepijat sebenar yang pernah berlaku)
 
-- **Apps Script membuang teks selepas `//` dalam `<script>` HTML**, termasuk dalam string. Guna komen `/* */`, dan bina URL dengan `'https:' + '\/\/…'`. `npm run check` mengesan perkara ini.
+- **Apps Script membuang teks selepas `//` dalam `<script>` HTML**, termasuk dalam string. Guna komen `/* */`, dan bina URL dengan `'https:' + '\/\/…'`. `npm run check` mengesan perkara ini. Jangan letak `/*` di dalam komen blok (cth. `modules/*.json`); HtmlService merosakkannya. CI menolak `build/gas` (komen skrip frontend dibuang oleh `tools/build-gas.js`), bukan `src/`.
 - **Tiada rujukan silang semasa fail dimuat.** Semua `.gs` berkongsi satu skop global dengan susunan muat yang tidak dijamin. Jangan rujuk `CONFIG`, `SCHEMA` atau objek lain di peringkat atas fail; rujuk di dalam fungsi sahaja. Ujian dijalankan dalam dua susunan untuk membuktikannya.
 - `HtmlService.addMetaTag` hanya menerima `viewport`, `apple-mobile-web-app-capable`, `mobile-web-app-capable` dan `google-site-verification`.
 - Semua HTML dinamik mesti melalui `html\`…\`` (auto-escape). Jangan sambung string ke `innerHTML`.

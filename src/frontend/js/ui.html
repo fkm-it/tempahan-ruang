@@ -139,7 +139,7 @@
     const m = map[s] || ['badge-muted', s];
     return html`<span class="badge ${m[0]}">${m[1]}</span>`;
   };
-  /** Lencana status modul ikut "tone" dalam modules/*.json. */
+  /** Lencana status modul ikut tone dalam modules/<key>.json. */
   const TONE_BADGE = { info: 'badge-brand', success: 'badge-success', warn: 'badge-warn', danger: 'badge-danger', muted: 'badge-muted', brand: 'badge' };
   const toneBadge = (label, tone) => html`<span class="badge ${TONE_BADGE[tone] || 'badge-muted'}">${label}</span>`;
   const roleBadge = (r) => html`<span class="badge ${r === 'SUPER_ADMIN' ? 'badge-brand' : r === 'ADMIN' ? 'badge' : 'badge-muted'}">${r === 'SUPER_ADMIN' ? 'Super Admin' : r === 'ADMIN' ? 'Admin' : 'Pengguna'}</span>`;

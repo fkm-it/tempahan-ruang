@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadGas } = require('./load-gas');
 const { gasProcessHtml } = require('./gas-html');
+const { stripHtmlScripts } = require('./js-strip');
 const tpl = require('./template');
 
 const args = process.argv.slice(2);
@@ -48,7 +49,7 @@ ctx.setupDatabase();
 if (args.includes('--seed')) require('./seed-demo')(ctx, gas);
 
 function renderTemplate(file, vars) {
-  return tpl.renderTemplate(file, vars, { processInclude: gasProcessHtml });
+  return tpl.renderTemplate(file, vars, { processInclude: (h) => gasProcessHtml(stripHtmlScripts(h)) } /* sama seperti build-gas + Apps Script */);
 }
 
 /** Shim google.script.* untuk pelayar. */

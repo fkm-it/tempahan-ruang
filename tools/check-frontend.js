@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { gasStripScript } = require('./gas-html');
+const { stripComments } = require('./js-strip');
 const ROOT = path.join(__dirname, '..', 'src');
 const FE = path.join(ROOT, 'frontend');
 let failed = 0;
@@ -17,6 +18,11 @@ for (const f of walk(FE).filter((x) => x.endsWith('.html'))) {
   const rel = path.relative(ROOT, f);
   const scripts = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
   scripts.forEach((code, i) => {
+    /* build-gas membuang komen sebelum clasp push — hasilnya mesti sah juga */
+    try { const s = stripComments(code); new vm.Script(s); new vm.Script(gasStripScript(s)); } catch (e) { failed++; console.error('✘ Gagal buang komen (build-gas):', rel, e.message); }
+    for (const c of code.matchAll(/\/\*[\s\S]*?\*\//g)) {
+      if (c[0].indexOf('/*', 2) >= 0) { failed++; console.error('✘ Komen blok mengandungi "/*" bersarang (Apps Script merosakkannya):', rel, c[0].slice(0, 80).replace(/\n/g, ' ')); }
+    }
     try { new vm.Script(code, { filename: rel + '#' + i }); } catch (e) { failed++; console.error('✘ Sintaks', rel, e.message); }
     // Apps Script membuang teks selepas // dalam <script>; kod mesti kekal sah selepas itu
     try { new vm.Script(gasStripScript(code), { filename: rel + '#' + i + ' (selepas pemprosesan GAS)' }); } catch (e) {

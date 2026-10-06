@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.5 — 2026-10-06
+- **Mod `/exec` (dihos terus oleh Apps Script) dibaiki.** HtmlService merosakkan satu komen dalam `ui.html` (komen dengan `/*` bersarang) → `SyntaxError` dan app tidak dimuat. Kini `tools/build-gas.js` membuang semua komen daripada skrip frontend sebelum `clasp push` (CI menolak `build/gas`), dan `npm run check` melarang `/*` bersarang dalam komen.
+- Web GitHub Pages juga dihantar tanpa komen skrip (muatan lebih kecil).
+
 ## 1.1.4 — 2026-10-06
 - Sambungan tersangkut dicuba semula lebih awal: had masa setiap cubaan 15 s → 25 s → 40 s → 60 s (sebelum ini 40 s sekali), sehingga 4 cubaan. Selamat kerana pelayan idempoten.
 

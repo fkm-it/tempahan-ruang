@@ -1,6 +1,6 @@
 {
   "name": "tempahan-ruang-fkm",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "private": true,
   "description": "Sistem Tempahan Ruang & Fasiliti FKM — Tempah ruang kuliah, makmal dan studio FKM dengan mudah",
   "engines": {
@@ -17,7 +17,7 @@
     "e2e": "python3 tools/e2e.py",
     "build:web": "node tools/build-web.js",
     "verify": "npm test && npm run check && npm run build:web -- --api http://localhost:8080/__api --out .verify-web",
-    "push": "npm test && npm run check && clasp push",
+    "push": "npm test && npm run check && node tools/build-gas.js && clasp push",
     "pull": "clasp pull",
     "open": "clasp open-script",
     "deploy": "clasp create-deployment --description \"$npm_package_name $npm_package_version\"",

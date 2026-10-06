@@ -65,6 +65,8 @@ jobs:
             builtAt: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
           });
           EOS
+      - name: Bina folder Apps Script (komen skrip frontend dibuang)
+        run: node tools/build-gas.js --out build/gas
       - name: Kelayakan clasp
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
@@ -72,7 +74,7 @@ jobs:
           if [ -z "$CLASPRC_JSON" ]; then echo "::error::Secret CLASPRC_JSON belum ditetapkan (lihat DEPLOYMENT.md)"; exit 1; fi
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
-          printf '{"scriptId":"%s","rootDir":"src"}\n' "${{ vars.SCRIPT_ID }}" > .clasp.json
+          printf '{"scriptId":"%s","rootDir":"build/gas"}\n' "${{ vars.SCRIPT_ID }}" > .clasp.json
           npm install --no-save --no-audit --no-fund @google/clasp@3
       - name: clasp push
         run: npx clasp push --force

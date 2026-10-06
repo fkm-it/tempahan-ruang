@@ -19,6 +19,7 @@ const path = require('path');
 const crypto = require('crypto');
 const vm = require('vm');
 const { renderTemplate, readAppConfig } = require('./template');
+const { stripHtmlScripts } = require('./js-strip');
 
 const ROOT = path.join(__dirname, '..');
 const PWA = path.join(ROOT, 'pwa');
@@ -65,7 +66,7 @@ const PUSH = fbFilled >= 5;
 
 // ---------------------------------------------------------------- Render frontend
 const app = readAppConfig();
-let page = renderTemplate('frontend/index', { appName: app.appName, tagline: app.tagline, version: app.version, slug: app.slug });
+let page = renderTemplate('frontend/index', { appName: app.appName, tagline: app.tagline, version: app.version, slug: app.slug }, { processInclude: stripHtmlScripts });
 const tokens = fs.readFileSync(path.join(ROOT, 'src', 'frontend', 'css', 'tokens.html'), 'utf8');
 const token = (name, def) => { const t = tokens.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})')); return t ? t[1] : def; };
 const THEME = token('brand', '#4F46E5');
