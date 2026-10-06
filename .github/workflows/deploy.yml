@@ -104,7 +104,15 @@ jobs:
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Secret SUPABASE_ACCESS_TOKEN belum ditetapkan (Supabase → Account → Access Tokens)"; exit 1; fi
           node tools/build-edge.js
           REF=$(node -p "require('./backend.json').projectRef")
-          npx --yes supabase@2 functions deploy api --project-ref "$REF" --no-verify-jwt --use-api
+          set +e
+          npx --yes supabase@2 functions deploy api --project-ref "$REF" --no-verify-jwt --use-api > deploy.log 2>&1
+          CODE=$?
+          cat deploy.log
+          if [ $CODE -ne 0 ]; then
+            # Log Actions tidak boleh dibaca melalui API — tunjuk punca sebagai anotasi
+            tail -n 15 deploy.log | sed 's/%/%25/g' | while IFS= read -r line; do echo "::error::$line"; done
+            exit $CODE
+          fi
       - name: Semak fungsi hidup
         run: |
           if [ ! -f backend.json ]; then exit 0; fi
