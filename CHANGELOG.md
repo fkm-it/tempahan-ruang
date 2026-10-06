@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.1.2 — 2026-10-06
+- Log masuk turut dicuba semula automatik jika sambungan gagal.
+- Mesej "Sambungan ke pelayan gagal" kini menyertakan punca ringkas (cth. `HTTP 500`, `bukan JSON`, `tamat masa`, `Failed to fetch`) untuk diagnosis.
+
+
 ## 1.1.1 — 2026-10-06
 Prestasi & kebolehpercayaan.
 - App dibuka dengan **satu** panggilan pelayan (`public.bootstrap`, sebelum ini dua), dan lawatan seterusnya dipapar serta-merta daripada salinan simpanan pelayar (dikemas kini di latar).

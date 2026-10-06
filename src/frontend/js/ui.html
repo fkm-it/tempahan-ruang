@@ -24,7 +24,7 @@
   }
   /** Papar ralat API dengan errorId (jika ada) untuk rujukan sokongan. */
   function toastError(err) {
-    const id = err && err.meta && err.meta.errorId;
+    const id = err && err.meta && (err.meta.errorId || err.meta.detail); /* detail = punca sambungan gagal (untuk diagnosis) */
     const t = KD.t || ((s) => s);
     toast(t(err && err.message ? err.message : 'Maaf, berlaku masalah.') + (id ? ' (' + t('Rujukan') + ': ' + id + ')' : ''), 'error');
   }

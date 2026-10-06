@@ -39,11 +39,15 @@
       return res.text();
     }).then(function (text) {
       var data;
-      try { data = JSON.parse(text); } catch (e) { throw new Error('Respons pelayan bukan JSON'); }
+      try { data = JSON.parse(text); } catch (e) {
+        if (window.console) console.error('[bridge] respons bukan JSON:', String(text).slice(0, 300));
+        throw new Error('bukan JSON');
+      }
       clearTimeout(timer);
       if (onOk) onOk(data);
     }).catch(function (err) {
       clearTimeout(timer);
+      if (err && err.name === 'AbortError') err = new Error('tamat masa');
       if (onFail) onFail(err);
     });
   }

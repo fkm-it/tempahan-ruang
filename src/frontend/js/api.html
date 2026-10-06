@@ -11,7 +11,7 @@
   }
 
   /** Tindakan baca sahaja: selamat diulang jika sambungan gagal (Apps Script kadangkala lambat bangun / sibuk). */
-  const SAFE = /^(public\.(config|bootstrap|categories)|crud\.(meta|list|get|summary|publicForm|refOptions)|auth\.me|notification\.list|user\.dashboard|push\.status|admin\.(stats|dashboard|users|settings|audit|health)|[a-z]+\.(jadual|semak))$/;
+  const SAFE = /^(auth\.login|public\.(config|bootstrap|categories)|crud\.(meta|list|get|summary|publicForm|refOptions)|auth\.me|notification\.list|user\.dashboard|push\.status|admin\.(stats|dashboard|users|settings|audit|health)|[a-z]+\.(jadual|semak))$/;
   const RETRY_MS = [700, 2000];
 
   function once(action, payload) {
@@ -30,7 +30,8 @@
         })
         .withFailureHandler((e) => {
           console.error('[api]', action, e);
-          reject(new ApiError('Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.', 'NETWORK'));
+          const detail = String((e && e.message) || e || '').slice(0, 60);
+          reject(new ApiError('Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.', 'NETWORK', { detail: detail }));
         })
         .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent, lang: KD.i18n ? KD.i18n.lang() : 'ms' } });
     });
