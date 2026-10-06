@@ -15,10 +15,10 @@
    * walaupun skrip telah berjalan. Setiap tindakan membawa meta.rid yang sama merentas cubaan, dan pelayan
    * (Router.dispatch) memulangkan jawapan asal untuk rid yang telah diproses — jadi tulisan juga selamat diulang.
    */
-  const RETRY_MS = [800, 2500];
+  const RETRY_MS = [500, 1500, 3000];
   const newRid = () => (KD.utils && KD.utils.requestId ? KD.utils.requestId() : String(Date.now()) + Math.random().toString(36).slice(2, 12));
 
-  function once(action, payload, rid) {
+  function once(action, payload, rid, attempt) {
     return new Promise((resolve, reject) => {
       if (!window.google || !google.script || !google.script.run) {
         reject(new ApiError('Aplikasi mesti dibuka melalui pautan Web App.', 'NO_RUNTIME'));
@@ -37,14 +37,14 @@
           const detail = String((e && e.message) || e || '').slice(0, 60);
           reject(new ApiError('Sambungan ke pelayan gagal. Semak internet anda dan cuba semula.', 'NETWORK', { detail: detail }));
         })
-        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent, lang: KD.i18n ? KD.i18n.lang() : 'ms', rid: rid } });
+        .api({ action: action, payload: payload || {}, token: KD.auth ? KD.auth.token() : '', meta: { userAgent: navigator.userAgent, lang: KD.i18n ? KD.i18n.lang() : 'ms', rid: rid, attempt: attempt || 0 } });
     });
   }
 
   async function call(action, payload) {
     const rid = newRid();
     for (let i = 0; ; i++) {
-      try { return await once(action, payload, rid); } catch (err) {
+      try { return await once(action, payload, rid, i); } catch (err) {
         if (err.code !== 'NETWORK' || i >= RETRY_MS.length) throw err;
         await new Promise((r) => setTimeout(r, RETRY_MS[i]));
       }

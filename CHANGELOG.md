@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.4 — 2026-10-06
+- Sambungan tersangkut dicuba semula lebih awal: had masa setiap cubaan 15 s → 25 s → 40 s → 60 s (sebelum ini 40 s sekali), sehingga 4 cubaan. Selamat kerana pelayan idempoten.
+
+
 ## 1.1.3 — 2026-10-06
 - **Idempotensi semua tindakan** (`meta.rid`): Google kadangkala tidak menghantar jawapan walaupun skrip telah siap (HTTP 404 pada URL `…/echo`, atau tamat masa). Klien kini mencuba semula SEMUA tindakan (termasuk hantar tempahan, lulus, batal) dengan ID permintaan yang sama; pelayan memulangkan jawapan asal tanpa menjalankan tindakan dua kali.
 

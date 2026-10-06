@@ -15,7 +15,9 @@
   var VALID = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(API) ||
     /^http:\/\/(localhost|127\.0\.0\.1):\d+\/__api$/.test(API);
   var TIMEOUT_MS = 120000; // muat naik lampiran boleh mengambil masa
-  var TIMEOUT_SMALL_MS = 40000; // permintaan biasa: gagal lebih awal supaya KD.api boleh cuba semula
+  /* Permintaan biasa: had masa meningkat setiap cubaan (meta.attempt) — sambungan yang tersangkut dicuba semula lebih awal.
+     Selamat kerana pelayan idempoten (meta.rid). */
+  var TIMEOUT_STEPS_MS = [15000, 25000, 40000, 60000];
 
   function post(request, onOk, onFail) {
     if (!VALID) {
@@ -24,7 +26,7 @@
     }
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
     var body = JSON.stringify(request);
-    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, body.length > 100000 ? TIMEOUT_MS : TIMEOUT_SMALL_MS);
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, body.length > 100000 ? TIMEOUT_MS : TIMEOUT_STEPS_MS[Math.min((request.meta && request.meta.attempt) || 0, TIMEOUT_STEPS_MS.length - 1)]);
     fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
