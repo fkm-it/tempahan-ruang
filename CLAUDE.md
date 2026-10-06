@@ -18,7 +18,7 @@ Pengguna (Za) biasanya hanya memberi **penerangan atau mockup**, contohnya "Saya
 4. **Logik domain.** Letakkan dalam `src/modules/<key>/<Name>Hooks.gs` (validate, beforeSave, afterCreate, afterStatus, visible, toDTO, maintenance). **Jangan ubah `CrudEngine.gs`** untuk keperluan satu modul. Jika enjin benar-benar perlu ciri baharu, tambah secara generik dan sertakan ujian dalam `src/tests/TestModules.gs`.
 5. **Kategori lalai.** Ubah `SeedData.CATEGORIES` jika domain memerlukannya (cth. jenis ruang, unit). Jika hanya satu kategori aktif, medan kategori disembunyikan.
 6. **Paparan tersuai.** Hanya buat jika mockup memerlukan sesuatu yang tidak dapat dihasilkan secara generik (kalendar, papan Kanban, cetakan). Gunakan `src/frontend/modules/<key>.html` (lihat MODULES.md) dan guna semula `KD.crud.*` serta `KD.ui.*`.
-7. **Ujian.** Tambah ujian untuk setiap hook atau peraturan perniagaan dalam `src/tests/`. Kemudian jalankan:
+7. **Ujian.** Tambah ujian untuk setiap hook atau peraturan perniagaan dalam `src/tests/AppTests.gs` (`const AppTests = { suites: () => [TestSuiteX] }`; dijalankan oleh `npm test` dan `runTestsPart5`). Nilai medan khusus untuk E2E (cth. No. Staf demo) dalam `tools/e2e-values.json`. Kemudian jalankan:
    - `npm test`: mesti 0 gagal dalam kedua-dua susunan muat
    - `npm run check`
    - `npm run dev` dalam latar, kemudian `npm run e2e`: semakan telefon 360px termasuk
@@ -47,7 +47,7 @@ Pengguna (Za) biasanya hanya memberi **penerangan atau mockup**, contohnya "Saya
 - Tambah laluan API khusus: tambah ke `Router.table()` (isytiharkan peranan) dan pengawal nipis dalam `Controllers.gs`. Logik diletakkan dalam service.
 - Tetapan yang boleh diubah admin: `SETTINGS_DEFS` (`src/models/SettingModel.gs`).
 - Notifikasi: `NotificationService.notify(userId, NOTIF_TYPE.X, title, message, refId, '#/path')` menghantar notifikasi dalam app, ke telefon (jika jenis dalam `PushService.PUSH_TYPES`) dan memaparkan lencana. Email: `NotificationService.email(to, subject, lines, {path})` (ikut tetapan `NOTIFY_EMAIL_ENABLED`).
-- Fungsi operasi pemilik (jalankan dari editor Apps Script): `setupDatabase`, `installTriggers`, `importFcmKeyFromDrive`, `testPushConfig`, `healthCheck`, `runBackup`, `runTestsPart1..4`, `promoteBootstrapAdmin`.
+- Fungsi operasi pemilik (jalankan dari editor Apps Script): `setupDatabase`, `installTriggers`, `importFcmKeyFromDrive`, `testPushConfig`, `healthCheck`, `runBackup`, `runTestsPart1..5`, `promoteBootstrapAdmin`.
 
 ## Definisi siap
 
