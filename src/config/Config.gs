@@ -13,7 +13,7 @@ const CONFIG = Object.freeze({
   SHORT_NAME: 'Sistem Saya', // @init:shortName
   /** Awalan nama fail Drive (sandaran, ujian). Huruf/nombor sahaja. */
   APP_SLUG: 'SistemSaya', // @init:slug
-  VERSION: '0.1.1',
+  VERSION: '0.2.0',
   TIMEZONE_FALLBACK: 'Asia/Kuala_Lumpur',
 
   DEFAULT_PAGE_SIZE: 20,

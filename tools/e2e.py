@@ -46,7 +46,7 @@ def fill(pg, m, prefix, public=False):
         if t == 'files':
             if not public: pg.set_input_files(sel, '/tmp/e2e.png')
         elif t == 'bool': pg.check(sel)
-        elif t in ('enum', 'category'):
+        elif t in ('enum', 'category', 'ref'):
             if pg.locator(sel + ' option').count() > 1: pg.select_option(sel, index=1)
         else:
             v = SAMPLE.get(t, 'Ujian')

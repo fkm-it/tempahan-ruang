@@ -46,6 +46,7 @@ const Router = {
       'crud.restore': { role: A, fn: CrudController.restore },
       'crud.setStatus': { role: U, fn: CrudController.setStatus },
       'crud.attachment': { role: U, fn: CrudController.attachment },
+      'crud.refOptions': { role: U, fn: CrudController.refOptions },
 
       'push.status': { role: U, fn: PushController.status, allowInMaintenance: true },
       'push.register': { role: U, fn: PushController.register, allowInMaintenance: true },
@@ -78,7 +79,25 @@ const Router = {
       'admin.migrations': { role: S, fn: AdminController.migrationStatus, allowInMaintenance: true },
       'admin.systemLogs': { role: S, fn: AdminController.systemLogs, allowInMaintenance: true }
     };
+    Router.addModuleRoutes(Router.routes);
     return Router.routes;
+  },
+
+  /**
+   * Laluan khusus modul daripada hooks: `<Name>Hooks.routes = { '<key>.nama': { role: 'PUBLIC', fn: function (payload, ctx) {…} } }`.
+   * Nama mesti berawalan key modul (ruang nama) dan tidak boleh menindih laluan teras.
+   */
+  addModuleRoutes: function (table) {
+    CrudEngine.modules().forEach(function (def) {
+      const routes = CrudEngine.hooks(def).routes || {};
+      Object.keys(routes).forEach(function (name) {
+        const r = routes[name];
+        if (name.indexOf(def.key + '.') !== 0) throw new Error('Laluan modul mesti berawalan "' + def.key + '.": ' + name);
+        if (Object.prototype.hasOwnProperty.call(table, name)) throw new Error('Laluan berganda: ' + name);
+        if (!r || typeof r.fn !== 'function' || ROLE_LEVEL[r.role] === undefined) throw new Error('Laluan tidak sah: ' + name);
+        table[name] = { role: r.role, fn: r.fn, allowInMaintenance: !!r.allowInMaintenance };
+      });
+    });
   },
 
   /**

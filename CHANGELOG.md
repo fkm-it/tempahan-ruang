@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.2.0 — 2026-10-06
+- Jenis medan **`ref`** (rujuk rekod modul lain, cth. ruang/peralatan): pilihan dalam borang dalaman & awam, label, penapis, validasi (hook `selectable`).
+- Hook **`beforeStatus`** (halang perubahan status — cth. semak semula pertindihan semasa lulus) dan **`routes`** (laluan API khusus modul tanpa mengubah Router).
+- `publicForm.rateKeyField` — had kadar borang awam per pemohon.
+- Frontend: `KD.extraRoutes`, `KD.extraNav`, `KD.landingCards` untuk halaman tersuai; borang diisi awal daripada query URL.
+- Data demo khusus melalui `tools/seed-custom.js`.
+
 ## 0.1.1 — 2026-10-06
 - Storan pelayar (sesi, token push, pilihan) diasingkan mengikut `APP_SLUG` — beberapa sistem boleh dihoskan di bawah `<org>.github.io` yang sama tanpa sesi bertindih.
 - DEPLOYMENT.md §0: pilihan hosting (organisasi, repo, domain sendiri).

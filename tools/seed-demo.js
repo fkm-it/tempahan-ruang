@@ -34,15 +34,28 @@ module.exports = function seedDemo(ctx) {
   const user = reg('Nur Aisyah binti Ahmad', 'user@demo.local');
   const others = ['Ahmad Faiz', 'Siti Hajar'].map((n, i) => reg(n, 'user' + i + '@demo.local'));
 
-  const mods = ok(api({ action: 'crud.meta' }));
   const SecurityUtils = require('vm').runInContext('SecurityUtils', ctx);
+  /* Data contoh khusus sistem: tools/seed-custom.js (jika wujud) MENGGANTIKAN seed generik modul. */
+  const custom = require('path').join(__dirname, 'seed-custom.js');
+  if (require('fs').existsSync(custom)) {
+    require(custom)({ api, ok, sup, user, others, SecurityUtils });
+    console.log('Data demo: super@demo.local / Demo1234 (SUPER_ADMIN), user@demo.local / Demo1234 (USER)');
+    return { sup, user };
+  }
+  /* Modul sasaran medan ref di-seed dahulu supaya pilihan wujud */
+  const mods = ok(api({ action: 'crud.meta' })).slice().sort((a, b) => a.fields.filter((f) => f.type === 'ref').length - b.fields.filter((f) => f.type === 'ref').length);
   mods.forEach((m) => {
     const token = m.access.create === 'ADMIN' ? sup.token : user.token;
     const fields = m.fields.filter((f) => !f.adminOnly && !f.publicOnly);
     const values = (list, i) => {
       const p = {};
       const nth = {};
-      list.forEach((f) => { nth[f.type] = (nth[f.type] || 0) + 1; const v = sampleValue(f, i, nth[f.type] - 1); if (v !== undefined) p[f.key] = v; });
+      list.forEach((f) => {
+        nth[f.type] = (nth[f.type] || 0) + 1;
+        let v = sampleValue(f, i, nth[f.type] - 1);
+        if (f.type === 'ref') { const o = ok(api({ action: 'crud.refOptions', token: sup.token, payload: { module: m.key, field: f.key } })); v = o.length ? o[i % o.length].value : undefined; }
+        if (v !== undefined) p[f.key] = v;
+      });
       return p;
     };
     /* Data contoh generik mungkin melanggar peraturan hook domain — rekod itu dilangkau (sunting SAMPLE / fungsi ini jika perlu) */

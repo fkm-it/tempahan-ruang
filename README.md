@@ -22,7 +22,7 @@ git push main       ──GitHub Actions─▶ ujian → Apps Script (clasp) →
 | Notifikasi | Dalam app, telefon (FCM, dengan lencana pada ikon app) dan email (pilihan) |
 | Pentadbir | Dashboard per modul, pengguna, kategori, hebahan, maklum balas, audit log, tetapan runtime, kesihatan sistem, sandaran harian |
 | App telefon | PWA boleh dipasang (Android/iPhone), pintasan modul, halaman luar talian, ikon dijana mengikut warna jenama |
-| Kualiti | 64 ujian backend (2 susunan muat), E2E pelayar generik + semakan telefon 360px, imbasan rahsia |
+| Kualiti | 65 ujian backend (2 susunan muat), E2E pelayar generik + semakan telefon 360px, imbasan rahsia |
 
 ## Mula pantas
 

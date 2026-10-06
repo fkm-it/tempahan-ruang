@@ -16,6 +16,19 @@
   const api = KD.api;
 
   let catCache = null;
+  /** Pilihan medan ref (dicache per modul/medan untuk sesi halaman). */
+  const refCache = {};
+  async function refOptions(moduleKey, field) {
+    const k = moduleKey + '.' + field;
+    if (!refCache[k]) refCache[k] = await api.refOptions(moduleKey, field);
+    return refCache[k];
+  }
+  async function refOptionsFor(m, fields) {
+    const out = {};
+    await Promise.all(fields.filter((f) => f.type === 'ref').map(async (f) => { out[f.key] = await refOptions(m.key, f.key).catch(() => []); }));
+    return out;
+  }
+
   async function categories() {
     if (!catCache) catCache = await api.getCategories();
     return catCache;
@@ -84,10 +97,12 @@
       const filterFields = m.fields.filter((f) => f.filter && (!f.adminOnly || isAdmin()));
       filterFields.forEach((f) => { if (query['f_' + f.key]) state.filters[f.key] = query['f_' + f.key]; });
       const cats = filterFields.some((f) => f.type === 'category') ? await categories().catch(() => []) : [];
+      const refs = await refOptionsFor(m, filterFields);
 
       const filterSelect = (f) => {
         const opts = f.type === 'enum' ? f.options.map((o) => [o.value, o.label])
-          : f.type === 'category' ? cats.map((c) => [c.id, c.nameMs]) : [['true', 'Ya'], ['false', 'Tidak']];
+          : f.type === 'category' ? cats.map((c) => [c.id, c.nameMs])
+          : f.type === 'ref' ? (refs[f.key] || []).map((o) => [o.value, o.label]) : [['true', 'Ya'], ['false', 'Tidak']];
         if (f.type === 'category' && opts.length < 2) return '';
         return html`<select class="select" data-filter="${f.key}" aria-label="${f.label}"><option value="">${f.label}: semua</option>${opts.map((o) => html`<option value="${o[0]}" ${String(state.filters[f.key] || '') === o[0] ? raw('selected') : ''}>${o[1]}</option>`)}</select>`;
       };
@@ -228,6 +243,12 @@
 
   // ================================================================== Medan borang
 
+  /** Nilai awal daripada query URL (cth. #/borang/tempahan?ruang=RU-…&tarikh=2026-10-12 dari kalendar). */
+  function prefill(f) {
+    const q = (KD.router.current && KD.router.current.query) || {};
+    return q[f.key] !== undefined && f.type !== 'files' ? q[f.key] : undefined;
+  }
+
   /** HTML input untuk satu medan. @param {Object} opts { value, cats, existing (lampiran sedia ada), idPrefix } */
   function fieldInput(f, opts) {
     const o = opts || {};
@@ -245,6 +266,10 @@
         return html`<div class="field"><label class="check" for="${id}"><input type="checkbox" id="${id}" name="${f.key}" ${v === true || v === 'true' ? raw('checked') : ''}>${f.label}</label>${hint}</div>`;
       case 'enum':
         return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}>${f.required && v ? '' : html`<option value="">— Pilih —</option>`}${f.options.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}</option>`)}</select>${hint}</div>`;
+      case 'ref': {
+        const opts = (o.refOptions && o.refOptions[f.key]) || [];
+        return html`<div class="field">${label}<select class="select" id="${id}" name="${f.key}" ${req}><option value="">— Pilih —</option>${opts.map((op) => html`<option value="${op.value}" ${String(v) === op.value ? raw('selected') : ''}>${op.label}${op.hint ? ' — ' + op.hint : ''}</option>`)}</select>${hint}</div>`;
+      }
       case 'category': {
         const cats = o.cats || [];
         if (cats.length < 2 && !o.value) return ''; /* satu kategori sahaja → dipilih automatik di backend */
@@ -325,10 +350,11 @@
       el.innerHTML = skeletonList(2).s;
       let d = null;
       let cats = [];
+      let refs = {};
       try {
-        const tasks = [m.fields.some((f) => f.type === 'category') ? categories() : Promise.resolve([])];
+        const tasks = [m.fields.some((f) => f.type === 'category') ? categories() : Promise.resolve([]), refOptionsFor(m, m.fields)];
         if (editing) tasks.push(api.get(m.key, params.id));
-        [cats, d] = await Promise.all(tasks);
+        [cats, refs, d] = await Promise.all(tasks);
       } catch (err) { el.innerHTML = errorState(err).s; return; }
       if (editing && !d.canEdit) { el.innerHTML = empty('Tidak boleh disunting', 'Rekod ini tidak boleh disunting lagi.').s; return; }
       if (!editing && !canCreate(m)) { const msg = 'Anda tidak boleh mencipta ' + m.label.toLowerCase() + '.'; el.innerHTML = empty('Tiada kebenaran', msg).s; return; }
@@ -338,7 +364,7 @@
       el.innerHTML = html`<div class="page-head"><div><a class="back-link" href="#${basePath(m, r)}${editing ? '/' + d.id : ''}">${icon('chev-left', 'i-sm')}${editing ? d.refNo : m.labelPlural}</a>
           <h1 class="mt-2">${editing ? 'Sunting ' + m.label.toLowerCase() : m.label + ' baharu'}</h1>${!editing && m.description ? html`<p>${m.description}</p>` : ''}</div></div>
         <form class="panel" data-crud-form novalidate>
-          <div class="form-grid">${fields.map((f) => fieldInput(f, { value: d ? d.values[f.key] : undefined, cats, existing: existing(f.key) }))}</div>
+          <div class="form-grid">${fields.map((f) => fieldInput(f, { value: d ? d.values[f.key] : prefill(f), cats, refOptions: refs, existing: existing(f.key) }))}</div>
           <div class="row row-wrap mt-6"><button class="btn btn-primary" type="submit">${icon('check')}${editing ? 'Simpan perubahan' : 'Hantar'}</button>
           <a class="btn btn-ghost" href="#${basePath(m, r)}${editing ? '/' + d.id : ''}">Batal</a></div>
         </form>`.s;
@@ -377,7 +403,7 @@
         el.innerHTML = html`${KD.views.publicTop ? KD.views.publicTop() : ''}<div class="auth"><div class="auth-card" style="width:min(640px,100%)">
           <div class="auth-card__head">${icon(m.icon, 'i-lg')}<h2 class="mt-2">${pf.title || m.label}</h2>${pf.intro ? html`<p>${pf.intro}</p>` : ''}</div>
           <form data-public-form novalidate>
-            <div class="form-grid">${fields.map((f) => fieldInput(f, { cats, idPrefix: 'pf-' }))}</div>
+            <div class="form-grid">${fields.map((f) => fieldInput(f, { cats, refOptions: data.refOptions || {}, value: prefill(f), idPrefix: 'pf-' }))}</div>
             <div class="sr-only" aria-hidden="true"><label>Laman web<input name="website" tabindex="-1" autocomplete="off"></label></div>
             <button class="btn btn-primary btn-block mt-6" type="submit">${icon('send')}Hantar</button>
             ${KD.auth.loggedIn() ? '' : html`<p class="xs muted mt-4" style="text-align:center">Ada akaun? <a href="#/log-masuk">Log masuk</a> untuk menjejak status dalam aplikasi.</p>`}
@@ -408,6 +434,6 @@
     }
   };
 
-  KD.crud = { categories, visibleFields, valueText, fieldInput, bindFiles, collect, item, statusBadge, basePath };
+  KD.crud = { refOptions, prefill, categories, visibleFields, valueText, fieldInput, bindFiles, collect, item, statusBadge, basePath };
 })(window.KD);
 </script>

@@ -17,7 +17,7 @@ const TestFixtures = {
       defaultStatus: 'BARU', statusRole: 'ADMIN',
       notify: { adminsOnCreate: true, ownerOnStatus: true },
       titleField: 'tajuk', nav: { user: true, admin: true, order: 1 },
-      publicForm: { title: 'Borang', contactEmailField: 'email', nameField: 'nama' },
+      publicForm: { title: 'Borang', contactEmailField: 'email', nameField: 'nama', rateKeyField: 'telefon' },
       fields: [
         f('nama', 'nama', 'string', { publicOnly: true, max: 80 }),
         f('email', 'email', 'email', { publicOnly: true }),
@@ -30,6 +30,7 @@ const TestFixtures = {
         f('masa', 'masa', 'time'),
         f('segera', 'segera', 'bool', { filter: true }),
         f('telefon', 'telefon', 'phone'),
+        f('lokasi', 'lokasi', 'ref', { ref: 'lokasi', filter: true }),
         f('butiran', 'butiran', 'text', { max: 500, search: true }),
         f('fail', 'fail', 'files', { maxFiles: 2, public: false }),
         f('catatanDalaman', 'catatan_dalaman', 'text', { adminOnly: true })
@@ -45,7 +46,25 @@ const TestFixtures = {
     beforeSave: function (row) { if (row.tajuk) row.tajuk = row.tajuk.replace(/\s+$/, ''); },
     afterCreate: function (row) { TestFixtures.hookLog.push('create:' + row.ref_no); },
     afterStatus: function (row, prev) { TestFixtures.hookLog.push('status:' + prev + '>' + row.status); },
-    visible: function (row) { return row.tajuk !== 'TERSEMBUNYI'; }
+    visible: function (row) { return row.tajuk !== 'TERSEMBUNYI'; },
+    beforeStatus: function (row, next) { if (row.tajuk === 'HALANG' && next === 'SELESAI') throw Errors.conflict('Dihalang oleh hook.'); },
+    routes: {
+      'tiket.ping': { role: 'PUBLIC', fn: function (p) { return { pong: true, echo: String((p && p.x) || '') }; } }
+    }
+  },
+
+  /** Modul sasaran untuk medan ref. */
+  lokasiModule: function () {
+    return Object.freeze({
+      key: 'lokasi', name: 'Lokasi', label: 'Lokasi', labelPlural: 'Lokasi', icon: 'home', path: '/lokasi', sheet: 'T_LOKASI', prefix: 'LO',
+      access: { create: 'ADMIN', list: 'ALL', edit: 'ADMIN', delete: 'ADMIN', ownerEditStatuses: [] },
+      statuses: [], defaultStatus: '', statusRole: 'ADMIN', notify: { adminsOnCreate: false, ownerOnStatus: false },
+      titleField: 'nama', subtitleField: 'blok', nav: { user: false, admin: true, order: 2 },
+      fields: [{ key: 'nama', column: 'nama', type: 'string', label: 'Nama', required: true },
+        { key: 'blok', column: 'blok', type: 'string', label: 'Blok' },
+        { key: 'aktif', column: 'aktif', type: 'bool', label: 'Aktif', default: true }],
+      hooks: function () { return { selectable: function (r) { return r.aktif !== false; } }; }
+    });
   },
 
   /** Pasang fixture: skema + senarai modul. */
@@ -54,14 +73,19 @@ const TestFixtures = {
     const cols = ['id', 'ref_no', 'owner_user_id', 'owner_name'].concat(def.fields.map(function (x) { return x.column; }),
       ['status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at']);
     SchemaRegistry.extra.T_TIKET = { sheet: 'T_TIKET', id: 'id', prefix: 'TK', module: 'tiket', columns: cols, types: { segera: 'bool', kuantiti: 'int', fail: 'int' } };
-    CrudEngine.override = [def];
+    SchemaRegistry.extra.T_LOKASI = { sheet: 'T_LOKASI', id: 'id', prefix: 'LO', module: 'lokasi', types: { aktif: 'bool' },
+      columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'nama', 'blok', 'aktif', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'] };
+    CrudEngine.override = [def, TestFixtures.lokasiModule()];
+    Router.routes = null;
     TestFixtures.hookLog = [];
     return def;
   },
 
   uninstall: function () {
     CrudEngine.override = null;
+    Router.routes = null;
     delete SchemaRegistry.extra.T_TIKET;
+    delete SchemaRegistry.extra.T_LOKASI;
   }
 };
 
@@ -240,7 +264,7 @@ const TestSuiteCrud = {
       const s = TestHelpers.admin(ROLES.SUPER_ADMIN);
       TestAssert.apiOk(TestHelpers.call(u.token, 'crud.create', { module: 'tiket', tajuk: 'Satu' }));
       const meta = TestAssert.apiOk(api({ action: 'crud.meta' }));
-      t.eq(meta.length, 1);
+      t.eq(meta.length, 2);
       t.ok(meta[0].fields.every(function (f) { return f.column === undefined; }), 'nama lajur tidak didedahkan');
       t.eq(meta[0].hooks, undefined);
       const sum = TestAssert.apiOk(TestHelpers.call(u.token, 'crud.summary'));
@@ -251,6 +275,34 @@ const TestSuiteCrud = {
       t.ok(st.modules[0].total >= 1 && st.modules[0].byDay.length === 14 && st.kpi.totalRecords >= 1);
       t.ok(TestAssert.apiOk(TestHelpers.call(s.token, 'admin.users', {})).items.some(function (x) { return x.recordCount >= 1; }));
       TestFixtures.uninstall();
+    }]
+    ,
+    ['Medan ref: pilihan (selectable), validasi, label, penapis; laluan modul; beforeStatus; rateKeyField', function (t) {
+      TestFixtures.install();
+      const u = TestHelpers.user('ref');
+      const adm = TestHelpers.admin(ROLES.ADMIN);
+      const a = TestAssert.apiOk(TestHelpers.call(adm.token, 'crud.create', { module: 'lokasi', nama: 'Dewan B', blok: 'C23', aktif: true }));
+      const b = TestAssert.apiOk(TestHelpers.call(adm.token, 'crud.create', { module: 'lokasi', nama: 'Bilik A', blok: 'E07', aktif: true }));
+      const off = TestAssert.apiOk(TestHelpers.call(adm.token, 'crud.create', { module: 'lokasi', nama: 'Ditutup', aktif: false }));
+      TestAssert.apiFail(TestHelpers.call(u.token, 'crud.create', { module: 'lokasi', nama: 'X' }), ERROR_CODES.FORBIDDEN);
+      const opts = TestAssert.apiOk(TestHelpers.call(u.token, 'crud.refOptions', { module: 'tiket', field: 'lokasi' }));
+      t.eq(opts.map(function (o) { return o.label; }).join(','), 'Bilik A,Dewan B', 'tersusun & tanpa lokasi tidak aktif');
+      t.eq(opts[0].hint, 'E07');
+      TestAssert.apiFail(TestHelpers.call(u.token, 'crud.refOptions', { module: 'tiket', field: 'tajuk' }), ERROR_CODES.BAD_REQUEST);
+      TestAssert.apiFail(TestHelpers.call(u.token, 'crud.create', { module: 'tiket', tajuk: 'X', lokasi: off.id }), ERROR_CODES.VALIDATION_ERROR);
+      TestAssert.apiFail(TestHelpers.call(u.token, 'crud.create', { module: 'tiket', tajuk: 'X', lokasi: 'bukan-id' }), ERROR_CODES.VALIDATION_ERROR);
+      const d = TestAssert.apiOk(TestHelpers.call(u.token, 'crud.create', { module: 'tiket', tajuk: 'Lampu', lokasi: a.id }));
+      t.eq(d.labels.lokasi, 'Dewan B');
+      TestAssert.apiOk(TestHelpers.call(u.token, 'crud.create', { module: 'tiket', tajuk: 'Kipas', lokasi: b.id }));
+      t.eq(TestAssert.apiOk(TestHelpers.call(u.token, 'crud.list', { module: 'tiket', filters: { lokasi: a.id } })).meta.total, 1);
+      const pf = TestAssert.apiOk(api({ action: 'crud.publicForm', payload: { module: 'tiket' } }));
+      t.eq(pf.refOptions.lokasi.length, 2, 'pilihan ref dalam borang awam');
+      t.eq(TestAssert.apiOk(api({ action: 'tiket.ping', payload: { x: 'ok' } })).echo, 'ok', 'laluan modul daripada hooks');
+      const h = TestAssert.apiOk(TestHelpers.call(u.token, 'crud.create', { module: 'tiket', tajuk: 'HALANG' }));
+      TestAssert.apiFail(TestHelpers.call(adm.token, 'crud.setStatus', { module: 'tiket', id: h.id, status: 'SELESAI' }), ERROR_CODES.CONFLICT);
+      t.eq(Repo.of('T_TIKET').findById(h.id).status, 'BARU', 'status tidak berubah');
+      TestFixtures.uninstall();
+      TestAssert.apiFail(api({ action: 'tiket.ping' }), ERROR_CODES.BAD_REQUEST);
     }]
   ]
 };

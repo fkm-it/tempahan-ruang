@@ -41,7 +41,8 @@ const CrudController = {
   remove: function (p, ctx) { return CrudEngine.remove(ctx, p); },
   restore: function (p, ctx) { return CrudEngine.restore(ctx, p); },
   setStatus: function (p, ctx) { return CrudEngine.setStatus(ctx, p); },
-  attachment: function (p, ctx) { return CrudEngine.attachment(ctx, p); }
+  attachment: function (p, ctx) { return CrudEngine.attachment(ctx, p); },
+  refOptions: function (p, ctx) { return CrudEngine.refOptionsFor(ctx, p); }
 };
 
 const PushController = {

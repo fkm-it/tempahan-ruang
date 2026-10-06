@@ -56,8 +56,10 @@
           </div>
         </section>
         <div class="section" id="ciri" style="padding-top:0">
-          <div class="feature-grid">${(publicMods.length ? publicMods : mods).slice(0, 3).map((m) => html`<a class="feature" href="#${m.publicForm && c.ALLOW_PUBLIC_SUBMISSION !== false ? '/borang/' + m.key : '/log-masuk'}">
-            ${icon(m.icon)}<h3>${m.publicForm ? (m.publicForm.title || m.label) : m.labelPlural}</h3><p>${m.description || ''}</p></a>`)}</div>
+          <div class="feature-grid">${(KD.landingCards || []).concat((publicMods.length ? publicMods : mods).map((m) => ({
+            href: m.publicForm && c.ALLOW_PUBLIC_SUBMISSION !== false ? '/borang/' + m.key : '/log-masuk',
+            icon: m.icon, title: m.publicForm ? (m.publicForm.title || m.label) : m.labelPlural, text: m.description || '' }))).slice(0, 3)
+            .map((x) => html`<a class="feature" href="#${x.href}">${icon(x.icon)}<h3>${x.title}</h3><p>${x.text}</p></a>`)}</div>
         </div>
 
         <section class="section" id="maklum-balas" style="padding-top:0">

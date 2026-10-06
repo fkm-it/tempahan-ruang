@@ -62,6 +62,7 @@
     restore: (module, id) => call('crud.restore', { module, id }),
     setStatus: (module, id, status, note) => call('crud.setStatus', { module, id, status, note }),
     getAttachment: (id) => call('crud.attachment', { id }),
+    refOptions: (module, field) => call('crud.refOptions', { module, field }),
     publicForm: (module) => call('crud.publicForm', { module }),
     publicCreate: (module, p) => call('crud.publicCreate', Object.assign({ module }, p)),
     // Notifikasi telefon

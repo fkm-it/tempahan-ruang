@@ -50,7 +50,7 @@ Apa yang dijana daripada satu modul:
 | `subtitleField` | — | Sub-tajuk (cth. kategori) |
 | `nav.user` / `nav.admin` | `true` | Papar dalam menu pengguna/admin |
 | `nav.order` | `50` | Susunan menu (kecil dahulu). Modul pertama mengisi butang tengah navigasi telefon |
-| `publicForm` | — | Hanya jika `access.create = PUBLIC`: `title`, `intro`, `successMessage`, `contactEmailField` (email untuk makluman status), `nameField` (nama pemohon dipaparkan kepada admin) |
+| `publicForm` | — | Hanya jika `access.create = PUBLIC`: `title`, `intro`, `successMessage`, `contactEmailField` (email untuk makluman status), `nameField` (nama pemohon dipaparkan kepada admin), `rateKeyField` (medan untuk had kadar per pemohon; lalai `contactEmailField`) |
 
 ## Medan (`fields[]`)
 
@@ -67,6 +67,7 @@ Apa yang dijana daripada satu modul:
 | `bool` | kotak semak | TRUE/FALSE | — |
 | `enum` | pilihan | nilai | `options: [{value,label}]` atau `["A","B"]` |
 | `category` | pilihan kategori (Panel → Kategori) | ID kategori | Disembunyikan & diisi automatik jika hanya satu kategori aktif |
+| `ref` | pilihan rekod modul lain (cth. ruang, peralatan) | ID rekod | `ref: "<key modul sasaran>"`. Pilihan = rekod aktif modul sasaran yang lulus hook `selectable` (atau `visible`); label = `titleField`, petunjuk = `subtitleField` sasaran. Boleh `filter`. Juga dalam borang awam |
 | `files` | muat naik | bilangan (fail di Drive peribadi) | `maxFiles` (lalai 3). Jenis/saiz: Tetapan admin |
 
 Pilihan umum setiap medan:
@@ -99,6 +100,9 @@ Lajur sistem setiap rekod: `id, ref_no, owner_user_id, owner_name, status, statu
 | `afterCreate(row, ctx)` | Selepas cipta | Email pengesahan, notifikasi tambahan |
 | `afterStatus(row, prevStatus, ctx)` | Selepas status berubah | Tindakan lanjut (cth. kemas kini stok) |
 | `visible(row, ctx)` | Senarai bukan-admin | `false` = sembunyi (cth. pengumuman tamat) |
+| `selectable(row)` | Pilihan medan `ref` modul lain | `false` = tidak boleh dipilih (cth. ruang tidak aktif) |
+| `beforeStatus(row, newStatus, ctx)` | Sebelum status berubah | Lontar ralat untuk menghalang (cth. semak semula pertindihan semasa lulus) |
+| `routes` | — | Laluan API khusus: `{ '<key>.nama': { role: 'PUBLIC'\|'USER'\|'ADMIN', fn: function (payload, ctx) {…} } }` — nama mesti berawalan key modul |
 | `toDTO(dto, row, ctx)` | Sebelum dihantar ke frontend | Tambah medan kiraan |
 | `maintenance()` | Harian (~02:00) | Auto-tutup rekod lama, peringatan |
 
@@ -155,6 +159,19 @@ Cipta `src/frontend/modules/<key>.html` (akan dimasukkan oleh `npm run gen`) dan
 ```
 
 Nama yang boleh diganti: `crudList:<key>`, `crudDetail:<key>`, `crudForm:<key>`.
+
+Halaman baharu (cth. kalendar awam) & menu:
+
+```js
+KD.extraRoutes.push({ path: '/jadual', view: 'jadual', access: 'public', layout: 'public', title: 'Jadual' }); /* access: public | user | admin */
+KD.extraNav.user.push(['/jadual', 'calendar', 'Jadual']);      /* juga KD.extraNav.admin */
+KD.landingCards.push({ href: '/jadual', icon: 'calendar', title: 'Semak ketersediaan', text: '…' });
+KD.views.jadual = { async render(el, params, query) { … } };
+```
+
+Borang (awam/dalaman) boleh diisi awal melalui query URL: `#/borang/tempahan?ruang=<id>&tarikh=2026-10-12`.
+
+Data demo khusus: cipta `tools/seed-custom.js` (`module.exports = function ({ api, ok, sup, user, others, SecurityUtils }) {…}`) — menggantikan seed generik.
 
 > Peraturan Apps Script: dalam `<script>` fail HTML, **jangan tulis `//`** (komen baris atau URL literal). Apps Script membuang teks selepasnya. Guna `/* … */`. Ini disemak oleh `npm run check`.
 

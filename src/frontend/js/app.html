@@ -85,7 +85,8 @@
     });
     return out;
   }
-  const allRoutes = () => CORE_ROUTES.concat(moduleRoutes());
+  /** Laluan tambahan daripada paparan modul tersuai (src/frontend/modules/*.html): KD.extraRoutes.push({ path, view, access, layout, title }) */
+  const allRoutes = () => CORE_ROUTES.concat(KD.extraRoutes || [], moduleRoutes());
 
   function match(path) {
     const clean = path.split('?')[0] || '/';
@@ -170,11 +171,13 @@
   // ================================================================ APP SHELL
   const mods = () => KD.modules || [];
   const canCreate = (m) => m.access.create !== 'ADMIN' || auth.isAdmin();
+  /** Menu tambahan: KD.extraNav.user / KD.extraNav.admin = [[path, icon, label], …] */
+  const extraNav = (k) => ((KD.extraNav && KD.extraNav[k]) || []);
   const USER_NAV = () => [['/utama', 'home', 'Utama']]
-    .concat(mods().filter((m) => m.nav.user !== false).map((m) => [m.path, m.icon, m.labelPlural]))
+    .concat(mods().filter((m) => m.nav.user !== false).map((m) => [m.path, m.icon, m.labelPlural]), extraNav('user'))
     .concat([['/notifikasi', 'bell', 'Notifikasi'], ['/profil', 'user', 'Profil']]);
   const ADMIN_NAV = () => [['/admin', 'chart', 'Dashboard'], ['/admin/pengguna', 'users', 'Pengguna']]
-    .concat(mods().filter((m) => m.nav.admin !== false).map((m) => ['/admin' + m.path, m.icon, m.labelPlural]))
+    .concat(mods().filter((m) => m.nav.admin !== false).map((m) => ['/admin' + m.path, m.icon, m.labelPlural]), extraNav('admin'))
     .concat([
       ['/admin/kategori', 'grid', 'Kategori'], ['/admin/notifikasi', 'bell', 'Notifikasi'], ['/admin/maklum-balas', 'feedback', 'Maklum Balas'],
       ['/admin/audit', 'shield', 'Audit Log'], ['/admin/tetapan', 'settings', 'Tetapan'],
@@ -373,6 +376,9 @@
   KD.router = router;
   KD.app = app;
   KD.views = KD.views || {};
+  KD.extraRoutes = KD.extraRoutes || [];
+  KD.extraNav = KD.extraNav || { user: [], admin: [] };
+  KD.landingCards = KD.landingCards || [];
   KD.modules = KD.modules || [];
   KD.moduleOf = (key) => (KD.modules || []).filter((m) => m.key === key)[0] || null;
 })(window.KD);

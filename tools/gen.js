@@ -23,7 +23,7 @@ const ROOT = path.join(__dirname, '..');
 const MOD_DIR = path.join(ROOT, 'modules');
 const SRC = path.join(ROOT, 'src');
 
-const FIELD_TYPES = ['string', 'text', 'email', 'phone', 'int', 'number', 'date', 'time', 'bool', 'enum', 'category', 'files'];
+const FIELD_TYPES = ['string', 'text', 'email', 'phone', 'int', 'number', 'date', 'time', 'bool', 'enum', 'category', 'ref', 'files'];
 const ROLES = ['PUBLIC', 'USER', 'ADMIN', 'SUPER_ADMIN'];
 const TONES = ['info', 'success', 'warn', 'danger', 'muted', 'brand'];
 const ICONS = ['home', 'send', 'list', 'grid', 'user', 'users', 'bell', 'heart', 'book', 'pdf', 'star', 'settings', 'shield', 'chart', 'activity',
@@ -106,7 +106,8 @@ function normalize(raw, file) {
     }
     if (f.type === 'files') f.maxFiles = f.maxFiles || 3;
     if (f.type === 'files' && f.search) err(where + ': medan files tidak boleh "search"');
-    if (f.filter && ['enum', 'category', 'bool'].indexOf(f.type) < 0) err(where + ': "filter" hanya untuk enum / category / bool');
+    if (f.filter && ['enum', 'category', 'bool', 'ref'].indexOf(f.type) < 0) err(where + ': "filter" hanya untuk enum / category / bool / ref');
+    if (f.type === 'ref' && !/^[a-z][a-z0-9]{1,19}$/.test(f.ref || '')) err(where + ': medan ref memerlukan "ref": "<key modul sasaran>"');
   });
   m.titleField = m.titleField || ((m.fields || []).find((f) => f.type === 'string') || {}).key || '';
   if (m.titleField && !keys[m.titleField]) err('"titleField" tidak wujud dalam fields: ' + m.titleField);
@@ -203,6 +204,9 @@ function plan() {
     if (m.key + '.json' !== f) throw new Error(f + ': nama fail mesti ' + m.key + '.json');
     return m;
   });
+  mods.forEach((m) => m.fields.filter((f) => f.type === 'ref').forEach((f) => {
+    if (!mods.some((x) => x.key === f.ref)) throw new Error(m.key + '.json: medan "' + f.key + '" merujuk modul "' + f.ref + '" yang tiada');
+  }));
   ['key', 'name', 'path', 'sheet', 'prefix'].forEach((k) => {
     const seen = {};
     mods.forEach((m) => { if (seen[m[k]]) throw new Error('"' + k + '" berganda antara modul: ' + m[k]); seen[m[k]] = true; });

@@ -15,6 +15,8 @@
  *   afterStatus(row, prevStatus, ctx) → kesan sampingan selepas status berubah
  *   toDTO(dto, row, ctx)            → tambah/ubah medan yang dihantar ke frontend
  *   visible(row, ctx)               → false untuk sembunyikan rekod daripada senarai bukan-admin (cth. pengumuman tamat)
+ *   selectable(row)                 → false untuk sembunyikan rekod daripada pilihan medan `ref` modul lain (lalai: visible)
+ *   beforeStatus(row, newStatus, ctx) → lontar ralat untuk menghalang perubahan status (cth. semak semula pertindihan semasa lulus)
  *   maintenance()                   → kerja harian (cth. auto-tutup rekod lama); pulangkan ringkasan
  *   info = { ctx, mode, current }
  */
@@ -123,6 +125,7 @@ const CrudEngine = {
       case 'bool': return Object.assign(base, { type: 'boolean' });
       case 'enum': return Object.assign(base, { type: 'enum', caseSensitive: true, values: (f.options || []).map(function (o) { return o.value; }) });
       case 'category': return Object.assign(base, { type: 'id', prefix: 'C' });
+      case 'ref': return Object.assign(base, { type: 'string', max: 40, pattern: /^[A-Z]{1,3}-[0-9A-F]{16}$/ });
       case 'files': return Object.assign(base, { type: 'array', max: f.maxFiles || 3 });
       default: throw new Error('Jenis medan tidak disokong: ' + f.type);
     }
@@ -179,6 +182,7 @@ const CrudEngine = {
         const cat = CategoryRepository.findById(data[f.key]);
         if (!cat || cat.status !== CATEGORY_STATUS.ACTIVE) { errors[f.key] = f.label + ' tidak sah.'; return; }
       }
+      if (f.type === 'ref' && !CrudEngine.refSelectable(f, data[f.key])) { errors[f.key] = f.label + ' tidak sah.'; return; }
       row[f.column] = data[f.key];
     });
     // Medan kategori wajib tetapi tidak dipilih → kategori lalai (jika hanya satu kategori aktif, UI menyembunyikan pilihan)
@@ -196,6 +200,54 @@ const CrudEngine = {
     }
     if (Object.keys(errors).length) throw Errors.validation(errors[Object.keys(errors)[0]], errors);
     return { row: row, files: files, data: data };
+  },
+
+  // ================================================================== Medan rujukan (ref) ke modul lain
+
+  /** Tajuk paparan rekod (titleField atau no. rujukan). */
+  titleOf: function (def, row) {
+    return (def.titleField && row[CrudEngine.column(def, def.titleField)]) || row.ref_no || row.id;
+  },
+
+  /** Tajuk rekod modul `key` mengikut ID ('' jika tiada). Cache permintaan repository menjadikannya murah. */
+  refTitle: function (key, id) {
+    try {
+      const def = CrudEngine.get(key);
+      const row = CrudEngine.repo(def).findById(id);
+      return row ? String(CrudEngine.titleOf(def, row)) : '';
+    } catch (e) { return ''; }
+  },
+
+  /** Boleh dipilih: wujud, aktif, dan lulus hook selectable (atau visible) modul sasaran. */
+  isSelectable: function (target, row) {
+    if (!row || row.state !== RECORD_STATE.ACTIVE) return false;
+    const h = CrudEngine.hooks(target);
+    const fn = h.selectable || h.visible;
+    return !fn || fn(row, null) !== false;
+  },
+
+  refSelectable: function (f, id) {
+    const target = CrudEngine.get(f.ref);
+    return CrudEngine.isSelectable(target, CrudEngine.repo(target).findById(String(id)));
+  },
+
+  /** Pilihan untuk medan ref: [{value, label, hint}] tersusun ikut label. */
+  refOptions: function (f) {
+    const target = CrudEngine.get(f.ref);
+    const sub = target.subtitleField ? CrudEngine.column(target, target.subtitleField) : '';
+    return CrudEngine.repo(target).all()
+      .filter(function (r) { return CrudEngine.isSelectable(target, r); })
+      .map(function (r) { return { value: r.id, label: String(CrudEngine.titleOf(target, r)), hint: sub ? String(r[sub] || '') : '' }; })
+      .sort(function (a, b) { return a.label.localeCompare(b.label, 'ms', { numeric: true }); });
+  },
+
+  /** Laluan crud.refOptions — pengguna log masuk (borang dalaman). */
+  refOptionsFor: function (ctx, payload) {
+    const def = CrudEngine.get(payload && payload.module);
+    const f = def.fields.filter(function (x) { return x.key === String(payload.field || '') && x.type === 'ref'; })[0];
+    if (!f) throw Errors.badRequest('Medan tidak sah.');
+    if (f.adminOnly && !CrudEngine.isAdmin(ctx)) throw Errors.forbidden();
+    return CrudEngine.refOptions(f);
   },
 
   // ================================================================== DTO
@@ -227,6 +279,7 @@ const CrudEngine = {
       const v = CrudEngine.outValue(f, row[f.column]);
       values[f.key] = v;
       if (f.type === 'category') labels[f.key] = cats[v] ? cats[v].name_ms : '';
+      if (f.type === 'ref') labels[f.key] = v ? CrudEngine.refTitle(f.ref, v) : '';
       if (f.type === 'enum') {
         const o = (f.options || []).filter(function (op) { return op.value === v; })[0];
         labels[f.key] = o ? o.label : v;
@@ -513,6 +566,8 @@ const CrudEngine = {
       note: { type: 'text', max: 500, label: 'Catatan' }
     });
     if (data.status === row.status && !data.note) return CrudEngine.toDTO(def, row, ctx);
+    const hs = CrudEngine.hooks(def);
+    if (hs.beforeStatus && data.status !== row.status) hs.beforeStatus(row, data.status, ctx);
     const prev = row.status;
     const now = DateUtils.nowIso();
     const updated = CrudEngine.repo(def).update(row.id, {
@@ -547,7 +602,11 @@ const CrudEngine = {
     if (!SettingsService.get('ALLOW_PUBLIC_SUBMISSION')) throw Errors.forbidden('Borang awam ditutup buat sementara.');
     const meta = CrudEngine.meta().filter(function (m) { return m.key === def.key; })[0];
     meta.fields = meta.fields.filter(function (f) { return f.public !== false && !f.adminOnly && !f.readonly; });
-    return { module: meta, formToken: SecurityUtils.signFormToken('crud:' + def.key) };
+    const refOptions = {};
+    def.fields.forEach(function (f) {
+      if (f.type === 'ref' && meta.fields.some(function (m) { return m.key === f.key; })) refOptions[f.key] = CrudEngine.refOptions(f);
+    });
+    return { module: meta, formToken: SecurityUtils.signFormToken('crud:' + def.key), refOptions: refOptions };
   },
 
   publicCreate: function (ctx, payload) {
@@ -563,7 +622,9 @@ const CrudEngine = {
       throw Errors.validation('Borang telah tamat tempoh atau dihantar terlalu cepat. Muat semula halaman dan cuba lagi.');
     }
     SecurityService.rateLimit('crud.publicCreate.global', 'all');
-    SecurityService.rateLimit('crud.publicCreate', def.key + ':' + String((payload && payload[def.publicForm && def.publicForm.contactEmailField]) || 'anon'));
+    const pf = def.publicForm || {};
+    const rateKey = payload && (payload[pf.rateKeyField] || payload[pf.contactEmailField]);
+    SecurityService.rateLimit('crud.publicCreate', def.key + ':' + String(rateKey || 'anon').toLowerCase().slice(0, 100));
     const logged = ctx && ctx.userId;
     const nameField = def.publicForm && def.publicForm.nameField;
     const publicName = nameField && payload && typeof payload[nameField] === 'string' ? StringUtils.truncate(StringUtils.singleLine(StringUtils.stripTags(payload[nameField])), CONFIG.NAME_MAX) : '';
