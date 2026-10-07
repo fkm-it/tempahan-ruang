@@ -182,7 +182,7 @@
           <div class="row row-wrap mt-2"><span class="rec-ref">${d.refNo}</span>${statusBadge(m, d.status)}${d.state === 'DELETED' ? html`<span class="badge badge-danger">Dipadam</span>` : ''}</div></div>
         <div class="row row-wrap">
           ${KD.detailActions && KD.detailActions[m.key] ? KD.detailActions[m.key](d, m) : ''}
-          ${d.canSetStatus ? html`<button class="btn btn-primary" data-act="status">${icon('refresh')}Tukar status</button>` : ''}
+          ${d.canSetStatus && (!d.nextStatuses || d.nextStatuses.length) && !(KD.hideStatusButton && KD.hideStatusButton[m.key]) ? html`<button class="btn ${KD.detailActions && KD.detailActions[m.key] ? 'btn-outline' : 'btn-primary'}" data-act="status">${icon('refresh')}Tukar status</button>` : ''}
           ${d.canEdit ? html`<a class="btn btn-outline" href="#${basePath(m, r)}/${d.id}/sunting">${icon('edit')}Sunting</a>` : ''}
           ${d.canDelete ? html`<button class="btn btn-outline" data-act="delete" aria-label="Padam">${icon('trash')}</button>` : ''}
           ${d.state === 'DELETED' && isAdmin() ? html`<button class="btn btn-outline" data-act="restore">${icon('refresh')}Pulihkan</button>` : ''}
@@ -190,6 +190,7 @@
         <div class="form-layout">
           <section class="panel">
             <dl class="rec-detail__meta">${fields.map((f) => html`<div class="${wide(f) ? 'field-wide' : ''}"><dt>${f.label}${f.adminOnly ? html` <span class="badge badge-muted">Dalaman</span>` : ''}</dt><dd>${valueText(f, d)}</dd></div>`)}</dl>
+            <div data-detail-extra></div>
             ${d.attachments && d.attachments.length ? html`<div class="mt-6"><div class="label">Lampiran</div><div class="att-list mt-2">${d.attachments.map((a) => html`<div>
               <div class="att-row">${icon('clip', 'i-sm')}<span class="grow">${a.filename}</span><span class="xs muted">${fmtBytes(a.size)}</span><button class="btn btn-ghost btn-sm" data-att="${a.id}">${a.mimeType.indexOf('image/') === 0 ? 'Lihat' : 'Muat turun'}</button></div>
               <div data-att-view="${a.id}"></div></div>`)}</div></div>` : ''}
@@ -206,6 +207,8 @@
           </aside>
         </div>`.s;
 
+      /* Paparan tambahan khusus modul selepas butiran dipapar: KD.detailAfter[<modul>] = (dto, el, meta) => {…} */
+      if (KD.detailAfter && KD.detailAfter[m.key]) { try { KD.detailAfter[m.key](d, el, m); } catch (err) { console.error(err); } }
       on(el, 'click', '[data-att]', async (e, b) => busy(b, async () => {
         const target = qs('[data-att-view="' + b.getAttribute('data-att') + '"]', el);
         try {
@@ -227,7 +230,7 @@
         const md = modal({
           title: 'Tukar status',
           body: html`<form data-status-form novalidate>
-            <div class="field"><label class="label" for="st-status">Status</label><select class="select" id="st-status" name="status">${m.statuses.map((x) => html`<option value="${x.value}" ${x.value === d.status ? raw('selected') : ''}>${x.label}</option>`)}</select></div>
+            <div class="field"><label class="label" for="st-status">Status</label><select class="select" id="st-status" name="status">${m.statuses.filter((x) => x.value === d.status || !d.nextStatuses || d.nextStatuses.indexOf(x.value) >= 0).map((x) => html`<option value="${x.value}" ${x.value === d.status ? raw('selected') : ''}>${x.label}</option>`)}</select></div>
             <div class="field"><label class="label" for="st-note">Catatan (dihantar kepada pemohon)</label><textarea class="textarea" id="st-note" name="note" maxlength="500">${d.statusNote || ''}</textarea></div></form>`,
           foot: html`<button class="btn btn-outline" data-close>Batal</button><button class="btn btn-primary" data-save>Simpan</button>`
         });

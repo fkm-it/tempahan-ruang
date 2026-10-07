@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [1.4.0] — 2026-10-07
+
+### Ditambah
+- **PIC buka ruang (pembantu operasi)**: modul *Pembantu Operasi* (nama, no. WhatsApp, emel) dan PIC lalai pada setiap ruang.
+  - Butang **Luluskan** (dengan pilihan PIC, cadangan ikut ruang) dan **Tolak** (sebab wajib) pada butiran tempahan — sesuai untuk telefon.
+  - **Tugaskan / tukar PIC** bagi tempahan diluluskan; PIC lama dimaklumkan pembatalan. Juga dalam *Tempah bagi pihak*.
+  - PIC diemel secara automatik; butang **WhatsApp (wa.me)** dengan mesej siap ditulis untuk admin tekan Hantar.
+  - **Pautan pengesahan tanpa log masuk** (`#/tugas`): PIC tekan "Sudah selesai" (+ catatan) → admin dimaklumkan (app + telefon). Pautan bertandatangan HMAC, tidak boleh diteka, luput 7 hari selepas tugasan, diganti bila PIC/tarikh berubah.
+  - **Log Kerja** (modul Tugasan): rekod setiap tugasan — PIC, ruang, tarikh, status (Ditugaskan / Selesai / Dibatalkan), siapa menugaskan, bila disahkan, catatan PIC; tapis ikut PIC/ruang, eksport CSV.
+  - Tempahan dibatalkan / ditolak / dipadam → tugasan dibatalkan & PIC diemel. Tempahan disunting (ruang/tarikh/masa) → tugasan dikemas kini & PIC diemel.
+  - Emel peringatan pagi kepada PIC bagi tugasan hari ini (ikut tetapan peringatan pagi).
+- **Makluman permohonan baharu kepada admin** dengan butiran lengkap (pemohon, ruang, tarikh, masa, tujuan) dalam app, **telefon (push)** dan emel.
+- **Peringatan admin**: ringkasan permohonan yang masih menunggu lebih daripada N jam (lalai 24; Tetapan tempahan) atau untuk hari ini/esok — sekali sehari bagi setiap tempahan, dalam waktu operasi.
+- **Notifikasi telefon melalui backend Supabase**: pelayan membaris gilir (outbox `push`), pekerja Apps Script menghantar FCM (akaun servis kekal di Apps Script sahaja) dan melaporkan token mati. Aktif automatik sebaik Firebase dikonfigurasi.
+
+### Diubah
+- **Kawalan peralihan status** (generik: `transitions` dalam `modules/*.json`). Tempahan: Dibatalkan & Selesai ialah status akhir; Ditolak boleh dibuka semula (→ Menunggu) hanya jika slot masih kosong. Dialog "Tukar status" hanya memaparkan pilihan sah.
+- Enjin: hook generik `afterUpdate`, `afterRemove`, `createdMessage`; paparan `KD.detailAfter[<modul>]`.
+- Lencana status dalam senarai tidak lagi terpotong pada telefon.
+
 ## [1.3.1] — 2026-10-06
 
 ### Ditambah

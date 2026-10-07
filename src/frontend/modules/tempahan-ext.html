@@ -542,8 +542,10 @@
         <section class="tp-card"><h2>${icon('bell')}Peringatan emel kepada pemohon</h2><p class="small muted mb-4">Peringatan sehari sebelum (H-1) sentiasa dihantar untuk tempahan diluluskan.</p>
           <div class="tp-row2"><div class="field"><label class="label" for="tt-pagi">Peringatan pagi hari tempahan (jam)</label><select class="select" id="tt-pagi" name="peringatanPagi">${hours(s.peringatanPagi, 'Tutup')}</select><span class="hint">Cth. 7 = dihantar sekitar 7:00 pagi.</span></div>
             <div class="field"><label class="label" for="tt-jam">Peringatan sebelum masa mula (jam)</label><select class="select" id="tt-jam" name="peringatanJam">${hours(s.peringatanJam, 'Tutup')}</select><span class="hint">Dihantar sekali sehari, beberapa jam sebelum slot bermula.</span></div></div></section>
+        <section class="tp-card"><h2>${icon('shield')}Peringatan kepada pentadbir</h2><p class="small muted mb-4">Ringkasan permohonan yang masih menunggu kelulusan dihantar ke app, telefon dan emel pentadbir (dalam waktu operasi, sekali sehari bagi setiap tempahan). Permohonan untuk hari ini / esok sentiasa dimasukkan.</p>
+          <div class="field"><label class="label" for="tt-admin">Ingatkan jika menunggu lebih daripada</label><select class="select" id="tt-admin" name="peringatanAdmin">${[[0, 'Tutup'], [4, '4 jam'], [8, '8 jam'], [24, '24 jam (1 hari)'], [48, '48 jam (2 hari)'], [72, '72 jam (3 hari)']].map((o) => html`<option value="${o[0]}" ${Number(s.peringatanAdmin) === o[0] ? 'selected' : ''}>${o[1]}</option>`)}</select></div></section>
         <section class="tp-card"><h2>${icon('mail')}Notifikasi emel</h2>
-          <div class="field"><label class="label" for="tt-emel">Emel pentadbir (penerima notifikasi tempahan baharu)</label><input class="input" id="tt-emel" name="emelAdmin" maxlength="500" value="${s.emelAdmin}" placeholder="admin@utm.my, ketua@utm.my"><span class="hint">Boleh beberapa alamat, dipisah koma. PIC ruang menerima emel bila ruangnya diluluskan/dibatalkan.</span></div>
+          <div class="field"><label class="label" for="tt-emel">Emel pentadbir (penerima notifikasi tempahan baharu)</label><input class="input" id="tt-emel" name="emelAdmin" maxlength="500" value="${s.emelAdmin}" placeholder="admin@utm.my, ketua@utm.my"><span class="hint">Boleh beberapa alamat, dipisah koma. PIC ruang menerima emel bila ruangnya diluluskan/dibatalkan. Pembantu operasi menerima emel tugasan bila ditugaskan.</span></div>
           <label class="tp-checkline"><input type="checkbox" name="emelAktif" ${s.emelAktif ? 'checked' : ''}>Hantar emel notifikasi</label>
           <label class="tp-checkline"><input type="checkbox" name="papanTujuan" ${s.papanTujuan ? 'checked' : ''}>Papar tujuan tempahan pada Papan Paparan awam (nama pemohon tidak pernah dipaparkan)</label></section>
         <div class="tp-actions"><button class="btn btn-primary" type="submit">${icon('check')}Simpan tetapan</button></div>
@@ -567,7 +569,7 @@
           const p = {
             waktuMula: f.elements.waktuMula.value, waktuTamat: f.elements.waktuTamat.value,
             hari: qsa('input[name="hari"]:checked', f).map((c) => Number(c.value)), tutup,
-            pelajar: f.elements.pelajar.checked, peringatanPagi: Number(f.elements.peringatanPagi.value), peringatanJam: Number(f.elements.peringatanJam.value),
+            pelajar: f.elements.pelajar.checked, peringatanPagi: Number(f.elements.peringatanPagi.value), peringatanJam: Number(f.elements.peringatanJam.value), peringatanAdmin: Number(f.elements.peringatanAdmin.value),
             emelAdmin: f.elements.emelAdmin.value, emelAktif: f.elements.emelAktif.checked, papanTujuan: f.elements.papanTujuan.checked
           };
           try {
@@ -591,7 +593,9 @@
       el.innerHTML = html`<div class="page-head"><div><h1>Tempah bagi pihak pemohon</h1><p>Tempahan di sini terus diluluskan. Hari bukan operasi (cth. Sabtu &amp; Ahad) dibenarkan; tarikh tutup, waktu operasi dan pertindihan tetap disemak.</p></div></div><div data-box>${skeletonList(3)}</div>`.s;
       const box = qs('[data-box]', el);
       let rooms = [];
+      let pics = [];
       try { rooms = await KD.api.refOptions('tempahan', 'ruang'); } catch (err) { box.innerHTML = errorState(err).s; return; }
+      try { pics = await KD.api.refOptions('tugasan', 'pembantu'); } catch (err) { pics = []; }
       const w = waktu();
       const st = { jenis: 'STAF' };
       const v = { ruang: query.ruang || '', tarikh: P.isKey(query.tarikh) ? query.tarikh : todayKey(), masaMula: query.masaMula || w.mula, masaTamat: query.masaTamat || P.hm(Math.min(P.mins(w.mula) + 120, P.mins(w.tamat))), hantarEmel: true };
@@ -613,6 +617,7 @@
             <div class="field"><label class="label" for="bp-akhir">Masa tamat</label>${timeInput('bp-akhir', 'masaTamat', v.masaTamat, w)}</div>
           </div>
           <div class="field"><label class="label" for="bp-tujuan">Tujuan</label><textarea class="textarea" id="bp-tujuan" name="tujuan" rows="3" maxlength="500" placeholder="cth. Program Hari Terbuka FKM">${v.tujuan || ''}</textarea></div>
+          ${pics.length ? html`<div class="field"><label class="label" for="bp-pic">PIC buka ruang (pilihan)</label><select class="select" id="bp-pic" name="pembantu"><option value="">— Tanpa PIC —</option>${pics.map((o) => html`<option value="${o.value}" ${o.value === v.pembantu ? 'selected' : ''}>${o.label}</option>`)}</select><span class="hint">PIC menerima emel tugasan; butang WhatsApp dipaparkan selepas disimpan.</span></div>` : ''}
           <label class="tp-checkline"><input type="checkbox" name="hantarEmel" ${v.hantarEmel ? 'checked' : ''}>Hantar emel pengesahan kepada pemohon</label>
           <div data-check></div>
           <div class="tp-actions"><button class="btn btn-outline" type="button" data-act="check">${icon('search')}Semak kekosongan</button><button class="btn btn-primary" type="submit">${icon('check')}Simpan &amp; luluskan</button><button class="btn btn-ghost" type="button" data-act="clear" style="margin-left:auto">${icon('x')}Kosongkan borang</button></div>
@@ -625,6 +630,7 @@
         const p = { jenisPemohon: st.jenis, noStaf: g('noStaf'), nama: g('nama'), emel: g('emel'), noTelefon: g('noTelefon'), ruang: g('ruang'), tarikh: g('tarikh'), masaMula: g('masaMula'), masaTamat: g('masaTamat'), tujuan: g('tujuan'), hantarEmel: fm.elements.hantarEmel.checked };
         if (g('tarikhTamat')) p.tarikhTamat = g('tarikhTamat');
         if (g('bilanganPeserta')) p.bilanganPeserta = Number(g('bilanganPeserta'));
+        if (fm.elements.pembantu && g('pembantu')) p.pembantu = g('pembantu');
         return p;
       };
       render();
@@ -658,7 +664,8 @@
           try {
             const r = await KD.api.call('tempahan.bagiPihak', p);
             toast('Tempahan ' + r.refNo + ' disimpan & diluluskan.');
-            qs('[data-check]', box).innerHTML = html`<div class="tp-check is-ok">${icon('check', 'i-sm')}<div>Tempahan <b>${r.refNo}</b> diluluskan. <a href="#/admin/tempahan/${r.id}">Buka rekod</a></div></div>`.s;
+            qs('[data-check]', box).innerHTML = html`<div class="tp-check is-ok">${icon('check', 'i-sm')}<div>Tempahan <b>${r.refNo}</b> diluluskan. <a href="#/admin/tempahan/${r.id}">Buka rekod</a>
+              ${r.tugasan ? html`<div class="mt-2">PIC: <b>${r.tugasan.pic}</b>${r.tugasan.waUrl ? html` · <a class="btn btn-wa btn-sm" href="${r.tugasan.waUrl}" target="_blank" rel="noopener">${icon('chat')}WhatsApp PIC</a>` : ''}</div>` : ''}</div></div>`.s;
           } catch (err) {
             if (!fieldErrors(fm, err)) toastError(err);
             if (err.code === 'CONFLICT') qs('[data-check]', box).innerHTML = checkHtml({ kind: 'bad', msg: err.message }).s;

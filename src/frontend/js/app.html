@@ -398,6 +398,8 @@
   KD.publicNav = KD.publicNav || [];
   /** Butang tambahan di halaman butiran rekod: KD.detailActions[<modul>] = (dto, meta) => html`…` */
   KD.detailActions = KD.detailActions || {};
+  KD.detailAfter = KD.detailAfter || {};
+  KD.hideStatusButton = KD.hideStatusButton || {};
   KD.modules = KD.modules || [];
   KD.moduleOf = (key) => (KD.modules || []).filter((m) => m.key === key)[0] || null;
 })(window.KD);

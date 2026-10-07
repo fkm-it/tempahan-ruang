@@ -10,6 +10,9 @@
  *   - Masa dalam waktu operasi, mula < tamat; tarikh tidak lepas (kecuali admin); maksimum 14 hari berturut.
  *   - Bilangan peserta ≤ kapasiti ruang.
  * Tempahan berbilang hari = slot masa yang SAMA setiap hari dari `tarikh` hingga `tarikhTamat`.
+ * Peralihan status dikawal (modules/tempahan.json → transitions): DIBATALKAN & SELESAI ialah status akhir;
+ * DITOLAK boleh dibuka semula (→ MENUNGGU) jika slot masih kosong.
+ * Kelulusan boleh menugaskan PIC (pembantu operasi) untuk membuka ruang — lihat TugasanHooks.
  */
 const TempahanHooks = {
   /** Status yang "memegang" slot (menghalang tempahan lain). */
@@ -234,8 +237,13 @@ const TempahanHooks = {
     if (changed) { row.peringatan_dihantar = ''; row.peringatan_jam_dihantar = ''; row.peringatan_pagi_dihantar = ''; }
   },
 
-  /** Semak semula semasa lulus: tidak boleh bertindih dengan tempahan lain yang SUDAH diluluskan. */
+  /** Semak semula semasa lulus (vs tempahan DILULUSKAN) dan semasa buka semula (vs tempahan aktif). */
   beforeStatus: function (row, newStatus) {
+    if (newStatus === 'MENUNGGU') {
+      const c0 = TempahanHooks.findConflict(TempahanHooks.slotOf(row), row.id);
+      if (c0) throw Errors.conflict('Tidak boleh dibuka semula: slot ini kini dipegang oleh ' + c0.ref_no + ' (' + c0.masa_mula + '–' + c0.masa_tamat + ').');
+      return;
+    }
     if (newStatus !== 'DILULUSKAN') return;
     const slot = TempahanHooks.slotOf(row);
     const c = TempahanHooks.findConflict(slot, row.id, ['DILULUSKAN']);
@@ -254,8 +262,29 @@ const TempahanHooks = {
   },
 
   afterStatus: function (row, prev, ctx) {
+    if (prev === 'DILULUSKAN' && row.status !== 'SELESAI') TugasanHooks.cancelFor(row, 'Tempahan ' + row.ref_no + ' ' + CrudEngine.statusLabel(CrudEngine.get('tempahan'), row.status).toLowerCase() + '.');
     if (ctx && ctx.tpTanpaEmel) return;
     TempahanHooks.notifyStatus(row, prev);
+  },
+
+  /** Tempahan disunting: segerakkan tugasan PIC yang aktif (tarikh / masa / ruang). */
+  afterUpdate: function (row) { TugasanHooks.syncFor(row); },
+
+  /** Tempahan dipadam: batalkan tugasan PIC yang aktif. */
+  afterRemove: function (row) { TugasanHooks.cancelFor(row, 'Tempahan ' + row.ref_no + ' dipadam.'); },
+
+  /** Notifikasi admin (app + telefon + emel ADMIN_EMAIL) bagi permohonan baharu: cukup untuk membuat keputusan dari telefon. */
+  createdMessage: function (row) {
+    const jenis = row.jenis_pemohon === 'PELAJAR' ? 'Pelajar' : row.jenis_pemohon === 'LUAR' ? 'Pihak luar' : 'Staf';
+    const bm = Object.assign({}, row, { bahasa: 'ms' });
+    return {
+      message: (row.nama || 'Pemohon') + ' (' + jenis + ') · ' + TempahanHooks.ruangText(row) + ' · ' + TempahanHooks.dateText(row) + ', ' + row.masa_mula + '–' + row.masa_tamat +
+        ' · ' + StringUtils.truncate(String(row.tujuan || ''), 80),
+      lines: ['Permohonan tempahan baharu menunggu kelulusan:'].concat(TempahanHooks.details(bm), [
+        'Pemohon: ' + (row.nama || '-') + ' (' + jenis + (row.no_staf ? ', ' + row.no_staf : '') + ')' + (row.no_telefon ? ' · ' + row.no_telefon : ''),
+        row.bilangan_peserta ? 'Bilangan peserta: ' + row.bilangan_peserta : ''
+      ]).filter(Boolean)
+    };
   },
 
   toDTO: function (dto, row) {
@@ -382,7 +411,7 @@ const TempahanHooks = {
   /** Setiap jam: peringatan N jam sebelum masa mula (tetapan PERINGATAN_JAM; 0 = tutup). */
   hourly: function () {
     const hours = Number(SettingsService.get('PERINGATAN_JAM')) || 0;
-    const out = { peringatanJam: 0, peringatanPagi: TempahanHooks.morningReminders() };
+    const out = { peringatanJam: 0, peringatanPagi: TempahanHooks.morningReminders(), peringatanAdmin: TempahanHooks.adminReminders() };
     if (hours <= 0) return out;
     const today = TempahanHooks.today();
     const nowMin = TempahanHooks.toMin(TempahanHooks.nowHM());
@@ -418,6 +447,43 @@ const TempahanHooks = {
     const n = Object.keys(patch).length;
     if (n) repo.updateMany(patch);
     return n;
+  },
+
+  /**
+   * Setiap jam (dalam waktu operasi): ingatkan admin tentang permohonan MENUNGGU yang sudah lama (≥ PERINGATAN_ADMIN_JAM jam)
+   * atau yang tarikhnya hari ini / esok. Satu ringkasan (app + telefon + emel ADMIN_EMAIL); setiap tempahan sekali sehari.
+   * @return {number} bilangan tempahan dalam ringkasan
+   */
+  adminReminders: function () {
+    const jam = Number(SettingsService.get('PERINGATAN_ADMIN_JAM'));
+    if (!(jam > 0)) return 0;
+    const w = TempahanHooks.waktu();
+    const nowHm = TempahanHooks.nowHM();
+    if (nowHm < w.mula || nowHm >= w.tamat) return 0;
+    const today = TempahanHooks.today();
+    const esok = TempahanHooks.addDaysKey(today, 1);
+    const cutoff = new Date(Date.now() - jam * 3600000).toISOString();
+    const repo = Repo.of('TEMPAHAN');
+    const list = repo.all().filter(function (r) {
+      if (r.state !== RECORD_STATE.ACTIVE || r.status !== 'MENUNGGU' || r.peringatan_admin_dihantar === today) return false;
+      return r.tarikh <= esok || String(r.created_at) <= cutoff;
+    }).sort(function (a, b) { return a.tarikh < b.tarikh ? -1 : a.tarikh > b.tarikh ? 1 : (a.masa_mula < b.masa_mula ? -1 : 1); });
+    if (!list.length) return 0;
+    const urgent = list.filter(function (r) { return r.tarikh <= esok; }).length;
+    const title = list.length + ' tempahan menunggu kelulusan' + (urgent ? ' (' + urgent + ' untuk hari ini/esok)' : '');
+    const lines = list.slice(0, 15).map(function (r) {
+      return r.ref_no + ' · ' + TempahanHooks.ruangText(r) + ' · ' + TempahanHooks.dateText(r) + ' ' + r.masa_mula + ' · ' + (r.nama || '') + (r.tarikh <= esok ? ' · SEGERA' : '');
+    });
+    NotificationService.notifyAdmins(NOTIF_TYPE.RECORD_CREATED, title, lines.slice(0, 3).join(' | ') + (list.length > 3 ? ' …' : ''), '', '#/admin/tempahan?status=MENUNGGU');
+    const adminEmail = SettingsService.get('ADMIN_EMAIL');
+    if (adminEmail) {
+      NotificationService.email(adminEmail, title, ['Permohonan berikut masih menunggu tindakan:'].concat(lines, list.length > 15 ? ['… dan ' + (list.length - 15) + ' lagi.'] : [],
+        ['Permohonan yang tidak diproses sebelum tarikhnya akan dibatalkan secara automatik.']), { path: '#/admin/tempahan?status=MENUNGGU' });
+    }
+    const patch = {};
+    list.forEach(function (r) { patch[r.id] = { peringatan_admin_dihantar: today }; });
+    repo.updateMany(patch);
+    return list.length;
   },
 
   toMin: function (hm) { const p = String(hm || '0:0').split(':'); return Number(p[0]) * 60 + Number(p[1]); },
@@ -533,6 +599,7 @@ const TempahanHooks = {
       status_changed_at: now, status_changed_by: 'Pemohon', updated_at: now
     });
     AppCache.remove('stats:admin');
+    if (prev === 'DILULUSKAN') TugasanHooks.cancelFor(updated, 'Tempahan ' + row.ref_no + ' dibatalkan oleh pemohon.');
     AuditService.log({ role: ROLES.PUBLIC }, AUDIT_ACTIONS.RECORD_STATUS, 'TEMPAHAN', row.id, prev + ' → DIBATALKAN · oleh pemohon');
     NotificationService.notifyAdmins(NOTIF_TYPE.RECORD_STATUS, 'Tempahan dibatalkan: ' + row.ref_no,
       row.nama + ' membatalkan tempahan ' + TempahanHooks.ruangText(row) + ' (' + TempahanHooks.dateText(row) + ').', row.id, '#/admin/tempahan/' + row.id);
@@ -686,7 +753,70 @@ const TempahanHooks = {
     const c = Object.assign({}, ctx, { tpBagiPihak: true, tpTanpaEmel: !hantarEmel });
     const dto = CrudEngine.create(c, body);
     const done = CrudEngine.setStatus(c, { module: 'tempahan', id: dto.id, status: 'DILULUSKAN', note: 'Ditempah oleh pentadbir bagi pihak pemohon.' });
-    return { id: dto.id, refNo: dto.refNo, status: done.status };
+    const out = { id: dto.id, refNo: dto.refNo, status: done.status };
+    if (payload && payload.pembantu) {
+      const tg = TugasanHooks.assign(ctx, Repo.of('TEMPAHAN').findById(dto.id), { pembantu: payload.pembantu });
+      out.tugasan = { id: tg.id, refNo: tg.refNo, waUrl: tg.waUrl || '', pic: tg.labels.pembantu || '' };
+    }
+    return out;
+  },
+
+  // ================================================================== Kelulusan & PIC (pembantu operasi)
+
+  /** Baris tempahan untuk tindakan admin (NOT_FOUND seragam). */
+  adminRow: function (id) {
+    const row = Repo.of('TEMPAHAN').findById(String(id || ''));
+    if (!row || row.state !== RECORD_STATE.ACTIVE) throw Errors.notFound('Tempahan');
+    return row;
+  },
+
+  picRule: function () { return { type: 'string', max: 40, pattern: /^PO-[0-9A-F]{16}$/, label: 'PIC' }; },
+
+  /** Admin: lulus + (pilihan) tugaskan PIC dalam satu tindakan — direka untuk telefon. */
+  lulus: function (payload, ctx) {
+    const p = Validator.validate(payload, {
+      id: { type: 'string', required: true, max: 40, pattern: /^TP-[0-9A-F]{16}$/, label: 'Tempahan' },
+      note: { type: 'text', max: 500, label: 'Catatan' },
+      pembantu: TempahanHooks.picRule(),
+      arahan: { type: 'text', max: 500, label: 'Arahan' },
+      hantarEmel: { type: 'boolean', default: true }
+    });
+    const row = TempahanHooks.adminRow(p.id);
+    /* Semak PIC dahulu supaya tempahan tidak diluluskan dengan PIC yang tidak sah */
+    if (p.pembantu) {
+      const pic = Repo.of('PEMBANTU').findById(p.pembantu);
+      if (!pic || !CrudEngine.isSelectable(CrudEngine.get('pembantu'), pic)) throw Errors.validation('Pilih pembantu operasi yang aktif.', { pembantu: 'Tidak sah.' });
+    }
+    const dto = row.status === 'DILULUSKAN' ? CrudEngine.toDTO(CrudEngine.get('tempahan'), row, ctx)
+      : CrudEngine.setStatus(ctx, { module: 'tempahan', id: row.id, status: 'DILULUSKAN', note: p.note || '' });
+    const out = { id: dto.id, refNo: dto.refNo, status: dto.status, tugasan: null };
+    if (p.pembantu) out.tugasan = TugasanHooks.assign(ctx, Repo.of('TEMPAHAN').findById(row.id), { pembantu: p.pembantu, arahan: p.arahan, hantarEmel: p.hantarEmel });
+    return out;
+  },
+
+  /** Admin: tugaskan / tukar PIC bagi tempahan yang telah diluluskan. */
+  tugaskan: function (payload, ctx) {
+    const p = Validator.validate(payload, {
+      id: { type: 'string', required: true, max: 40, pattern: /^TP-[0-9A-F]{16}$/, label: 'Tempahan' },
+      pembantu: Object.assign(TempahanHooks.picRule(), { required: true }),
+      jenis: { type: 'enum', values: Object.keys(TugasanHooks.JENIS), default: 'BUKA', label: 'Jenis' },
+      arahan: { type: 'text', max: 500, label: 'Arahan' },
+      hantarEmel: { type: 'boolean', default: true }
+    });
+    const row = TempahanHooks.adminRow(p.id);
+    if (row.status !== 'DILULUSKAN') throw Errors.conflict('PIC hanya boleh ditugaskan bagi tempahan yang telah diluluskan.');
+    if (TempahanHooks.endDate(row) < TempahanHooks.today()) throw Errors.conflict('Tarikh tempahan telah berlalu.');
+    return TugasanHooks.assign(ctx, row, p);
+  },
+
+  /** Admin: tugasan bagi tempahan + cadangan PIC (pembantu ruang) + senarai pembantu aktif. */
+  tugasanList: function (payload, ctx) {
+    const p = Validator.validate(payload, { id: { type: 'string', required: true, max: 40, pattern: /^TP-[0-9A-F]{16}$/, label: 'Tempahan' } });
+    const row = TempahanHooks.adminRow(p.id);
+    const ruang = TempahanHooks.ruangOf(row);
+    const pilihan = CrudEngine.refOptions({ ref: 'pembantu' });
+    const cadangan = ruang && ruang.pembantu && pilihan.some(function (o) { return o.value === ruang.pembantu; }) ? ruang.pembantu : '';
+    return { items: TugasanHooks.forTempahan(ctx, row.id), cadangan: cadangan, pembantu: pilihan, status: row.status, bolehTugas: row.status === 'DILULUSKAN' && TempahanHooks.endDate(row) >= TempahanHooks.today() };
   },
 
   selesaiKini: function () { return { selesai: TempahanHooks.autoSelesai() }; },
@@ -696,7 +826,7 @@ const TempahanHooks = {
     const g = function (k) { return SettingsService.get(k); };
     return {
       waktuMula: w.mula, waktuTamat: w.tamat, hari: w.hari, tutup: w.tutup.slice().sort(function (a, b) { return a.t < b.t ? -1 : 1; }),
-      pelajar: !!g('PELAJAR_DIBENARKAN'), peringatanJam: g('PERINGATAN_JAM'), peringatanPagi: g('PERINGATAN_PAGI'),
+      pelajar: !!g('PELAJAR_DIBENARKAN'), peringatanJam: g('PERINGATAN_JAM'), peringatanPagi: g('PERINGATAN_PAGI'), peringatanAdmin: g('PERINGATAN_ADMIN_JAM'),
       emelAdmin: g('ADMIN_EMAIL') || '', emelAktif: !!g('NOTIFY_EMAIL_ENABLED'), papanTujuan: !!g('PAPAN_TUNJUK_TUJUAN')
     };
   },
@@ -724,6 +854,7 @@ const TempahanHooks = {
     if (p.pelajar !== undefined) ch.PELAJAR_DIBENARKAN = !!p.pelajar;
     if (p.peringatanJam !== undefined) ch.PERINGATAN_JAM = p.peringatanJam;
     if (p.peringatanPagi !== undefined) ch.PERINGATAN_PAGI = p.peringatanPagi;
+    if (p.peringatanAdmin !== undefined) ch.PERINGATAN_ADMIN_JAM = p.peringatanAdmin;
     if (p.emelAdmin !== undefined) ch.ADMIN_EMAIL = String(p.emelAdmin).split(',').map(function (e) { return e.trim(); }).filter(Boolean).join(', ');
     if (p.emelAktif !== undefined) ch.NOTIFY_EMAIL_ENABLED = !!p.emelAktif;
     if (p.papanTujuan !== undefined) ch.PAPAN_TUNJUK_TUJUAN = !!p.papanTujuan;
@@ -738,6 +869,9 @@ const TempahanHooks = {
     'tempahan.analitik': { role: 'ADMIN', fn: function (payload) { return TempahanHooks.analitik(payload); } },
     'tempahan.bagiPihak': { role: 'ADMIN', fn: function (payload, ctx) { return TempahanHooks.bagiPihak(payload, ctx); } },
     'tempahan.selesaiKini': { role: 'ADMIN', fn: function () { return TempahanHooks.selesaiKini(); } },
+    'tempahan.lulus': { role: 'ADMIN', fn: function (payload, ctx) { return TempahanHooks.lulus(payload, ctx); } },
+    'tempahan.tugaskan': { role: 'ADMIN', fn: function (payload, ctx) { return TempahanHooks.tugaskan(payload, ctx); } },
+    'tempahan.tugasan': { role: 'ADMIN', fn: function (payload, ctx) { return TempahanHooks.tugasanList(payload, ctx); } },
     'tempahan.tetapan': { role: 'ADMIN', fn: function () { return TempahanHooks.tetapan(); } },
     'tempahan.tetapanSimpan': { role: 'ADMIN', fn: function (payload, ctx) { return TempahanHooks.tetapanSimpan(payload, ctx); } },
     'tempahan.jadual': { role: 'PUBLIC', fn: function (payload, ctx) { return TempahanHooks.jadual(payload, ctx); } },

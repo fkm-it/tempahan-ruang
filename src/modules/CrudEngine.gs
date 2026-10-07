@@ -60,7 +60,7 @@ const CrudEngine = {
       return {
         key: def.key, name: def.name, label: def.label, labelPlural: def.labelPlural, description: def.description || '',
         icon: def.icon, path: def.path, prefix: def.prefix, sheet: def.sheet, nav: def.nav, access: def.access, statuses: def.statuses || [],
-        statusRole: def.statusRole, titleField: def.titleField, subtitleField: def.subtitleField || '',
+        statusRole: def.statusRole, titleField: def.titleField, subtitleField: def.subtitleField || '', transitions: def.transitions || null,
         publicForm: def.access.create === ROLES.PUBLIC ? (def.publicForm || {}) : null,
         fields: def.fields.map(function (f) {
           const o = Object.assign({}, f);
@@ -100,6 +100,17 @@ const CrudEngine = {
   canSetStatus: function (def, row, ctx) {
     if (!(def.statuses && def.statuses.length) || !row || row.state !== RECORD_STATE.ACTIVE) return false;
     return SecurityService.hasRole(ctx.role, def.statusRole || ROLES.ADMIN);
+  },
+
+  /**
+   * Status seterusnya yang dibenarkan daripada status semasa rekod.
+   * Tanpa `transitions` dalam modul: semua status lain. Dengan `transitions`: hanya yang disenaraikan (status akhir = []).
+   */
+  nextStatuses: function (def, row) {
+    const all = (def.statuses || []).map(function (s) { return s.value; });
+    const cur = row ? row.status : '';
+    if (!def.transitions) return all.filter(function (v) { return v !== cur; });
+    return (def.transitions[cur] || []).filter(function (v) { return all.indexOf(v) >= 0; });
   },
 
   /** Ambil rekod + semak akses. NOT_FOUND seragam (tidak dedahkan kewujudan rekod orang lain — IDOR). */
@@ -307,7 +318,8 @@ const CrudEngine = {
       updatedAt: row.updated_at,
       canEdit: CrudEngine.canEdit(def, row, ctx),
       canDelete: CrudEngine.canDelete(def, row, ctx),
-      canSetStatus: CrudEngine.canSetStatus(def, row, ctx)
+      canSetStatus: CrudEngine.canSetStatus(def, row, ctx),
+      nextStatuses: CrudEngine.canSetStatus(def, row, ctx) ? CrudEngine.nextStatuses(def, row) : []
     };
     if (x.attachments) {
       dto.attachments = x.attachments.map(function (a) {
@@ -533,6 +545,7 @@ const CrudEngine = {
     }
     removing.forEach(function (a) { DriveService.trash(a.drive_file_id); });
     AuditService.log(ctx, AUDIT_ACTIONS.RECORD_UPDATED, def.sheet, current.id, Object.keys(patch).filter(function (k) { return k !== 'updated_at'; }).join(', '));
+    if (h.afterUpdate) { try { h.afterUpdate(updated, current, ctx); } catch (e) { ErrorHandler.record(e, { action: def.key + '.afterUpdate' }); } }
     return CrudEngine.toDTO(def, updated, ctx, { attachments: AttachmentRepository.byRecord(def.key, current.id) });
   },
 
@@ -544,6 +557,8 @@ const CrudEngine = {
     CrudEngine.repo(def).update(row.id, { state: RECORD_STATE.DELETED, deleted_at: DateUtils.nowIso(), updated_at: DateUtils.nowIso() });
     AppCache.remove('stats:admin');
     AuditService.log(ctx, AUDIT_ACTIONS.RECORD_DELETED, def.sheet, row.id, row.ref_no);
+    const h = CrudEngine.hooks(def);
+    if (h.afterRemove) { try { h.afterRemove(row, ctx); } catch (e) { ErrorHandler.record(e, { action: def.key + '.afterRemove' }); } }
     return { deleted: true };
   },
 
@@ -567,6 +582,9 @@ const CrudEngine = {
       note: { type: 'text', max: 500, label: 'Catatan' }
     });
     if (data.status === row.status && !data.note) return CrudEngine.toDTO(def, row, ctx);
+    if (data.status !== row.status && CrudEngine.nextStatuses(def, row).indexOf(data.status) < 0) {
+      throw Errors.conflict('Status tidak boleh ditukar daripada "' + CrudEngine.statusLabel(def, row.status) + '" kepada "' + CrudEngine.statusLabel(def, data.status) + '".');
+    }
     const hs = CrudEngine.hooks(def);
     if (hs.beforeStatus && data.status !== row.status) hs.beforeStatus(row, data.status, ctx);
     const prev = row.status;
@@ -641,12 +659,18 @@ const CrudEngine = {
     const title = def.label + ' baharu: ' + (row.ref_no || row.id);
     const who = row.owner_name || 'Orang awam';
     const label = def.titleField ? StringUtils.truncate(row[CrudEngine.column(def, def.titleField)] || '', 80) : '';
-    const message = who + ' menghantar ' + def.label.toLowerCase() + (label ? ' "' + label + '"' : '') + '.';
+    let message = who + ' menghantar ' + def.label.toLowerCase() + (label ? ' "' + label + '"' : '') + '.';
+    let lines = null;
     const path = '#/admin' + def.path + '/' + row.id;
     if (n.adminsOnCreate) {
+      /* Hook pilihan createdMessage(row) → { message, lines } : teks notifikasi/emel admin yang lebih bermaklumat */
+      const h = CrudEngine.hooks(def);
+      if (h.createdMessage) {
+        try { const c = h.createdMessage(row) || {}; if (c.message) message = c.message; if (c.lines) lines = c.lines; } catch (e) { ErrorHandler.record(e, { action: def.key + '.createdMessage' }); }
+      }
       NotificationService.notifyAdmins(NOTIF_TYPE.RECORD_CREATED, title, message, row.id, path);
       const adminEmail = SettingsService.get('ADMIN_EMAIL');
-      if (adminEmail) NotificationService.email(adminEmail, title, [message], { path: path });
+      if (adminEmail) NotificationService.email(adminEmail, title, lines || [message], { path: path });
     }
   },
 

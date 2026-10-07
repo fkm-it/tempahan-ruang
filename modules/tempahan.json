@@ -40,6 +40,22 @@
       "tone": "info"
     }
   ],
+  "transitions": {
+    "MENUNGGU": [
+      "DILULUSKAN",
+      "DITOLAK",
+      "DIBATALKAN"
+    ],
+    "DILULUSKAN": [
+      "DIBATALKAN",
+      "SELESAI"
+    ],
+    "DITOLAK": [
+      "MENUNGGU"
+    ],
+    "DIBATALKAN": [],
+    "SELESAI": []
+  },
   "statusRole": "ADMIN",
   "notify": {
     "adminsOnCreate": true,
@@ -204,6 +220,13 @@
     {
       "key": "peringatanPagiDihantar",
       "label": "Peringatan pagi dihantar",
+      "type": "string",
+      "readonly": true,
+      "adminOnly": true
+    },
+    {
+      "key": "peringatanAdminDihantar",
+      "label": "Peringatan admin dihantar",
       "type": "string",
       "readonly": true,
       "adminOnly": true

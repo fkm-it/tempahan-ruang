@@ -78,13 +78,23 @@ const SCHEMA = Object.freeze({
   // @generator:schema:start
   TEMPAHAN: {
     sheet: 'TEMPAHAN', id: 'id', prefix: 'TP', module: 'tempahan',
-    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'jenis_pemohon', 'no_staf', 'nama', 'emel', 'no_telefon', 'ruang', 'tarikh', 'tarikh_tamat', 'masa_mula', 'masa_tamat', 'bilangan_peserta', 'tujuan', 'peringatan_dihantar', 'bahasa', 'peringatan_jam_dihantar', 'peringatan_pagi_dihantar', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'jenis_pemohon', 'no_staf', 'nama', 'emel', 'no_telefon', 'ruang', 'tarikh', 'tarikh_tamat', 'masa_mula', 'masa_tamat', 'bilangan_peserta', 'tujuan', 'peringatan_dihantar', 'bahasa', 'peringatan_jam_dihantar', 'peringatan_pagi_dihantar', 'peringatan_admin_dihantar', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
     types: {'bilangan_peserta': 'int'}
+  },
+  TUGASAN: {
+    sheet: 'TUGASAN', id: 'id', prefix: 'TG', module: 'tugasan',
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'tajuk', 'jenis', 'pembantu', 'ruang', 'tarikh', 'tarikh_tamat', 'masa', 'arahan', 'tempahan', 'ditugaskan_oleh', 'disahkan_pada', 'disahkan_oleh', 'catatan_pic', 'emel_dihantar', 'peringatan_dihantar', 'kod', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    types: {}
   },
   RUANG: {
     sheet: 'RUANG', id: 'id', prefix: 'RU', module: 'ruang',
-    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'nama', 'blok', 'jenis', 'aras', 'kod_ruang', 'kapasiti', 'pic', 'emel_pic', 'aktif', 'catatan', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'nama', 'blok', 'jenis', 'aras', 'kod_ruang', 'kapasiti', 'pic', 'emel_pic', 'pembantu', 'aktif', 'catatan', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
     types: {'kapasiti': 'int', 'aktif': 'bool'}
+  },
+  PEMBANTU: {
+    sheet: 'PEMBANTU', id: 'id', prefix: 'PO', module: 'pembantu',
+    columns: ['id', 'ref_no', 'owner_user_id', 'owner_name', 'nama', 'no_telefon', 'emel', 'jawatan', 'aktif', 'catatan', 'status', 'status_note', 'status_changed_at', 'status_changed_by', 'state', 'created_at', 'updated_at', 'deleted_at'],
+    types: {'aktif': 'bool'}
   },
   STAF: {
     sheet: 'STAF', id: 'id', prefix: 'SF', module: 'staf',

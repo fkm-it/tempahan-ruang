@@ -106,7 +106,8 @@ a.rec-item, a.rec-item:hover { text-decoration: none; color: inherit; }
 .rec-item.is-unread .rec-item__icon { background: var(--brand); color: #fff; }
 .rec-item__body { flex: 1; min-width: 0; display: block; text-align: left; }
 .rec-item__title { font-weight: 600; color: var(--brand-900); display: flex; align-items: center; gap: var(--sp-2); }
-.rec-item__title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-item__title > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rec-item__title .badge { flex: none; }
 .rec-item__text { color: var(--muted); font-size: var(--fs-sm); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rec-item__meta { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: center; margin-top: 6px; font-size: var(--fs-xs); color: var(--muted); }
 .rec-item__side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-2); }

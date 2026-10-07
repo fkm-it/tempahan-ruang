@@ -68,7 +68,32 @@ const PushService = {
     return { length: s.length, first: s.charAt(0), last: s.charAt(s.length - 1), hasPrivateKey: s.indexOf('BEGIN PRIVATE KEY') >= 0, hasEndKey: s.indexOf('END PRIVATE KEY') >= 0 };
   },
 
-  enabled: function () { return !!PushService.config(); },
+  /** Pelayan Supabase (Edge Function): FCM dihantar oleh pekerja Apps Script melalui baris gilir (outbox 'push'). */
+  onEdge: function () { return !!PushService.testOutbox || (typeof EDGE_RUNTIME !== 'undefined' && !!EDGE_RUNTIME); },
+  /** Baris gilir outbox Supabase (ujian boleh menggantikannya dengan PushService.testOutbox). */
+  outbox: function () { return PushService.testOutbox || (typeof EDGE_OUTBOX !== 'undefined' && EDGE_OUTBOX ? EDGE_OUTBOX : null); },
+  testOutbox: null,
+
+  /**
+   * Di Apps Script: ada akaun servis FCM. Di Supabase: pekerja Apps Script melaporkan (PUSH_RELAY = '1') bahawa
+   * ia mempunyai akaun servis FCM — rahsia itu kekal di Apps Script sahaja, tidak disalin ke Supabase.
+   */
+  enabled: function () { return PushService.onEdge() ? Env.get('PUSH_RELAY', '') === '1' : !!PushService.config(); },
+
+  /** Dipanggil oleh pelayan Supabase apabila pekerja melaporkan status FCM. @return {boolean} berubah */
+  setRelay: function (on) {
+    const want = on ? '1' : '';
+    if (Env.get('PUSH_RELAY', '') === want) return false;
+    Env.set('PUSH_RELAY', want);
+    return true;
+  },
+
+  /** Token yang ditolak FCM (dilaporkan oleh pekerja) → REVOKED. */
+  revokeTokens: function (ids) {
+    const patch = {};
+    (Array.isArray(ids) ? ids : []).forEach(function (id) { if (/^K-[0-9A-F]{16}$/.test(String(id))) patch[id] = { status: 'REVOKED' }; });
+    return Object.keys(patch).length ? PushTokenRepository.updateMany(patch) : 0;
+  },
 
   b64url: function (value) { return Utilities.base64EncodeWebSafe(value).replace(/=+$/, ''); },
 
@@ -126,40 +151,65 @@ const PushService = {
 
   /**
    * Hantar kepada semua peranti aktif pengguna. Tidak melontar.
-   * @return {number} bilangan berjaya
+   * Di Supabase: dibaris gilir (outbox 'push') untuk pekerja Apps Script — pulangkan bilangan peranti dibaris gilir.
+   * @return {number} bilangan berjaya / dibaris gilir
    */
   sendToUser: function (userId, msg) {
     try {
-      const cfg = PushService.config();
-      if (!cfg || !userId) return 0;
+      if (!userId || !PushService.enabled()) return 0;
       const tokens = PushTokenRepository.activeByUser(userId);
       if (!tokens.length) return 0;
-      const access = PushService.accessToken(cfg);
-      const url = 'https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(cfg.projectId) + '/messages:send';
-      const requests = tokens.map(function (t) {
-        return {
-          url: url, method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-          headers: { Authorization: 'Bearer ' + access },
-          payload: JSON.stringify(PushService.buildMessage(t.token, msg))
-        };
-      });
-      const responses = UrlFetchApp.fetchAll(requests);
-      let sent = 0;
-      const dead = {};
-      responses.forEach(function (r, i) {
-        const code = r.getResponseCode();
-        if (code === 200) { sent++; return; }
-        const body = String(r.getContentText() || '');
-        if (code === 404 || /UNREGISTERED|registration token/i.test(body)) dead[tokens[i].token_id] = { status: 'REVOKED' };
-        else if (code === 401) CacheService.getScriptCache().remove(PushService.TOKEN_CACHE_KEY);
-        else AppLogger.warn('FCM gagal', { code: code, body: body.slice(0, 200) });
-      });
-      if (Object.keys(dead).length) PushTokenRepository.updateMany(dead);
-      return sent;
+      if (PushService.onEdge()) {
+        const ob = PushService.outbox();
+        if (!ob) return 0;
+        ob.queue('push', { tokens: tokens.map(function (t) { return { id: t.token_id, token: t.token }; }), msg: msg });
+        return tokens.length;
+      }
+      const r = PushService.sendTokens(tokens.map(function (t) { return { id: t.token_id, token: t.token }; }), msg);
+      if (r.dead.length) PushService.revokeTokens(r.dead);
+      return r.sent;
     } catch (e) {
       AppLogger.warn('Push gagal', { error: String(e && e.message || e) });
       return 0;
     }
+  },
+
+  /**
+   * Hantar mesej kepada senarai token melalui FCM (Apps Script sahaja — memerlukan UrlFetchApp & akaun servis).
+   * @param {{id:string, token:string}[]} tokens
+   * @return {{sent:number, dead:string[]}} dead = ID token yang tidak lagi sah
+   */
+  sendTokens: function (tokens, msg) {
+    const out = { sent: 0, dead: [] };
+    const cfg = PushService.config();
+    if (!cfg || !tokens || !tokens.length) return out;
+    const access = PushService.accessToken(cfg);
+    const url = 'https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(cfg.projectId) + '/messages:send';
+    const requests = tokens.map(function (t) {
+      return {
+        url: url, method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        headers: { Authorization: 'Bearer ' + access },
+        payload: JSON.stringify(PushService.buildMessage(t.token, msg || {}))
+      };
+    });
+    const responses = UrlFetchApp.fetchAll(requests);
+    responses.forEach(function (r, i) {
+      const code = r.getResponseCode();
+      if (code === 200) { out.sent++; return; }
+      const body = String(r.getContentText() || '');
+      if (code === 404 || /UNREGISTERED|registration token/i.test(body)) out.dead.push(tokens[i].id);
+      else if (code === 401) CacheService.getScriptCache().remove(PushService.TOKEN_CACHE_KEY);
+      else AppLogger.warn('FCM gagal', { code: code, body: body.slice(0, 200) });
+    });
+    return out;
+  },
+
+  /** Pekerja Apps Script: hantar satu item outbox 'push' daripada Supabase. @return {{sent:number, dead:string[]}} */
+  relay: function (payload) {
+    const p = payload || {};
+    const tokens = (Array.isArray(p.tokens) ? p.tokens : []).filter(function (t) { return t && PushService.TOKEN_RE.test(String(t.token || '')); }).slice(0, PushService.MAX_TOKENS_PER_USER);
+    if (!PushService.config()) throw new Error('FCM_SERVICE_ACCOUNT tiada dalam Script Properties');
+    return PushService.sendTokens(tokens, p.msg || {});
   },
 
   // ---------------------------------------------------------------- API pengguna

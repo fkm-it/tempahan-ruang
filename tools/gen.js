@@ -84,6 +84,17 @@ function normalize(raw, file) {
     if (sv.indexOf(m.defaultStatus) < 0) err('defaultStatus mesti salah satu statuses');
   } else m.defaultStatus = '';
   a.ownerEditStatuses.forEach((s) => { if (sv.indexOf(s) < 0) err('access.ownerEditStatuses: status tidak wujud ' + s); });
+  if (m.transitions !== undefined) {
+    if (!m.transitions || typeof m.transitions !== 'object' || Array.isArray(m.transitions)) err('"transitions" mesti objek { "STATUS": ["STATUS_SETERUSNYA", …] }');
+    else {
+      Object.keys(m.transitions).forEach((k) => {
+        if (sv.indexOf(k) < 0) err('transitions: status tidak wujud ' + k);
+        if (!Array.isArray(m.transitions[k])) err('transitions.' + k + ' mesti senarai status');
+        else m.transitions[k].forEach((v) => { if (sv.indexOf(v) < 0 || v === k) err('transitions.' + k + ': status tidak sah ' + v); });
+      });
+      sv.forEach((v) => { if (!m.transitions[v]) m.transitions[v] = []; });
+    }
+  }
   m.statusRole = m.statusRole || 'ADMIN';
   if (['USER', 'ADMIN', 'SUPER_ADMIN'].indexOf(m.statusRole) < 0) err('statusRole mesti USER | ADMIN | SUPER_ADMIN');
   m.notify = Object.assign({ adminsOnCreate: true, ownerOnStatus: true }, m.notify || {});

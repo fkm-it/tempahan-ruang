@@ -97,8 +97,16 @@ const RuangModule = Object.freeze(Object.assign(
         "key": "emelPic",
         "label": "Emel PIC",
         "type": "email",
-        "hint": "Dimaklumkan apabila ada permohonan baharu untuk ruang ini.",
+        "hint": "Dimaklumkan apabila tempahan ruang ini diluluskan atau dibatalkan.",
         "column": "emel_pic"
+      },
+      {
+        "key": "pembantu",
+        "label": "Pembantu operasi (buka ruang)",
+        "type": "ref",
+        "ref": "pembantu",
+        "hint": "Dicadangkan secara automatik semasa meluluskan tempahan ruang ini.",
+        "column": "pembantu"
       },
       {
         "key": "aktif",

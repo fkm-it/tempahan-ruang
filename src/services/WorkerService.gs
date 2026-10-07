@@ -2,7 +2,7 @@
  * @file WorkerService.gs
  * Mod Supabase: data sistem berada dalam Postgres (Supabase Edge Function `api`, lihat supabase/functions/api).
  * Apps Script kekal sebagai PEKERJA:
- *   - menghantar email (MailApp) yang dibaris gilir oleh pelayan Supabase → pencetus `workerTick` setiap minit
+ *   - menghantar email (MailApp) dan notifikasi telefon (FCM) yang dibaris gilir oleh pelayan Supabase → pencetus `workerTick` setiap minit
  *     (+ "kejutan" segera daripada pelayan selepas setiap tindakan yang menghasilkan email)
  *   - mencetuskan penyelenggaraan berkala (peringatan, auto-selesai) melalui system.tick
  *   - sandaran harian: salin semua data ke Google Sheets dalam folder Backup
@@ -83,12 +83,20 @@ const WorkerService = {
     const out = { sent: 0, failed: 0 };
     try {
       for (let round = 0; round < 5; round++) {
-        const data = WorkerService.call('system.tick', { force: !!(opts && opts.force && round === 0), limit: 20 });
+        const tickPayload = { force: !!(opts && opts.force && round === 0), limit: 20 };
+        /* Laporkan sekali setiap kitaran sama ada FCM dikonfigurasi di sini (pelayan memaparkan butang notifikasi telefon) */
+        if (round === 0) tickPayload.pushRelay = PushService.enabled();
+        const data = WorkerService.call('system.tick', tickPayload);
         if (round === 0) out.maintenance = data.maintenance;
         const mails = data.mails || [];
         if (!mails.length) break;
         const results = mails.map(function (m) {
           try {
+            if (m.kind === 'push') {
+              const r = PushService.relay(m.payload);
+              out.pushed = (out.pushed || 0) + r.sent;
+              return { id: m.id, ok: true, revoke: r.dead };
+            }
             if (m.kind !== 'mail') throw new Error('Jenis tidak disokong: ' + m.kind);
             MailApp.sendEmail(m.payload);
             out.sent++;
@@ -107,7 +115,7 @@ const WorkerService = {
     } finally {
       lock.releaseLock();
     }
-    if (out.sent || out.failed || out.backup || out.backupError) console.log('Pekerja: ' + JSON.stringify(out));
+    if (out.sent || out.failed || out.pushed || out.backup || out.backupError) console.log('Pekerja: ' + JSON.stringify(out));
     return out;
   },
 

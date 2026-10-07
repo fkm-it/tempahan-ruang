@@ -341,5 +341,14 @@ const TestSuiteCrud = {
       t.eq(seen, 'en');
       } finally { TestFixtures.uninstall(); }
     }, { nodeOnly: true }]
+    ,['Enjin: transitions (peralihan status) — tanpa transitions semua dibenarkan; dengan transitions dikuatkuasakan', function (t) {
+      const statuses = [{ value: 'A' }, { value: 'B' }, { value: 'C' }];
+      t.eq(CrudEngine.nextStatuses({ statuses: statuses }, { status: 'A' }).join(','), 'B,C');
+      const def = { statuses: statuses, transitions: { A: ['B'], B: ['C', 'X'], C: [] } };
+      t.eq(CrudEngine.nextStatuses(def, { status: 'A' }).join(','), 'B');
+      t.eq(CrudEngine.nextStatuses(def, { status: 'B' }).join(','), 'C', 'status tidak wujud ditapis');
+      t.eq(CrudEngine.nextStatuses(def, { status: 'C' }).length, 0, 'status akhir');
+      t.ok(CrudEngine.meta().every(function (m) { return 'transitions' in m; }), 'transitions dalam metadata frontend');
+    }]
   ]
 };

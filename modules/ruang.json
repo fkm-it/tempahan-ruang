@@ -19,7 +19,8 @@
     { "key": "kodRuang", "label": "Kod ruang", "type": "string", "max": 40, "search": true },
     { "key": "kapasiti", "label": "Kapasiti", "type": "int", "min": 0, "max": 2000, "list": true },
     { "key": "pic", "label": "PIC (pegawai bertanggungjawab)", "type": "string", "max": 80 },
-    { "key": "emelPic", "label": "Emel PIC", "type": "email", "hint": "Dimaklumkan apabila ada permohonan baharu untuk ruang ini." },
+    { "key": "emelPic", "label": "Emel PIC", "type": "email", "hint": "Dimaklumkan apabila tempahan ruang ini diluluskan atau dibatalkan." },
+    { "key": "pembantu", "label": "Pembantu operasi (buka ruang)", "type": "ref", "ref": "pembantu", "hint": "Dicadangkan secara automatik semasa meluluskan tempahan ruang ini." },
     { "key": "aktif", "label": "Boleh ditempah", "type": "bool", "default": true, "filter": true, "list": true },
     { "key": "catatan", "label": "Catatan", "type": "text", "max": 1000 }
   ]

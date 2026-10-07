@@ -396,7 +396,9 @@ export function createRuntime(opts) {
     ctx.globals = {
       SpreadsheetApp, PropertiesService, CacheService, LockService, Utilities, Session, MailApp, ScriptApp, HtmlService,
       ContentService, DriveApp, UrlFetchApp, MimeType: { GOOGLE_SHEETS: 'application/vnd.google-apps.spreadsheet' },
-      console: ctx.console, EDGE_RUNTIME: true, globalThis: {}
+      console: ctx.console, EDGE_RUNTIME: true, globalThis: {},
+      /* Baris gilir untuk pekerja Apps Script (selain email): 'push' = notifikasi telefon FCM */
+      EDGE_OUTBOX: { queue: (kind, payload) => { if (kind === 'push') ctx.outbox.push({ kind, payload }); } }
     };
     return ctx;
   }

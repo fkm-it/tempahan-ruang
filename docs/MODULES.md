@@ -44,6 +44,7 @@ Apa yang dijana daripada satu modul:
 | `statuses` | `[]` | `[{ "value": "BARU", "label": "Baharu", "tone": "info" }]`. Tone: `info success warn danger muted brand` |
 | `defaultStatus` | status pertama | Status rekod baharu |
 | `statusRole` | `ADMIN` | Peranan minimum untuk menukar status (`USER` = sesiapa yang boleh melihat rekod) |
+| `transitions` | — (semua dibenarkan) | Peralihan status yang dibenarkan: `{ "BARU": ["DIPROSES", "DITOLAK"], "SELESAI": [] }`. Status tidak disenaraikan = status akhir. Dikuatkuasakan di pelayan; dialog "Tukar status" hanya memaparkan pilihan sah |
 | `notify.adminsOnCreate` | `true` | Notifikasi (app + telefon) kepada semua admin + email `ADMIN_EMAIL` |
 | `notify.ownerOnStatus` | `true` | Pemilik dimaklumkan apabila status berubah (app + telefon + email jika dihidupkan) |
 | `titleField` | medan string pertama | Tajuk rekod dalam senarai/notifikasi |
@@ -104,7 +105,11 @@ Lajur sistem setiap rekod: `id, ref_no, owner_user_id, owner_name, status, statu
 | `beforeStatus(row, newStatus, ctx)` | Sebelum status berubah | Lontar ralat untuk menghalang (cth. semak semula pertindihan semasa lulus) |
 | `routes` | — | Laluan API khusus: `{ '<key>.nama': { role: 'PUBLIC'\|'USER'\|'ADMIN', fn: function (payload, ctx) {…} } }` — nama mesti berawalan key modul |
 | `toDTO(dto, row, ctx)` | Sebelum dihantar ke frontend | Tambah medan kiraan |
+| `afterUpdate(row, prev, ctx)` | Selepas sunting | Segerakkan rekod berkaitan (cth. tugasan PIC bila tarikh tempahan berubah) |
+| `afterRemove(row, ctx)` | Selepas padam | Batalkan rekod berkaitan |
+| `createdMessage(row)` | Rekod baharu (notifikasi admin) | Pulangkan `{ message, lines }`: teks notifikasi telefon/app dan baris emel `ADMIN_EMAIL` |
 | `maintenance()` | Harian (~02:00) | Auto-tutup rekod lama, peringatan |
+| `hourly()` | Setiap jam | Peringatan berjadual |
 
 ### Contoh: tempahan tidak boleh bertindih
 

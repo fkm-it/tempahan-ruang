@@ -46,6 +46,22 @@ const TempahanModule = Object.freeze(Object.assign(
         "tone": "info"
       }
     ],
+    "transitions": {
+      "MENUNGGU": [
+        "DILULUSKAN",
+        "DITOLAK",
+        "DIBATALKAN"
+      ],
+      "DILULUSKAN": [
+        "DIBATALKAN",
+        "SELESAI"
+      ],
+      "DITOLAK": [
+        "MENUNGGU"
+      ],
+      "DIBATALKAN": [],
+      "SELESAI": []
+    },
     "statusRole": "ADMIN",
     "notify": {
       "adminsOnCreate": true,
@@ -229,6 +245,14 @@ const TempahanModule = Object.freeze(Object.assign(
         "readonly": true,
         "adminOnly": true,
         "column": "peringatan_pagi_dihantar"
+      },
+      {
+        "key": "peringatanAdminDihantar",
+        "label": "Peringatan admin dihantar",
+        "type": "string",
+        "readonly": true,
+        "adminOnly": true,
+        "column": "peringatan_admin_dihantar"
       }
     ],
     "path": "/tempahan",

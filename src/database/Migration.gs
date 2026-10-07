@@ -28,8 +28,10 @@ const Migration = {
     },
     // Migrasi modul (cipta sheet / tambah lajur) — DIJANA oleh `npm run gen`. ID berubah apabila medan berubah.
     // @generator:migrations:start
-    { id: 'MODULE_TEMPAHAN_08137E52', description: 'Modul Tempahan: sheet TEMPAHAN & lajur', up: function () { return SheetManager.ensure('TEMPAHAN'); } },
-    { id: 'MODULE_RUANG_3B65EE16', description: 'Modul Ruang: sheet RUANG & lajur', up: function () { return SheetManager.ensure('RUANG'); } },
+    { id: 'MODULE_TEMPAHAN_575F87E4', description: 'Modul Tempahan: sheet TEMPAHAN & lajur', up: function () { return SheetManager.ensure('TEMPAHAN'); } },
+    { id: 'MODULE_TUGASAN_9B7D2DB1', description: 'Modul Tugasan: sheet TUGASAN & lajur', up: function () { return SheetManager.ensure('TUGASAN'); } },
+    { id: 'MODULE_RUANG_8829E45D', description: 'Modul Ruang: sheet RUANG & lajur', up: function () { return SheetManager.ensure('RUANG'); } },
+    { id: 'MODULE_PEMBANTU_AA64F78E', description: 'Modul Pembantu Operasi: sheet PEMBANTU & lajur', up: function () { return SheetManager.ensure('PEMBANTU'); } },
     { id: 'MODULE_STAF_7A3C3D95', description: 'Modul Staf: sheet STAF & lajur', up: function () { return SheetManager.ensure('STAF'); } },
     // @generator:migrations:end
     // Migrasi tulisan tangan (data) — tambah di bawah dengan ID MIGRATION_00N.

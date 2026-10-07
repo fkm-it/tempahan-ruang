@@ -1,0 +1,22 @@
+{
+  "key": "pembantu",
+  "name": "Pembantu",
+  "label": "Pembantu Operasi",
+  "labelPlural": "Pembantu Operasi",
+  "icon": "users",
+  "prefix": "PO",
+  "description": "PIC yang ditugaskan membuka / menyediakan ruang (pembantu operasi). Dimaklumkan melalui emel dan WhatsApp.",
+  "access": { "create": "ADMIN", "list": "OWN", "edit": "ADMIN", "delete": "ADMIN" },
+  "notify": { "adminsOnCreate": false, "ownerOnStatus": false },
+  "titleField": "nama",
+  "subtitleField": "noTelefon",
+  "nav": { "user": false, "admin": true, "order": 25 },
+  "fields": [
+    { "key": "nama", "label": "Nama", "type": "string", "required": true, "max": 120, "list": true, "search": true },
+    { "key": "noTelefon", "label": "No. telefon (WhatsApp)", "type": "phone", "required": true, "list": true, "search": true, "placeholder": "cth. 012-345 6789" },
+    { "key": "emel", "label": "Emel", "type": "email", "search": true, "hint": "Tugasan dan pautan pengesahan dihantar ke emel ini." },
+    { "key": "jawatan", "label": "Jawatan", "type": "string", "max": 80, "default": "Pembantu Operasi" },
+    { "key": "aktif", "label": "Aktif", "type": "bool", "default": true, "filter": true, "list": true },
+    { "key": "catatan", "label": "Catatan", "type": "text", "max": 500 }
+  ]
+}

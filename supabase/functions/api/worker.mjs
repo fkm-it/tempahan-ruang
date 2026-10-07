@@ -3,7 +3,7 @@
  *
  *  system.import  : pindah data Google Sheets + Script Properties (sekali; dibuka oleh private.meta import_open = '1')
  *  system.tick    : dipanggil setiap minit oleh pencetus Apps Script → penyelenggaraan berkala + tuntut email untuk dihantar
- *  system.ack     : keputusan penghantaran email
+ *  system.ack     : keputusan penghantaran email / push (+ token telefon yang perlu dibatalkan)
  *  system.export  : semua data (sandaran harian ke Google Sheets oleh pekerja)
  *  system.status  : status baris gilir email
  *
@@ -88,11 +88,21 @@ export function createWorkerApi({ store, runtime, log, verifyImport }) {
       }
       if (!(await verify(req))) return fail('FORBIDDEN', 'Tandatangan pekerja tidak sah.');
       if (action === 'system.tick') {
+        if (payload.pushRelay !== undefined && (runtime.prop('PUSH_RELAY') === '1') !== !!payload.pushRelay) {
+          try { await runtime.execute((B) => B.PushService.setRelay(!!payload.pushRelay)); } catch (e) { L.error('[worker] pushRelay', e); }
+        }
         const m = await maintenance(!!payload.force);
         const mails = await store.claimOutbox(payload.limit || 20);
         return ok({ maintenance: m, mails });
       }
-      if (action === 'system.ack') { await store.ackOutbox(payload.results); return ok({ acked: (payload.results || []).length }); }
+      if (action === 'system.ack') {
+        const results = Array.isArray(payload.results) ? payload.results : [];
+        await store.ackOutbox(results);
+        /* Token telefon yang ditolak FCM → dibatalkan */
+        const dead = [].concat(...results.map((r) => (r && Array.isArray(r.revoke) ? r.revoke : []))).filter((x) => typeof x === 'string').slice(0, 200);
+        if (dead.length) { try { await runtime.execute((B) => B.PushService.revokeTokens(dead)); } catch (e) { L.error('[worker] revoke', e); } }
+        return ok({ acked: results.length });
+      }
       if (action === 'system.export') return ok({ sheets: await store.exportAll(), at: new Date().toISOString() });
       if (action === 'system.status') return ok(await store.outboxStatus());
       return fail('BAD_REQUEST', 'Tindakan pekerja tidak dikenali.');

@@ -203,6 +203,50 @@ await test('Pekerja: tandatangan v2 (ts + tindakan + kandungan); tick menjalanka
   assert(pending === 0, 'masih tertunggak ' + pending);
 });
 
+await test('Push melalui pekerja: status FCM dilaporkan, permohonan baharu → outbox push untuk admin, token mati dibatalkan', async () => {
+  const off = await worker.handle(signed('system.tick', { pushRelay: false }));
+  assert(off.success, 'tick');
+  assert(ok(await call(A, 'public.config')).PUSH_ENABLED === false, 'tanpa pekerja FCM → tidak aktif');
+  const on = await worker.handle(signed('system.tick', { pushRelay: true }));
+  assert(on.success, 'tick relay');
+  await worker.handle(signed('system.ack', { results: on.data.mails.map((x) => ({ id: x.id, ok: true })) }));
+  assert(ok(await call(B, 'public.config')).PUSH_ENABLED === true, 'pekerja melaporkan FCM → aktif (isolat lain)');
+  ok(await call(A, 'push.register', { token: 'edgeAdminTok_' + 'z'.repeat(40) }, sup.token));
+  ok(await call(A, 'push.register', { token: 'edgeDeadTok_' + 'y'.repeat(40) }, sup.token));
+  ok(await pub(B, { tarikh: day(27), masaMula: '08:00', masaTamat: '09:00', tujuan: 'Makluman telefon' }));
+  const rows = await sql`select id::text as id, payload from private.outbox where kind = 'push' and sent_at is null`;
+  const mine = rows.find((r) => r.payload.tokens.some((t) => t.token.indexOf('edgeAdminTok_') === 0));
+  assert(mine, 'outbox push untuk admin');
+  assert(/Makluman telefon/.test(mine.payload.msg.body) && /^#\/admin\/tempahan\//.test(mine.payload.msg.path), 'mesej push: ' + JSON.stringify(mine.payload.msg));
+  const t = await worker.handle(signed('system.tick', { limit: 50 }));
+  const claimed = t.data.mails.filter((m) => m.kind === 'push');
+  assert(claimed.length >= 1, 'pekerja menuntut push');
+  const deadId = mine.payload.tokens.find((x) => x.token.indexOf('edgeDeadTok_') === 0).id;
+  const ack = await worker.handle(signed('system.ack', { results: t.data.mails.map((x) => ({ id: x.id, ok: true, revoke: x.kind === 'push' ? [deadId] : undefined })) }));
+  assert(ack.success, 'ack');
+  const st = ok(await call(A, 'push.status', {}, sup.token));
+  assert(st.devices === 1 && st.serverEnabled === true, 'token mati dibatalkan: ' + JSON.stringify(st));
+});
+
+await test('PIC: lulus + tugaskan pembantu operasi; PIC sahkan melalui pautan (isolat lain)', async () => {
+  await A.execute((Bk) => Bk.Env.set('PUBLIC_BASE_URL', 'https://contoh.github.io/app/'));
+  const pic = ok(await call(A, 'crud.create', { module: 'pembantu', nama: 'PIC Edge', noTelefon: '011-2345 6789', emel: 'pic.edge@test.local' }, sup.token));
+  const r = ok(await pub(A, { tarikh: day(28), masaMula: '10:00', masaTamat: '11:00', tujuan: 'Ujian PIC edge' }));
+  const tp = ok(await call(B, 'crud.list', { module: 'tempahan', q: r.refNo }, sup.token)).items.find((x) => x.refNo === r.refNo);
+  const l = ok(await call(B, 'tempahan.lulus', { id: tp.id, pembantu: pic.id, arahan: 'Buka 15 minit awal' }, sup.token));
+  assert(l.status === 'DILULUSKAN' && l.tugasan && /^https:\/\/wa\.me\/601123456789\?text=/.test(l.tugasan.waUrl), 'tugasan + wa.me: ' + JSON.stringify(l).slice(0, 300));
+  const m = /id=(TG-[0-9A-F]{16})&k=([0-9a-f]{32})/.exec(decodeURIComponent(l.tugasan.waUrl));
+  assert(m, 'pautan pengesahan dalam mesej WhatsApp');
+  const mail = (await sql`select payload from private.outbox where kind = 'mail' and payload->>'to' = 'pic.edge@test.local'`);
+  assert(mail.length === 1 || mail.length === 0, 'emel PIC (jika emel dihidupkan)');
+  const v = ok(await call(A, 'tugasan.lihat', { id: m[1], k: m[2] }));
+  assert(v.pic === 'PIC Edge' && v.status === 'DITUGASKAN', 'paparan PIC');
+  const d = ok(await call(B, 'tugasan.selesai', { id: m[1], k: m[2], catatan: 'Siap' }));
+  assert(d.status === 'SELESAI', 'selesai');
+  const log = ok(await call(A, 'crud.get', { module: 'tugasan', id: m[1] }, sup.token));
+  assert(log.status === 'SELESAI' && /PIC Edge/.test(log.values.disahkanOleh) && log.values.kod === undefined, 'log kerja');
+});
+
 await test('Eksport untuk sandaran pekerja', async () => {
   const r = await worker.handle(signed('system.export', {}));
   assert(r.success && r.data.sheets.find((s) => s.name === 'TEMPAHAN').rows.length >= 9, 'eksport ' + JSON.stringify(r).slice(0, 200));

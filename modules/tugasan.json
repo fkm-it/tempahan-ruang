@@ -1,0 +1,49 @@
+{
+  "key": "tugasan",
+  "name": "Tugasan",
+  "label": "Tugasan",
+  "labelPlural": "Log Kerja",
+  "icon": "briefcase",
+  "path": "/log-kerja",
+  "prefix": "TG",
+  "refFormat": "TG-{YYYY}-{SEQ4}",
+  "description": "Log kerja pembantu operasi: tugasan membuka / menyediakan ruang bagi tempahan yang diluluskan.",
+  "access": { "create": "ADMIN", "list": "OWN", "edit": "ADMIN", "delete": "ADMIN" },
+  "statuses": [
+    { "value": "DITUGASKAN", "label": "Ditugaskan", "tone": "warn" },
+    { "value": "SELESAI", "label": "Selesai", "tone": "success" },
+    { "value": "DIBATALKAN", "label": "Dibatalkan", "tone": "muted" }
+  ],
+  "transitions": {
+    "DITUGASKAN": ["SELESAI", "DIBATALKAN"],
+    "SELESAI": ["DITUGASKAN"],
+    "DIBATALKAN": ["DITUGASKAN"]
+  },
+  "notify": { "adminsOnCreate": false, "ownerOnStatus": false },
+  "titleField": "tajuk",
+  "subtitleField": "pembantu",
+  "nav": { "user": false, "admin": true, "order": 15 },
+  "fields": [
+    { "key": "tajuk", "label": "Tugasan", "type": "string", "max": 160, "list": true, "search": true, "placeholder": "Kosongkan untuk dijana automatik" },
+    { "key": "jenis", "label": "Jenis tugasan", "type": "enum", "default": "BUKA", "filter": true, "options": [
+      { "value": "BUKA", "label": "Buka ruang" },
+      { "value": "TUTUP", "label": "Tutup / kunci ruang" },
+      { "value": "SEDIA", "label": "Sediakan ruang / peralatan" },
+      { "value": "LAIN", "label": "Lain-lain" }
+    ] },
+    { "key": "pembantu", "label": "PIC (pembantu operasi)", "type": "ref", "ref": "pembantu", "required": true, "filter": true, "list": true },
+    { "key": "ruang", "label": "Ruang", "type": "ref", "ref": "ruang", "filter": true },
+    { "key": "tarikh", "label": "Tarikh", "type": "date", "required": true, "list": true },
+    { "key": "tarikhTamat", "label": "Hingga tarikh", "type": "date", "hint": "Untuk tempahan berbilang hari: tugasan diulang setiap hari." },
+    { "key": "masa", "label": "Sebelum jam", "type": "time", "list": true },
+    { "key": "arahan", "label": "Arahan", "type": "text", "max": 500, "search": true },
+    { "key": "tempahan", "label": "Tempahan", "type": "ref", "ref": "tempahan", "readonly": true },
+    { "key": "ditugaskanOleh", "label": "Ditugaskan oleh", "type": "string", "readonly": true },
+    { "key": "disahkanPada", "label": "Disahkan pada", "type": "string", "readonly": true },
+    { "key": "disahkanOleh", "label": "Disahkan oleh", "type": "string", "readonly": true },
+    { "key": "catatanPic", "label": "Catatan PIC", "type": "text", "max": 300, "readonly": true },
+    { "key": "emelDihantar", "label": "Emel kepada PIC", "type": "string", "readonly": true, "adminOnly": true },
+    { "key": "peringatanDihantar", "label": "Peringatan PIC dihantar", "type": "string", "readonly": true, "adminOnly": true },
+    { "key": "kod", "label": "Kod pautan PIC", "type": "string", "max": 40, "readonly": true, "adminOnly": true }
+  ]
+}

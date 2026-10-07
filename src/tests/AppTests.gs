@@ -4,7 +4,7 @@
  * Dalam Apps Script: runTestsPart5. Dalam Node: npm test.
  */
 const AppTests = {
-  suites: function () { return [TestSuiteTempahan, TestSuiteTempahanV2]; },
+  suites: function () { return [TestSuiteTempahan, TestSuiteTempahanV2, TestSuiteAliranV14]; },
   /** Keadaan asas: semua hari dibuka 07:00–23:00, tiada cuti, peringatan pagi ditutup (ujian khusus menetapkannya sendiri). */
   BASE: { WAKTU_MULA: '07:00', WAKTU_TAMAT: '23:00', HARI_OPERASI: '0,1,2,3,4,5,6', TARIKH_TUTUP: '[]', PERINGATAN_PAGI: '0', PELAJAR_DIBENARKAN: 'TRUE' },
   setup: function () { SettingsRepository.setMany(AppTests.BASE, 'TEST'); }

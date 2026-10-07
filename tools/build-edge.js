@@ -24,7 +24,7 @@ const OUT = path.resolve(ROOT, oi >= 0 ? args[oi + 1] : 'supabase/functions/api/
 
 /** Perkhidmatan GAS yang dibekalkan oleh runtime (lihat supabase/functions/api/runtime.js). */
 const SERVICES = ['SpreadsheetApp', 'PropertiesService', 'CacheService', 'LockService', 'Utilities', 'Session', 'MailApp',
-  'ScriptApp', 'HtmlService', 'ContentService', 'DriveApp', 'MimeType', 'UrlFetchApp', 'console', 'EDGE_RUNTIME', 'globalThis'];
+  'ScriptApp', 'HtmlService', 'ContentService', 'DriveApp', 'MimeType', 'UrlFetchApp', 'console', 'EDGE_RUNTIME', 'EDGE_OUTBOX', 'globalThis'];
 
 function listGs(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

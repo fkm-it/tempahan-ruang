@@ -21,8 +21,12 @@ module.exports = function seedTempahan({ api, ok, sup }) {
     ['Makmal Komputer 1 (C24)', 'C24', 'Makmal Komputer', '2', 'C24 - 201-01', 40],
     ['Bilik Kuliah 5 (C25)', 'C25', 'Bilik Kuliah', '1', 'C25 - 105-01', 50]
   ];
+  /* Pembantu operasi sintetik (PIC buka ruang) */
+  const pics = [['Encik Demo Operasi', '012-111 2233', 'po1@demo.local'], ['Puan Contoh Operasi', '013-444 5566', 'po2@demo.local']]
+    .map(([nama, noTelefon, emel]) => create('pembantu', { nama, noTelefon, emel, aktif: true }));
   const rooms = ROOMS.map(([nama, blok, jenis, aras, kodRuang, kapasiti], i) => create('ruang', {
-    nama, blok, jenis, aras, kodRuang, kapasiti, pic: i % 2 ? 'Encik Pegawai Fasiliti' : '', emelPic: i % 2 ? 'fasiliti@demo.local' : '', aktif: true
+    nama, blok, jenis, aras, kodRuang, kapasiti, pic: i % 2 ? 'Encik Pegawai Fasiliti' : '', emelPic: i % 2 ? 'fasiliti@demo.local' : '', aktif: true,
+    pembantu: pics[blok === 'E07' ? 0 : 1].id
   }));
   create('ruang', { nama: 'Bilik Seminar Lama (C25)', blok: 'C25', jenis: 'Bilik Seminar', aras: '2', kapasiti: 25, aktif: false, catatan: 'Dalam pengubahsuaian' });
 
@@ -45,6 +49,7 @@ module.exports = function seedTempahan({ api, ok, sup }) {
   B.forEach(([noStaf, r, d, masaMula, masaTamat, tujuan, st, peserta, span, note]) => {
     const rec = create('tempahan', { noStaf, noTelefon: '012-345 6789', ruang: rooms[r].id, tarikh: day(d), tarikhTamat: span ? day(d + span) : '', masaMula, masaTamat, tujuan, bilanganPeserta: peserta });
     if (st !== 'MENUNGGU') status(rec.id, st, note);
+    if (st === 'DILULUSKAN' && d >= 1) admin('tempahan.tugaskan', { id: rec.id, pembantu: pics[r < 4 ? 0 : 1].id, arahan: 'Buka 15 minit sebelum masa mula.' });
   });
-  console.log('Data demo tempahan: ' + rooms.length + ' ruang aktif, ' + STAF.length + ' staf sintetik (D1001–D1005), ' + B.length + ' tempahan.');
+  console.log('Data demo tempahan: ' + rooms.length + ' ruang aktif, ' + STAF.length + ' staf sintetik (D1001–D1005), ' + pics.length + ' pembantu operasi, ' + B.length + ' tempahan.');
 };

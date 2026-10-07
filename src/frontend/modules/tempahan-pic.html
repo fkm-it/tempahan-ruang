@@ -1,0 +1,238 @@
+<style>
+/* ===== v1.4: kelulusan pantas (telefon), PIC pembantu operasi, log kerja, halaman pengesahan PIC ===== */
+.btn-wa { background: #15803D; border-color: #15803D; color: #fff; }
+.btn-wa:hover { background: #166534; border-color: #166534; color: #fff; }
+.pic-panel { margin-top: var(--sp-6); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.pic-panel__head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+.pic-panel__head h3 { font-size: var(--fs-md, 1rem); display: flex; align-items: center; gap: 8px; }
+.pic-item { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-4); background: var(--white); }
+.pic-item + .pic-item { margin-top: var(--sp-3); }
+.pic-item__top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.pic-item__name { font-weight: 700; }
+.pic-item__meta { font-size: var(--fs-sm); color: var(--muted); margin-top: 2px; }
+.pic-item__acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: var(--sp-3); }
+.pic-item__acts .btn { flex: 1 1 140px; justify-content: center; }
+.pic-empty { font-size: var(--fs-sm); color: var(--muted); padding: var(--sp-4); border: 1px dashed var(--line); border-radius: var(--r-md); }
+.pic-wa { text-align: center; }
+.pic-wa p { margin-bottom: var(--sp-4); }
+.pic-wa .btn { width: 100%; justify-content: center; white-space: normal; text-align: center; line-height: 1.3; }
+.pic-wa .btn + .btn { margin-top: var(--sp-3); }
+.pic-done { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-radius: var(--r-md); background: var(--success-50); color: var(--success); border: 1px solid #BBF7D0; }
+.pic-off { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-radius: var(--r-md); background: var(--canvas-200, #F8FAFC); border: 1px solid var(--line); }
+.tgs-big { font-size: var(--fs-2xl, 1.5rem); font-weight: 800; line-height: 1.2; }
+@media (max-width: 520px) {
+  .pic-item__acts .btn { flex-basis: 100%; }
+}
+</style>
+<script>
+/* Kelulusan tempahan + PIC (pembantu operasi). Tiada komen baris dalam skrip ini (peraturan Apps Script). */
+(function (KD) {
+  'use strict';
+  const { html, qs, on } = KD.utils;
+  const { icon, toast, toastError, busy, fieldErrors, modal, skeletonList, errorState, toneBadge } = KD.ui;
+  const isAdmin = () => KD.auth.isAdmin();
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmtKey = (k) => { const p = String(k || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
+  const fmtIso = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : ''; };
+  const dates = (a, b) => (b && b !== a ? fmtKey(a) + ' – ' + fmtKey(b) : fmtKey(a));
+  const TG_TONE = { DITUGASKAN: 'warn', SELESAI: 'success', DIBATALKAN: 'muted' };
+  const JENIS = [['BUKA', 'Buka ruang'], ['TUTUP', 'Tutup / kunci ruang'], ['SEDIA', 'Sediakan ruang / peralatan'], ['LAIN', 'Lain-lain']];
+
+  /** Pautan PIC penuh: daripada pelayan, atau dibina daripada alamat halaman ini (jika URL awam belum ditetapkan). */
+  const linkOf = (x) => x.pautan || (x.pautanPath ? location.href.split('#')[0] + x.pautanPath : '');
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); toast('Pautan disalin.'); } catch (e) { window.prompt('Salin pautan ini:', text); }
+  }
+
+  /** Data PIC bagi tempahan: { items, cadangan, pembantu, bolehTugas } */
+  const picInfo = (id) => KD.api.call('tempahan.tugasan', { id });
+
+  const picOptions = (info, selected, allowNone) => html`${allowNone ? html`<option value="">— Tanpa PIC —</option>` : ''}${(info.pembantu || []).map((o) => html`<option value="${o.value}" ${o.value === selected ? 'selected' : ''}>${o.label}${o.value === info.cadangan ? ' (PIC ruang)' : ''}</option>`)}`;
+
+  /** Selepas menugaskan: tawarkan WhatsApp (wa.me) — admin tekan Hantar dalam WhatsApp. */
+  function waDialog(tg, emailed) {
+    if (!tg) return;
+    const name = (tg.labels && tg.labels.pembantu) || 'PIC';
+    const md = modal({
+      title: 'Maklumkan PIC',
+      body: html`<div class="pic-wa">
+        <p class="small">Tugasan <b>${tg.refNo}</b> direkod untuk <b>${name}</b>.${emailed && tg.picEmel ? ' Emel telah dihantar kepada PIC.' : tg.picEmel ? '' : ' PIC tiada emel: sila maklumkan melalui WhatsApp.'}</p>
+        ${tg.waUrl ? html`<a class="btn btn-wa btn-lg" href="${tg.waUrl}" target="_blank" rel="noopener" data-close>${icon('chat')}Hantar WhatsApp</a>` : html`<p class="small muted">Nombor WhatsApp PIC tidak sah. Kemas kini dalam senarai Pembantu Operasi.</p>`}
+        ${linkOf(tg) ? html`<button class="btn btn-outline" type="button" data-copy="${linkOf(tg)}">${icon('copy')}Salin pautan pengesahan</button>` : ''}
+      </div>`,
+      foot: html`<button class="btn btn-ghost" data-close>Tutup</button>`
+    });
+    on(md.el, 'click', '[data-copy]', (e, b) => copyText(b.getAttribute('data-copy')));
+  }
+
+  /** Dialog lulus (dengan PIC) atau tugaskan PIC sahaja. */
+  async function picDialog(d, mode) {
+    let info;
+    try { info = await picInfo(d.id); } catch (err) { toastError(err); return; }
+    const lulus = mode === 'lulus';
+    const noPic = !(info.pembantu || []).length;
+    const md = modal({
+      title: lulus ? 'Luluskan tempahan' : 'Tugaskan PIC buka ruang',
+      body: html`<form data-pic-form novalidate>
+        <p class="small muted" style="margin-bottom:var(--sp-4)"><b>${d.refNo}</b> · ${d.subtitle || ''}</p>
+        ${lulus ? html`<div class="field"><label class="label" for="pf-note">Catatan kepada pemohon (pilihan)</label><textarea class="textarea" id="pf-note" name="note" rows="2" maxlength="500"></textarea></div>` : ''}
+        ${noPic ? html`<div class="pic-empty">Belum ada pembantu operasi aktif. <a href="#/admin/pembantu/baru">Tambah pembantu operasi</a> untuk menugaskan PIC.</div>`
+          : html`<div class="field"><label class="label" for="pf-pic">PIC (pembantu operasi)</label><select class="select" id="pf-pic" name="pembantu">${picOptions(info, info.cadangan || (lulus ? '' : (info.pembantu[0] || {}).value), lulus)}</select>
+              ${info.cadangan ? '' : html`<span class="hint">Tetapkan PIC lalai pada rekod ruang supaya dipilih secara automatik.</span>`}</div>
+            ${lulus ? '' : html`<div class="field"><label class="label" for="pf-jenis">Jenis tugasan</label><select class="select" id="pf-jenis" name="jenis">${JENIS.map((j) => html`<option value="${j[0]}">${j[1]}</option>`)}</select></div>`}
+            <div class="field"><label class="label" for="pf-arahan">Arahan kepada PIC (pilihan)</label><textarea class="textarea" id="pf-arahan" name="arahan" rows="2" maxlength="500" placeholder="cth. Buka 15 minit awal, hidupkan projektor."></textarea></div>
+            <label class="tp-checkline"><input type="checkbox" name="hantarEmel" checked>Emel tugasan kepada PIC</label>`}
+      </form>`,
+      foot: html`<button class="btn btn-outline" data-close>Batal</button>${lulus || !noPic ? html`<button class="btn btn-primary" data-save>${icon('check')}${lulus ? 'Luluskan' : 'Tugaskan'}</button>` : ''}`
+    });
+    const save = qs('[data-save]', md.el);
+    if (!save) return;
+    save.addEventListener('click', () => busy(save, async () => {
+      const f = qs('[data-pic-form]', md.el);
+      const g = (n) => (f.elements[n] ? String(f.elements[n].value || '').trim() : '');
+      const p = { id: d.id, pembantu: g('pembantu'), arahan: g('arahan'), hantarEmel: f.elements.hantarEmel ? f.elements.hantarEmel.checked : true };
+      fieldErrors(f, null);
+      try {
+        let tg;
+        if (lulus) {
+          p.note = g('note');
+          const r = await KD.api.call('tempahan.lulus', p);
+          tg = r.tugasan;
+          toast('Tempahan ' + r.refNo + ' diluluskan.');
+        } else {
+          p.jenis = g('jenis') || 'BUKA';
+          tg = await KD.api.call('tempahan.tugaskan', p);
+          toast('PIC ditugaskan.');
+        }
+        md.close();
+        KD.router.render();
+        waDialog(tg, p.hantarEmel);
+      } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
+    }));
+  }
+
+  function tolakDialog(d) {
+    const md = modal({
+      title: 'Tolak tempahan',
+      body: html`<form data-tolak-form novalidate><p class="small muted" style="margin-bottom:var(--sp-4)"><b>${d.refNo}</b> · ${d.subtitle || ''}</p>
+        <div class="field"><label class="label" for="tl-note">Sebab (dihantar kepada pemohon)</label><textarea class="textarea" id="tl-note" name="note" rows="3" maxlength="500" required placeholder="cth. Ruang digunakan untuk peperiksaan."></textarea></div></form>`,
+      foot: html`<button class="btn btn-outline" data-close>Batal</button><button class="btn btn-danger" data-save>${icon('x')}Tolak</button>`
+    });
+    const save = qs('[data-save]', md.el);
+    save.addEventListener('click', () => busy(save, async () => {
+      const f = qs('[data-tolak-form]', md.el);
+      const note = f.elements.note.value.trim();
+      if (note.length < 3) { toast('Nyatakan sebab penolakan.', 'error'); f.elements.note.focus(); return; }
+      try { await KD.api.setStatus('tempahan', d.id, 'DITOLAK', note); md.close(); toast('Tempahan ditolak.'); KD.router.render(); } catch (err) { toastError(err); }
+    }));
+  }
+
+  /* ================================================================== Butiran tempahan (admin) */
+
+  let current = null;
+  const prevActions = KD.detailActions.tempahan;
+  KD.detailActions.tempahan = (d, m) => {
+    current = d;
+    const admin = isAdmin() && d.state !== 'DELETED';
+    const can = (s) => (d.nextStatuses || []).indexOf(s) >= 0;
+    return html`${admin && d.status === 'MENUNGGU' && can('DILULUSKAN') ? html`<button class="btn btn-primary" type="button" data-tp-act="lulus">${icon('check')}Luluskan</button>` : ''}
+      ${admin && d.status === 'MENUNGGU' && can('DITOLAK') ? html`<button class="btn btn-outline" type="button" data-tp-act="tolak" style="color:var(--danger)">${icon('x')}Tolak</button>` : ''}
+      ${admin && d.status === 'DILULUSKAN' ? html`<button class="btn btn-outline" type="button" data-tp-act="pic">${icon('users')}Tugaskan PIC</button>` : ''}
+      ${prevActions ? prevActions(d, m) : ''}`;
+  };
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-tp-act]');
+    if (!b || !current) return;
+    const act = b.getAttribute('data-tp-act');
+    if (act === 'lulus') picDialog(current, 'lulus');
+    else if (act === 'pic') picDialog(current, 'pic');
+    else if (act === 'tolak') tolakDialog(current);
+  });
+
+  const tgItem = (x) => html`<div class="pic-item">
+    <div class="pic-item__top"><div><div class="pic-item__name">${(x.labels && x.labels.pembantu) || '—'}</div>
+      <div class="pic-item__meta">${x.title} · ${dates(x.values.tarikh, x.values.tarikhTamat)}${x.values.masa ? ' · sebelum ' + x.values.masa : ''}</div>
+      ${x.values.disahkanPada ? html`<div class="pic-item__meta">✓ Disahkan ${fmtIso(x.values.disahkanPada)}${x.values.catatanPic ? ' · “' + x.values.catatanPic + '”' : ''}</div>` : ''}
+      ${x.values.arahan ? html`<div class="pic-item__meta">Arahan: ${x.values.arahan}</div>` : ''}</div>
+      ${toneBadge(x.statusLabel, TG_TONE[x.status])}</div>
+    <div class="pic-item__acts">
+      ${x.waUrl ? html`<a class="btn btn-wa btn-sm" href="${x.waUrl}" target="_blank" rel="noopener">${icon('chat')}WhatsApp</a>` : ''}
+      ${linkOf(x) ? html`<button class="btn btn-outline btn-sm" type="button" data-copy="${linkOf(x)}">${icon('copy')}Salin pautan</button>` : ''}
+      <a class="btn btn-ghost btn-sm" href="#/admin/log-kerja/${x.id}">${icon('eye')}Log kerja</a>
+    </div></div>`;
+
+  KD.detailAfter.tempahan = async (d, el) => {
+    if (!isAdmin() || d.state === 'DELETED') return;
+    const box = qs('[data-detail-extra]', el);
+    if (!box) return;
+    box.innerHTML = html`<div class="pic-panel"><div class="pic-panel__head"><h3>${icon('users', 'i-sm')}PIC buka ruang</h3></div>${skeletonList(1)}</div>`.s;
+    let info;
+    try { info = await picInfo(d.id); } catch (err) { box.innerHTML = ''; return; }
+    const items = info.items || [];
+    if (!items.length && d.status !== 'DILULUSKAN') { box.innerHTML = ''; return; }
+    box.innerHTML = html`<div class="pic-panel">
+      <div class="pic-panel__head"><h3>${icon('users', 'i-sm')}PIC buka ruang</h3>${info.bolehTugas && items.length ? html`<button class="btn btn-ghost btn-sm" type="button" data-tp-act="pic">${icon('refresh')}Tukar / tambah PIC</button>` : ''}</div>
+      ${items.length ? items.map(tgItem) : html`<div class="pic-empty">Belum ada PIC ditugaskan. ${info.bolehTugas ? html`<button class="btn btn-primary btn-sm mt-3" type="button" data-tp-act="pic">${icon('users')}Tugaskan PIC</button>` : ''}</div>`}
+    </div>`.s;
+    on(box, 'click', '[data-copy]', (e, b) => copyText(b.getAttribute('data-copy')));
+  };
+
+  /* ================================================================== Butiran tugasan (log kerja) */
+
+  KD.detailActions.tugasan = (d) => (isAdmin() && d.waUrl
+    ? html`<a class="btn btn-wa" href="${d.waUrl}" target="_blank" rel="noopener">${icon('chat')}WhatsApp PIC</a>${linkOf(d) ? html`<button class="btn btn-outline" type="button" data-tg-copy="${linkOf(d)}">${icon('copy')}Salin pautan</button>` : ''}`
+    : '');
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-tg-copy]');
+    if (b) copyText(b.getAttribute('data-tg-copy'));
+  });
+
+  /* ================================================================== Halaman PIC (pautan tanpa log masuk) */
+
+  KD.views.tugasPic = {
+    async render(el, params, query) {
+      const top = KD.views.publicTop ? KD.views.publicTop() : '';
+      const creds = { id: String(query.id || ''), k: String(query.k || '') };
+      el.innerHTML = html`${top}<main class="auth"><div class="auth-card" style="width:min(560px,100%)" data-box>${skeletonList(3)}</div></main>`.s;
+      const box = qs('[data-box]', el);
+      const show = (v) => {
+        const tp = v.tempahan;
+        box.innerHTML = html`<div class="auth-card__head">${icon('briefcase', 'i-lg')}<p class="xs muted mt-2">${v.refNo} · ${v.pic}</p>
+            <div class="tgs-big mt-2">${v.jenisLabel}</div><h2 style="margin-top:4px">${v.ruang}${v.blok && v.ruang.indexOf('(' + v.blok + ')') < 0 ? ' (' + v.blok + ')' : ''}</h2></div>
+          <dl class="jd-kv">
+            <dt>Tarikh</dt><dd>${dates(v.tarikh, v.tarikhTamat)}${v.tarikhTamat && v.tarikhTamat !== v.tarikh ? ' (setiap hari)' : ''}</dd>
+            ${v.masa ? html`<dt>Sebelum jam</dt><dd><b>${v.masa}</b></dd>` : ''}
+            ${v.aras || v.kodRuang ? html`<dt>Lokasi</dt><dd>${[v.aras ? 'Aras ' + v.aras : '', v.kodRuang].filter(Boolean).join(' · ')}</dd>` : ''}
+            ${tp ? html`<dt>Tempahan</dt><dd>${tp.refNo} · ${tp.masaMula}–${tp.masaTamat}${tp.peserta ? ' · ' + tp.peserta + ' orang' : ''}</dd>
+              <dt>Aktiviti</dt><dd>${tp.tujuan}</dd>
+              <dt>Pemohon</dt><dd>${tp.nama}${tp.noTelefon ? html`<br><a href="tel:${tp.noTelefon}">${tp.noTelefon}</a>` : ''}</dd>` : ''}
+            ${v.arahan ? html`<dt>Arahan</dt><dd>${v.arahan}</dd>` : ''}
+          </dl>
+          ${v.status === 'SELESAI' ? html`<div class="pic-done mt-6">${icon('check')}<div><b>Selesai. Terima kasih!</b><div class="small">Disahkan ${fmtIso(v.disahkanPada)}${v.catatanPic ? ' · “' + v.catatanPic + '”' : ''}</div></div></div>`
+            : v.status === 'DIBATALKAN' ? html`<div class="pic-off mt-6">${icon('info')}<div><b>Tugasan ini telah dibatalkan.</b><div class="small muted">Tiada tindakan diperlukan.</div></div></div>`
+            : html`<form data-form="sah" class="mt-6" novalidate>
+                <div class="field"><label class="label" for="pc-cat">Catatan (pilihan)</label><input class="input" id="pc-cat" name="catatan" maxlength="300" placeholder="cth. Pintu dibuka 7:45, aircond dihidupkan."></div>
+                <button class="btn btn-primary btn-block btn-lg" type="submit">${icon('check')}Sudah selesai</button>
+              </form>`}`.s;
+      };
+      if (!/^TG-[0-9A-F]{16}$/.test(creds.id) || !/^[0-9a-f]{32}$/.test(creds.k)) {
+        box.innerHTML = html`<div class="auth-card__head">${icon('alert', 'i-lg')}<h2 class="mt-2">Pautan tidak sah</h2><p>Sila buka semula pautan penuh daripada emel atau WhatsApp.</p></div>`.s;
+        return;
+      }
+      try { show(await KD.api.call('tugasan.lihat', creds)); } catch (err) {
+        box.innerHTML = html`<div class="auth-card__head">${icon('alert', 'i-lg')}<h2 class="mt-2">Tugasan tidak dijumpai</h2><p>Pautan mungkin telah tamat tempoh atau digantikan. Hubungi pentadbir.</p></div>`.s;
+        return;
+      }
+      on(box, 'submit', '[data-form="sah"]', (e, f) => {
+        e.preventDefault();
+        busy(qs('button[type="submit"]', f), async () => {
+          try { show(await KD.api.call('tugasan.selesai', Object.assign({ catatan: f.elements.catatan.value.trim() }, creds))); toast('Terima kasih. Pentadbir telah dimaklumkan.'); } catch (err) { toastError(err); }
+        });
+      });
+    }
+  };
+
+  KD.extraRoutes.push({ path: '/tugas', view: 'tugasPic', access: 'public', layout: 'public', title: 'Tugasan PIC' });
+})(window.KD);
+</script>

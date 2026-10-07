@@ -41,6 +41,7 @@ const SETTINGS_DEFS = Object.freeze({
     }
   },
   PELAJAR_DIBENARKAN: { type: 'bool', default: true, minRole: 'ADMIN', public: true, hidden: true, description: 'Tempahan: pelajar boleh memohon melalui borang awam' },
+  PERINGATAN_ADMIN_JAM: { type: 'int', default: 24, min: 0, max: 168, minRole: 'ADMIN', public: false, hidden: true, description: 'Tempahan: ingatkan admin tentang permohonan yang menunggu lebih daripada N jam (0 = tutup)' },
   PERINGATAN_PAGI: { type: 'int', default: 7, min: 0, max: 12, minRole: 'ADMIN', public: false, hidden: true, description: 'Tempahan: emel peringatan pada pagi hari tempahan, pada jam ini (0 = tutup)' },
   /* Logo sistem — diurus melalui panel "Logo sistem" (Tetapan). Kosong = logo asal (icons/logo.png). */
   LOGO: { type: 'text', default: '', max: 45000, minRole: 'ADMIN', public: false, hidden: true, description: 'Logo sistem (data URL PNG/WebP/JPEG)' },

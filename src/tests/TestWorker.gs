@@ -66,6 +66,68 @@ const TestSuiteWorker = {
         });
       } finally { st.fetchHandler = null; }
     }, { nodeOnly: true }],
+    ['Push melalui Supabase: pelayan membaris gilir; pekerja hantar FCM, laporkan status & token mati', function (t) {
+      const st = globalThis.__mockState;
+      const u = TestHelpers.user('relay');
+      TestAssert.apiOk(TestHelpers.call(u.token, 'push.register', { token: 'liveTok_' + 'c'.repeat(40) }));
+      TestAssert.apiOk(TestHelpers.call(u.token, 'push.register', { token: 'deadTok_' + 'd'.repeat(40) }));
+      /* 1) Sisi pelayan Supabase: tiada akaun servis; PUSH_RELAY menentukan status; mesej dibaris gilir */
+      const queued = [];
+      PushService.testOutbox = { queue: function (kind, payload) { queued.push({ kind: kind, payload: payload }); } };
+      try {
+        withEnv_({ FCM_SERVICE_ACCOUNT: '', PUSH_RELAY: '' }, function () {
+          t.eq(PushService.enabled(), false, 'tiada pekerja FCM → tidak aktif');
+          t.eq(PushService.sendToUser(u.user.id, { title: 'A', body: 'B' }), 0);
+        });
+        withEnv_({ FCM_SERVICE_ACCOUNT: '', PUSH_RELAY: '1' }, function () {
+          t.eq(PushService.enabled(), true, 'pekerja melaporkan FCM → aktif');
+          t.eq(TestAssert.apiOk(api({ action: 'public.config' })).PUSH_ENABLED, true, 'butang notifikasi telefon dipaparkan');
+          const before = st.fetches.length;
+          t.eq(PushService.sendToUser(u.user.id, { title: 'Tempahan baharu', body: 'X', path: '#/admin/tempahan/1' }), 2, 'dibaris gilir untuk 2 peranti');
+          t.eq(st.fetches.length, before, 'tiada panggilan rangkaian di pelayan');
+        });
+      } finally { PushService.testOutbox = null; }
+      t.eq(queued.length, 1);
+      t.eq(queued[0].kind, 'push');
+      t.eq(queued[0].payload.tokens.length, 2);
+      t.eq(queued[0].payload.msg.title, 'Tempahan baharu');
+      const deadId = queued[0].payload.tokens.filter(function (x) { return x.token.indexOf('deadTok') === 0; })[0].id;
+
+      /* 2) Sisi pekerja Apps Script: tuntut item push → FCM; ack membawa token mati; status FCM dilaporkan */
+      const calls = [];
+      st.fetchHandler = function (url, params) {
+        if (/oauth2/.test(url)) return { code: 200, body: { access_token: 'ya29.relay', expires_in: 3599 } };
+        if (/fcm\.googleapis/.test(url)) {
+          return JSON.parse(params.payload).message.token.indexOf('deadTok') === 0 ? { code: 404, body: { error: { details: [{ errorCode: 'UNREGISTERED' }] } } } : { code: 200, body: { name: 'm/1' } };
+        }
+        const b = JSON.parse(params.payload);
+        calls.push(b);
+        if (b.action === 'system.tick') return { code: 200, body: { success: true, data: { maintenance: {}, mails: [{ id: '9', kind: 'push', payload: queued[0].payload }] } } };
+        return { code: 200, body: { success: true, data: {} } };
+      };
+      CacheService.getScriptCache().remove(PushService.TOKEN_CACHE_KEY);
+      try {
+        withEnv_({ SUPABASE_ACTIVE: '1', SUPABASE_API_URL: 'https://abc.supabase.co/functions/v1/api', AUTH_PEPPER: 'pepper-ujian', FCM_SERVICE_ACCOUNT: globalThis.__testServiceAccount }, function () {
+          const out = WorkerService.tick();
+          t.eq(out.pushed, 1, 'satu peranti berjaya');
+        });
+      } finally { st.fetchHandler = null; }
+      t.eq(calls[0].payload.pushRelay, true, 'pekerja melaporkan FCM dikonfigurasi');
+      const ack = calls.filter(function (c) { return c.action === 'system.ack'; })[0];
+      t.ok(ack.payload.results[0].ok, 'ack ok');
+      t.eq(ack.payload.results[0].revoke.join(','), deadId, 'token mati dilaporkan untuk dibatalkan');
+      /* 3) Pelayan: batalkan token mati & simpan status relay */
+      t.eq(PushService.revokeTokens([deadId, 'bukan-id']), 1);
+      t.eq(PushTokenRepository.activeByUser(u.user.id).length, 1);
+      const props = PropertiesService.getScriptProperties();
+      try {
+        t.eq(PushService.setRelay(true), true);
+        t.eq(props.getProperty('PUSH_RELAY'), '1');
+        t.eq(PushService.setRelay(true), false, 'tiada perubahan');
+        t.eq(PushService.setRelay(false), true);
+        t.eq(PushService.enabled(), false);
+      } finally { props.deleteProperty('PUSH_RELAY'); Env.reset(); }
+    }, { nodeOnly: true }],
     ['Pemindahan: semua sheet + Script Properties dihantar; gagal → kembali ke mod biasa', function (t) {
       const st = globalThis.__mockState;
       let sent = null;
