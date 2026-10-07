@@ -13,6 +13,7 @@
  *  - Cache isolat: sheet kekal dalam memori antara permintaan dan hanya dimuat semula jika versinya berubah.
  *  - Email: MailApp.sendEmail → private.outbox; pekerja Apps Script menghantarnya (MailApp sebenar).
  */
+import { vapidKeys } from './webpush.mjs';
 import nodeCrypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 
@@ -398,7 +399,9 @@ export function createRuntime(opts) {
       ContentService, DriveApp, UrlFetchApp, MimeType: { GOOGLE_SHEETS: 'application/vnd.google-apps.spreadsheet' },
       console: ctx.console, EDGE_RUNTIME: true, globalThis: {},
       /* Baris gilir untuk pekerja Apps Script (selain email): 'push' = notifikasi telefon FCM */
-      EDGE_OUTBOX: { queue: (kind, payload) => { if (kind === 'push') ctx.outbox.push({ kind, payload }); } }
+      EDGE_OUTBOX: { queue: (kind, payload) => { if (kind === 'push' || kind === 'webpush') ctx.outbox.push({ kind, payload }); } },
+      /* Web Push terus (VAPID): kunci awam diterbitkan daripada AUTH_PEPPER — lihat webpush.mjs */
+      EDGE_WEBPUSH: { publicKey: () => { const k = vapidKeys(ctx.props.AUTH_PEPPER); return k ? k.publicKey : ''; } }
     };
     return ctx;
   }

@@ -32,6 +32,8 @@ jobs:
         run: node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
       - name: Himpunan Supabase Edge setara dengan kod GAS (semua ujian dalam modul ES)
         run: node tools/test-edge-bundle.mjs
+      - name: Web Push (VAPID + RFC 8291)
+        run: node tools/test-webpush.mjs
 
   edge:
     name: Runtime Supabase + Postgres

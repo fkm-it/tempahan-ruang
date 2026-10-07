@@ -128,6 +128,40 @@ const TestSuiteWorker = {
         t.eq(PushService.enabled(), false);
       } finally { props.deleteProperty('PUSH_RELAY'); Env.reset(); }
     }, { nodeOnly: true }],
+    ['Web Push VAPID di pelayan Supabase: langganan disahkan; wp1_ → outbox webpush, token FCM → pekerja (jika relay)', function (t) {
+      const sub = function (endpoint) {
+        return 'wp1_' + Utilities.base64EncodeWebSafe(JSON.stringify({ endpoint: endpoint, keys: { p256dh: 'B' + 'x'.repeat(86), auth: 'a'.repeat(22) } })).replace(/=+$/, '');
+      };
+      t.ok(PushService.parseWebPush(sub('https://fcm.googleapis.com/fcm/send/abc')), 'Chrome/Android');
+      t.ok(PushService.parseWebPush(sub('https://web.push.apple.com/QAbc')), 'Safari/iPhone');
+      t.eq(PushService.parseWebPush(sub('https://evil.example.com/x')), null, 'hos luar ditolak');
+      t.eq(PushService.parseWebPush(sub('https://fcm.googleapis.com.evil.com/x')), null, 'hos menyamar ditolak');
+      t.eq(PushService.parseWebPush('wp1_rosak'), null);
+      const u = TestHelpers.user('vapid');
+      TestAssert.apiFail(TestHelpers.call(u.token, 'push.register', { token: sub('https://evil.example.com/x') }), ERROR_CODES.VALIDATION_ERROR);
+      TestAssert.apiOk(TestHelpers.call(u.token, 'push.register', { token: sub('https://fcm.googleapis.com/fcm/send/' + 'q'.repeat(20)), platform: 'ANDROID' }));
+      TestAssert.apiOk(TestHelpers.call(u.token, 'push.register', { token: 'oldFcmTok_' + 'f'.repeat(40) }));
+      const queued = [];
+      PushService.testOutbox = { queue: function (kind, payload) { queued.push({ kind: kind, payload: payload }); } };
+      PushService.testVapid = 'BTestVapidPublicKey';
+      try {
+        withEnv_({ PUSH_RELAY: '', PUBLIC_BASE_URL: 'https://contoh.github.io/app/' }, function () {
+          t.eq(PushService.enabled(), true, 'VAPID sahaja sudah mencukupi (tanpa Firebase)');
+          const cfg = TestAssert.apiOk(api({ action: 'public.config' }));
+          t.eq(cfg.VAPID_PUBLIC_KEY, 'BTestVapidPublicKey');
+          t.eq(PushService.sendToUser(u.user.id, { title: 'Tempahan baharu', body: 'X', path: '#/admin/tempahan/1', type: 'RECORD_CREATED', ref: 'TP-1', badge: 3 }), 1, 'FCM tidak dihantar tanpa relay');
+        });
+        withEnv_({ PUSH_RELAY: '1' }, function () { t.eq(PushService.sendToUser(u.user.id, { title: 'T', body: 'B' }), 2, 'dengan relay: webpush + FCM'); });
+      } finally { PushService.testOutbox = null; PushService.testVapid = null; }
+      const w = queued.filter(function (q) { return q.kind === 'webpush'; });
+      t.eq(w.length, 2);
+      t.eq(w[0].payload.msg.wp, 1);
+      t.eq(w[0].payload.msg.url, 'https://contoh.github.io/app/#/admin/tempahan/1', 'pautan penuh');
+      t.eq(w[0].payload.msg.tag, 'RECORD_CREATED:TP-1', 'tag unik setiap rekod');
+      t.eq(w[0].payload.msg.badge, '3');
+      t.ok(/^K-/.test(w[0].payload.id) && w[0].payload.token.indexOf('wp1_') === 0);
+      t.eq(queued.filter(function (q) { return q.kind === 'push'; }).length, 1, 'FCM lama → pekerja');
+    }, { nodeOnly: true }],
     ['Pemindahan: semua sheet + Script Properties dihantar; gagal → kembali ke mod biasa', function (t) {
       const st = globalThis.__mockState;
       let sent = null;

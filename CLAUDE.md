@@ -47,6 +47,7 @@ Pengguna (Za) biasanya hanya memberi **penerangan atau mockup**, contohnya "Saya
 - Kod `.gs` yang sama dijalankan di Supabase Edge Function (`supabase/functions/api`). Jangan tulis kod yang hanya berfungsi di Apps Script dalam laluan API (Drive, UrlFetchApp, ScriptApp tiada di sana; MailApp → baris gilir email).
 - Selepas mengubah `src/`: `npm run test:edge` (perlu `EDGE_TEST_PG` untuk ujian Postgres) dan E2E melalui runtime: `node tools/dev-server.js --seed --edge <postgres-url>`.
 - Perubahan skema sheet tetap automatik (sheet/lajur baharu dicipta oleh kod). Jadual `private.*` hanya berubah melalui `supabase/migrations/`.
+- Notifikasi telefon di Supabase = **Web Push VAPID** (`webpush.mjs`), dihantar oleh Edge Function sendiri — tiada Firebase. Kunci VAPID diterbitkan daripada `AUTH_PEPPER`; jangan tukar pepper (semua langganan telefon akan terputus).
 
 ## Rujukan pantas
 

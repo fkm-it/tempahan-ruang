@@ -10,9 +10,46 @@ var FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.14.1/';
 // berdasarkan notifikasi yang masih ada dalam bar notifikasi.
 self.addEventListener('push', function (e) {
   var n = NaN;
-  try { var p = e.data && e.data.json(); n = parseInt(p && p.data && p.data.badge, 10); } catch (err) { /* bukan JSON */ }
+  try { var p = e.data && e.data.json(); if (p && p.wp === 1) return; n = parseInt(p && p.data && p.data.badge, 10); } catch (err) { /* bukan JSON */ }
   if (!self.navigator || !self.navigator.setAppBadge) return;
   e.waitUntil((isNaN(n) ? self.navigator.setAppBadge() : n > 0 ? self.navigator.setAppBadge(n) : self.navigator.clearAppBadge()).catch(function () {}));
+});
+
+// Web Push standard (VAPID) daripada pelayan Supabase: muatan {wp:1, title, body, url, tag, badge, icon, badgeIcon}
+self.addEventListener('push', function (e) {
+  var p = null;
+  try { p = e.data && e.data.json(); } catch (err) { p = null; }
+  if (!p || p.wp !== 1) return; // bukan daripada pelayan ini (cth. FCM — dikendalikan oleh SDK Firebase)
+  var n = parseInt(p.badge, 10);
+  var badge = self.navigator && self.navigator.setAppBadge
+    ? (isNaN(n) ? self.navigator.setAppBadge() : n > 0 ? self.navigator.setAppBadge(n) : self.navigator.clearAppBadge()).catch(function () {})
+    : Promise.resolve();
+  e.waitUntil(Promise.all([
+    badge,
+    self.registration.showNotification(p.title || 'Notifikasi', {
+      body: p.body || '', tag: p.tag || undefined, renotify: !!p.tag, icon: p.icon || 'icons/icon-192.png',
+      badge: p.badgeIcon || 'icons/badge-72.png', data: { url: p.url || './' }
+    }),
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      list.forEach(function (c) { c.postMessage({ type: 'KD_PUSH' }); });
+    })
+  ]));
+});
+
+// Klik notifikasi Web Push: fokus tetingkap app sedia ada (navigasi ke pautan) atau buka baharu
+self.addEventListener('notificationclick', function (e) {
+  var url = e.notification && e.notification.data && e.notification.data.url;
+  if (!url) return; // notifikasi FCM — dikendalikan oleh SDK Firebase (fcm_options.link)
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (c.url.split('#')[0] === url.split('#')[0] && 'focus' in c) {
+        return c.focus().then(function (w) { return w && w.navigate ? w.navigate(url) : w; });
+      }
+    }
+    return self.clients.openWindow ? self.clients.openWindow(url) : null;
+  }));
 });
 
 // Dari app: semua notifikasi telah dibaca → buang notifikasi dari bar & lencana ikon

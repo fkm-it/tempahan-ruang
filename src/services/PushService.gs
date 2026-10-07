@@ -1,6 +1,9 @@
 /**
  * @file PushService.gs
- * Notifikasi telefon (Web Push) melalui Firebase Cloud Messaging (FCM) HTTP v1.
+ * Notifikasi telefon.
+ *   - Pelayan Supabase (utama): Web Push standard dengan VAPID — dihantar terus oleh Edge Function (webpush.mjs).
+ *     Token = 'wp1_' + langganan pelayar. Tiada Firebase / akaun servis diperlukan.
+ *   - Apps Script (mod lama / templat): Firebase Cloud Messaging (FCM) HTTP v1, seperti di bawah.
  *
  * Kenapa FCM: Web Push terus memerlukan tandatangan ECDSA (VAPID) + penyulitan payload yang tidak disokong
  * Apps Script. FCM melakukan kedua-duanya; kita hanya perlu token OAuth akaun servis (RS256 — disokong
@@ -78,7 +81,34 @@ const PushService = {
    * Di Apps Script: ada akaun servis FCM. Di Supabase: pekerja Apps Script melaporkan (PUSH_RELAY = '1') bahawa
    * ia mempunyai akaun servis FCM — rahsia itu kekal di Apps Script sahaja, tidak disalin ke Supabase.
    */
-  enabled: function () { return PushService.onEdge() ? Env.get('PUSH_RELAY', '') === '1' : !!PushService.config(); },
+  enabled: function () { return PushService.onEdge() ? (!!PushService.vapidPublicKey() || Env.get('PUSH_RELAY', '') === '1') : !!PushService.config(); },
+
+  /** Awalan token langganan Web Push standard (VAPID, dihantar terus oleh Supabase — tanpa Firebase). */
+  WP_PREFIX: 'wp1_',
+  isWebPush: function (token) { return String(token || '').indexOf(PushService.WP_PREFIX) === 0; },
+
+  /** Kunci awam VAPID (pelayan Supabase sahaja; '' di Apps Script). Ujian boleh menetapkan PushService.testVapid. */
+  vapidPublicKey: function () {
+    if (PushService.testVapid !== null) return PushService.testVapid;
+    try { return typeof EDGE_WEBPUSH !== 'undefined' && EDGE_WEBPUSH ? String(EDGE_WEBPUSH.publicKey() || '') : ''; } catch (e) { return ''; }
+  },
+  testVapid: null,
+
+  /** Perkhidmatan push pelayar yang dibenarkan (sama seperti webpush.mjs) — elak pelayan menghantar ke URL sewenang-wenang. */
+  PUSH_HOST_RE: /^(fcm\.googleapis\.com|android\.googleapis\.com|([a-z0-9-]+\.)*push\.services\.mozilla\.com|web\.push\.apple\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)*notify\.windows\.com)$/,
+
+  /** Token 'wp1_…' → { endpoint, keys } atau null. */
+  parseWebPush: function (token) {
+    if (!PushService.isWebPush(token)) return null;
+    try {
+      const raw = String(token).slice(PushService.WP_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+      const sub = JSON.parse(Utilities.newBlob(Utilities.base64Decode(raw + '==='.slice((raw.length + 3) % 4))).getDataAsString());
+      const m = /^https:\/\/([^\/:?#]+)\//.exec(String(sub && sub.endpoint || ''));
+      if (!m || !PushService.PUSH_HOST_RE.test(m[1].toLowerCase())) return null;
+      if (!sub.keys || !/^[A-Za-z0-9_-]{80,100}$/.test(String(sub.keys.p256dh || '')) || !/^[A-Za-z0-9_-]{16,30}$/.test(String(sub.keys.auth || ''))) return null;
+      return { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } };
+    } catch (e) { return null; }
+  },
 
   /** Dipanggil oleh pelayan Supabase apabila pekerja melaporkan status FCM. @return {boolean} berubah */
   setRelay: function (on) {
@@ -162,16 +192,34 @@ const PushService = {
       if (PushService.onEdge()) {
         const ob = PushService.outbox();
         if (!ob) return 0;
-        ob.queue('push', { tokens: tokens.map(function (t) { return { id: t.token_id, token: t.token }; }), msg: msg });
-        return tokens.length;
+        let n = 0;
+        /* Web Push standard: satu item setiap peranti, dihantar terus oleh pelayan Supabase */
+        const wp = PushService.vapidPublicKey() ? tokens.filter(function (t) { return PushService.isWebPush(t.token); }) : [];
+        wp.forEach(function (t) { ob.queue('webpush', { id: t.token_id, token: t.token, msg: PushService.webPushMessage(msg) }); n++; });
+        /* Token FCM lama (jika pekerja Apps Script mempunyai akaun servis Firebase) */
+        const fcm = Env.get('PUSH_RELAY', '') === '1' ? tokens.filter(function (t) { return !PushService.isWebPush(t.token); }) : [];
+        if (fcm.length) { ob.queue('push', { tokens: fcm.map(function (t) { return { id: t.token_id, token: t.token }; }), msg: msg }); n += fcm.length; }
+        return n;
       }
-      const r = PushService.sendTokens(tokens.map(function (t) { return { id: t.token_id, token: t.token }; }), msg);
+      const r = PushService.sendTokens(tokens.filter(function (t) { return !PushService.isWebPush(t.token); }).map(function (t) { return { id: t.token_id, token: t.token }; }), msg);
       if (r.dead.length) PushService.revokeTokens(r.dead);
       return r.sent;
     } catch (e) {
       AppLogger.warn('Push gagal', { error: String(e && e.message || e) });
       return 0;
     }
+  },
+
+  /** Muatan Web Push (dibaca oleh pwa/sw.js): tajuk, teks, pautan penuh, tag & lencana. */
+  webPushMessage: function (msg) {
+    const m = msg || {};
+    const base = PushService.baseUrl();
+    const tag = m.tag || ((m.type || 'app') + (m.ref ? ':' + m.ref : ''));
+    return {
+      wp: 1, title: StringUtils.truncate(String(m.title || ''), 100), body: StringUtils.truncate(String(m.body || ''), 240), tag: tag,
+      url: (base || '') + (m.path || '#/notifikasi'), badge: m.badge === undefined ? '' : String(m.badge),
+      icon: base ? base + 'icons/icon-192.png' : '', badgeIcon: base ? base + 'icons/badge-72.png' : ''
+    };
   },
 
   /**
@@ -224,6 +272,7 @@ const PushService = {
       platform: { type: 'enum', values: ['ANDROID', 'IOS', 'DESKTOP', 'OTHER'], default: 'OTHER' }
     });
     if (!PushService.TOKEN_RE.test(data.token)) throw Errors.validation('Token peranti tidak sah.');
+    if (PushService.isWebPush(data.token) && !PushService.parseWebPush(data.token)) throw Errors.validation('Langganan notifikasi tidak sah.');
     SecurityService.rateLimit('push.register', ctx.userId);
     const now = DateUtils.nowIso();
     return Database.withLock(function () {

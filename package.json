@@ -1,6 +1,6 @@
 {
   "name": "tempahan-ruang-fkm",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Sistem Tempahan Ruang & Fasiliti FKM — Tempah ruang kuliah, makmal dan studio FKM dengan mudah",
   "engines": {
@@ -24,7 +24,7 @@
     "deployments": "clasp list-deployments",
     "logs": "clasp tail-logs",
     "build:edge": "node tools/build-edge.js",
-    "test:edge": "node tools/test-edge-bundle.mjs && node tools/test-edge-pg.mjs"
+    "test:edge": "node tools/test-webpush.mjs && node tools/test-edge-bundle.mjs && node tools/test-edge-pg.mjs"
   },
   "devDependencies": {
     "@google/clasp": "^3.0.0"

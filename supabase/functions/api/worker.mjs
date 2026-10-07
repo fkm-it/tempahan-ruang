@@ -13,6 +13,7 @@
 import nodeCrypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { TIME_ZONE, formatDate } from './runtime.mjs';
+import { deliverPending } from './webpush.mjs';
 
 const SIG_PREFIX = 'druang-worker-v2';
 const SIG_WINDOW_MS = 5 * 60 * 1000;
@@ -21,10 +22,11 @@ const SKIP_PROPS = ['SPREADSHEET_ID', 'LEGACY_SPREADSHEET_ID', 'FCM_SERVICE_ACCO
 const DAILY_HOUR = 2;
 
 /**
- * @param {{store:Object, runtime:Object, log?:Object, verifyImport?:function(string):Promise<boolean>}} opts
+ * @param {{store:Object, runtime:Object, log?:Object, verifyImport?:function(string):Promise<boolean>, pushFetch?:function}} opts
+ *   pushFetch: (ujian) pengganti fetch untuk Web Push.
  *   verifyImport(nonce): sahkan dengan Apps Script (URL dipercayai dalam config.json) bahawa import ini dimulakan olehnya.
  */
-export function createWorkerApi({ store, runtime, log, verifyImport }) {
+export function createWorkerApi({ store, runtime, log, verifyImport, pushFetch }) {
   const L = log || console;
   const ok = (data) => ({ success: true, data });
   const fail = (code, message) => ({ success: false, code, message });
@@ -92,7 +94,9 @@ export function createWorkerApi({ store, runtime, log, verifyImport }) {
           try { await runtime.execute((B) => B.PushService.setRelay(!!payload.pushRelay)); } catch (e) { L.error('[worker] pushRelay', e); }
         }
         const m = await maintenance(!!payload.force);
-        const mails = await store.claimOutbox(payload.limit || 20);
+        /* Web Push dihantar oleh pelayan ini sendiri (termasuk cubaan semula); pekerja Apps Script hanya menerima email/FCM */
+        try { m.webpush = await deliverPending({ store, runtime, fetchImpl: pushFetch, log: L }); } catch (e) { L.error('[worker] webpush', e); }
+        const mails = await store.claimOutbox(payload.limit || 20, ['mail', 'push']);
         return ok({ maintenance: m, mails });
       }
       if (action === 'system.ack') {

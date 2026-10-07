@@ -12,6 +12,7 @@ import { createBackend } from './backend.mjs';
 import { createRuntime } from './runtime.mjs';
 import { createPgStore } from './store-pg.mjs';
 import { createWorkerApi } from './worker.mjs';
+import { deliverPending } from './webpush.mjs';
 import cfg from './config.json' with { type: 'json' };
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 4, idle_timeout: 30, connect_timeout: 10, onnotice: () => {} });
@@ -42,6 +43,13 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 const fail = (code: string, message: string, status = 200) => json({ success: false, data: null, code, message, meta: {} }, status);
+
+/** Hantar notifikasi telefon (Web Push) tertunggak di latar — tidak melambatkan jawapan API. */
+function deliverPush() {
+  const p = deliverPending({ store, runtime }).catch((e) => console.error('[webpush]', e));
+  // @ts-ignore EdgeRuntime disediakan oleh Supabase
+  if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(p);
+}
 
 /** Kejut pekerja Apps Script supaya email dihantar segera (pencetus setiap minit kekal sebagai sandaran). */
 let lastPoke = 0;
@@ -101,7 +109,7 @@ Deno.serve(async (req) => {
 
   try {
     const { result, outbox } = await runtime.handle(body);
-    if (outbox) pokeWorker();
+    if (outbox) { pokeWorker(); deliverPush(); }
     if (result && result.meta) result.meta.ms = Date.now() - started;
     return json(result);
   } catch (e) {

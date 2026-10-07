@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [1.4.1] — 2026-10-07
+
+### Diubah
+- **Notifikasi telefon terus daripada Supabase — tanpa Firebase.** Web Push standard (VAPID, RFC 8291/8292) dihantar oleh Edge Function sendiri (`supabase/functions/api/webpush.mjs`) serta-merta selepas tindakan; cubaan semula setiap kitaran pekerja.
+  - Kunci VAPID diterbitkan daripada `AUTH_PEPPER` (tiada rahsia baharu, sama di semua isolat); kunci awam dihantar dalam `public.config` (`VAPID_PUBLIC_KEY`).
+  - Pelayar melanggan dengan `PushManager` (token `wp1_…`); `sw.js` memaparkan notifikasi, lencana ikon & membuka pautan rekod apabila diklik.
+  - Endpoint langganan disemak terhadap perkhidmatan push yang dikenali (Chrome/Android, Firefox, Safari/iPhone, Windows) — elak SSRF.
+  - Langganan tamat (404/410) dibatalkan automatik.
+  - Laluan FCM (Firebase) melalui pekerja Apps Script kekal untuk token lama / mod Apps Script sahaja.
+- Ujian baharu: `tools/test-webpush.mjs` (penyulitan disahkan oleh penyahsulit bebas, JWT, SSRF, penghantaran) + ujian Postgres hujung-ke-hujung.
+
 ## [1.4.0] — 2026-10-07
 
 ### Ditambah

@@ -34,6 +34,7 @@ const SettingsService = {
     out.VERSION = CONFIG.VERSION;
     out.ENV = Env.isProduction() ? '' : Env.name();
     out.PUSH_ENABLED = PushService.enabled();
+    out.VAPID_PUBLIC_KEY = PushService.vapidPublicKey();
     out.SHORT_NAME = CONFIG.SHORT_NAME;
     // Persediaan awal: pendaftaran Super Admin pertama dibenarkan walaupun ALLOW_REGISTRATION ditutup
     try { out.SETUP_PENDING = !!Env.get('BOOTSTRAP_SUPER_ADMIN_EMAIL') && UserRepository.countByRole(ROLES.SUPER_ADMIN) === 0; } catch (e) { out.SETUP_PENDING = false; }

@@ -135,9 +135,11 @@ export function createPgStore(sql) {
   }
 
   // ---------------------------------------------------------------- Pekerja (Apps Script) & penyelenggaraan
-  async function claimOutbox(limit) {
+  /** @param {string[]} [kinds] lalai: email & FCM (pekerja Apps Script). 'webpush' dihantar oleh Edge Function sendiri. */
+  async function claimOutbox(limit, kinds) {
+    const k = Array.isArray(kinds) && kinds.length ? kinds : ['mail', 'push'];
     return sql`update private.outbox set claimed_at = now(), attempts = attempts + 1
-               where id in (select id from private.outbox where sent_at is null and attempts < 5
+               where id in (select id from private.outbox where sent_at is null and attempts < 5 and kind = any(${k})
                             and (claimed_at is null or claimed_at < now() - interval '5 minutes')
                             order by id limit ${limit || 20} for update skip locked)
                returning id::text as id, kind, payload`;

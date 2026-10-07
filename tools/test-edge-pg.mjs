@@ -9,6 +9,7 @@
  */
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -62,7 +63,9 @@ stafSheet.rows.push(dupRow, ['', 'tanpa id']);
 const store = createPgStore(sql);
 const mkRuntime = () => createRuntime({ store, createBackend, log: quiet });
 const NONCE = 'n'.repeat(43);
-const worker = createWorkerApi({ store, runtime: mkRuntime(), log: quiet, verifyImport: async (n) => n === NONCE });
+const pushCalls = [];
+const pushFetch = async (url, init) => { pushCalls.push({ url, init }); return { status: url.indexOf('/gone') >= 0 ? 410 : 201, body: null }; };
+const worker = createWorkerApi({ store, runtime: mkRuntime(), log: quiet, verifyImport: async (n) => n === NONCE, pushFetch });
 const nodeCrypto = await import('node:crypto');
 let PEPPER = '';
 const signed = (action, payload, tsShift) => {
@@ -203,10 +206,9 @@ await test('Pekerja: tandatangan v2 (ts + tindakan + kandungan); tick menjalanka
   assert(pending === 0, 'masih tertunggak ' + pending);
 });
 
-await test('Push melalui pekerja: status FCM dilaporkan, permohonan baharu → outbox push untuk admin, token mati dibatalkan', async () => {
+await test('FCM lama melalui pekerja Apps Script (token bukan wp1_): status dilaporkan, outbox push, token mati dibatalkan', async () => {
   const off = await worker.handle(signed('system.tick', { pushRelay: false }));
   assert(off.success, 'tick');
-  assert(ok(await call(A, 'public.config')).PUSH_ENABLED === false, 'tanpa pekerja FCM → tidak aktif');
   const on = await worker.handle(signed('system.tick', { pushRelay: true }));
   assert(on.success, 'tick relay');
   await worker.handle(signed('system.ack', { results: on.data.mails.map((x) => ({ id: x.id, ok: true })) }));
@@ -226,6 +228,35 @@ await test('Push melalui pekerja: status FCM dilaporkan, permohonan baharu → o
   assert(ack.success, 'ack');
   const st = ok(await call(A, 'push.status', {}, sup.token));
   assert(st.devices === 1 && st.serverEnabled === true, 'token mati dibatalkan: ' + JSON.stringify(st));
+});
+
+await test('Web Push VAPID (tanpa Firebase): kunci awam dalam config, langganan didaftar, permohonan baharu → dihantar terus oleh pelayan', async () => {
+  const cfg = ok(await call(A, 'public.config'));
+  assert(cfg.PUSH_ENABLED === true && /^[A-Za-z0-9_-]{87}$/.test(cfg.VAPID_PUBLIC_KEY || ''), 'kunci VAPID: ' + cfg.VAPID_PUBLIC_KEY);
+  const cfgB = ok(await call(B, 'public.config'));
+  assert(cfgB.VAPID_PUBLIC_KEY === cfg.VAPID_PUBLIC_KEY, 'kunci sama di semua isolat');
+  const mk = (endpoint) => {
+    const e = crypto.createECDH('prime256v1'); e.generateKeys();
+    return 'wp1_' + Buffer.from(JSON.stringify({ endpoint, keys: { p256dh: e.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') } })).toString('base64url');
+  };
+  const bad = await call(A, 'push.register', { token: mk('https://evil.example.com/x') }, sup.token);
+  assert(!bad.success, 'endpoint luar ditolak');
+  ok(await call(A, 'push.register', { token: mk('https://fcm.googleapis.com/fcm/send/live-admin'), platform: 'ANDROID' }, sup.token));
+  ok(await call(A, 'push.register', { token: mk('https://web.push.apple.com/gone'), platform: 'IOS' }, sup.token));
+  ok(await pub(B, { tarikh: day(29), masaMula: '08:00', masaTamat: '09:00', tujuan: 'Push VAPID terus' }));
+  const q = await sql`select payload from private.outbox where kind = 'webpush' and sent_at is null`;
+  assert(q.some((r) => /Push VAPID terus/.test(r.payload.msg.body) && /^#?\/?.*admin\/tempahan\//.test(r.payload.msg.url)), 'outbox webpush: ' + JSON.stringify(q.map((r) => r.payload.msg)).slice(0, 300));
+  const t = await worker.handle(signed('system.tick', {}));
+  assert(t.success && t.data.maintenance.webpush && t.data.maintenance.webpush.sent >= 1, 'dihantar oleh pelayan: ' + JSON.stringify(t.data.maintenance.webpush));
+  assert(!t.data.mails.some((m) => m.kind === 'webpush'), 'webpush tidak diserahkan kepada Apps Script');
+  const live = pushCalls.find((c) => c.url.indexOf('live-admin') >= 0);
+  assert(live && /^vapid t=.+, k=/.test(live.init.headers.Authorization) && live.init.headers['Content-Encoding'] === 'aes128gcm', 'permintaan Web Push');
+  const left = (await sql`select count(*)::int as n from private.outbox where kind = 'webpush' and sent_at is null`)[0].n;
+  assert(left === 0, 'tertunggak ' + left);
+  const st = ok(await call(A, 'push.status', {}, sup.token));
+  assert(st.devices >= 1, 'peranti aktif');
+  const toks = (await sql`select vals::text as v from private.sheet_rows where sheet = 'PUSH_TOKENS'`).map((r) => r.v);
+  assert(toks.some((v) => v.indexOf('REVOKED') >= 0), 'langganan mati (410) dibatalkan');
 });
 
 await test('PIC: lulus + tugaskan pembantu operasi; PIC sahkan melalui pautan (isolat lain)', async () => {
