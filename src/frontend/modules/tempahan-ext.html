@@ -410,34 +410,52 @@
   KD.views.tempahanSaya = {
     async render(el, params, query) {
       const tn = tones();
+      const A = KD.tpAkses;
       el.innerHTML = html`${P.top()}<main class="tp-page">
-        <div class="tp-head"><div><h1>${t('Tempahan saya')}</h1><p>${t('Masukkan No. Staf / No. Matrik dan emel yang digunakan semasa menempah.')}</p></div></div>
-        <div class="tp-card"><form data-form="ts" novalidate><div class="tp-row2">
+        <div class="tp-head"><div><h1>${t('Tempahan saya')}</h1><p>${t('Masukkan No. Staf / No. Matrik dan emel yang digunakan semasa menempah. Kod pengesahan akan dihantar ke emel tersebut.')}</p></div></div>
+        <div class="tp-card" data-formcard><form data-form="ts" novalidate><div class="tp-row2">
           <div class="field"><label class="label" for="ts-no">${t('No. Staf / No. Matrik')}</label><input class="input" id="ts-no" name="noStaf" required maxlength="20" autocomplete="off" value="${query.no || ''}"></div>
           <div class="field"><label class="label" for="ts-emel">${t('Emel')}</label><input class="input" id="ts-emel" name="emel" type="email" required autocomplete="email"></div></div>
-          <button class="btn btn-primary" type="submit">${icon('list')}${t('Semak tempahan')}</button></form></div>
+          <button class="btn btn-primary" type="submit">${icon('mail')}${t('Hantar kod pengesahan')}</button></form></div>
         <div data-out></div></main>`.s;
+      const card = qs('[data-formcard]', el);
       const f = qs('[data-form="ts"]', el);
       const out = qs('[data-out]', el);
-      let creds = null;
+      let ses = null;
       let items = [];
-      const draw = () => {
-        out.innerHTML = items.length ? html`<p class="small mt-6"><b>${items.length}</b> ${t('tempahan')}</p>${items.map((v, i) => html`<div class="ts-item">
+      const showForm = () => { ses = null; card.classList.remove('hidden'); out.innerHTML = ''; };
+      const draw = (emel) => {
+        card.classList.add('hidden');
+        out.innerHTML = html`<div class="row mt-2" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><p class="small"><b>${items.length}</b> ${t('tempahan')}${emel ? html` · <span class="muted">${emel}</span>` : ''}</p>
+            <button class="btn btn-ghost btn-sm" type="button" data-keluar>${icon('logout', 'i-sm')}${t('Tamatkan sesi')}</button></div>
+          ${items.length ? items.map((v, i) => html`<div class="ts-item">
           <div class="ts-item__top"><span class="ts-item__ref">${v.refNo}</span>${toneBadge(t(v.statusLabel), tn[v.status])}</div>
           <div class="ts-item__meta">${P.fmtKey(v.tarikh)}${v.tarikhTamat && v.tarikhTamat !== v.tarikh ? ' – ' + P.fmtKey(v.tarikhTamat) : ''} · ${v.masaMula}–${v.masaTamat} · <b>${v.ruang}</b></div>
           <div class="ts-item__meta">${v.tujuan}${v.statusNote ? html`<br><i>${t('Catatan')}: ${v.statusNote}</i>` : ''}</div>
           <div class="ts-item__actions">
             ${P.printable(v.status) ? html`<button class="btn btn-sm btn-primary" type="button" data-slip="${i}">${icon('download', 'i-sm')}${t('Slip tempahan')}</button>` : ''}
             ${v.bolehBatal ? html`<button class="btn btn-sm btn-outline" type="button" data-batal="${i}" style="color:var(--danger)">${icon('x', 'i-sm')}${t('Batalkan')}</button>` : ''}
-          </div></div>`)}`.s
-          : html`<div class="tp-card mt-6">${empty(t('Tiada tempahan'), t('Tiada tempahan sepadan dengan No. Staf / No. Matrik dan emel ini.'))}</div>`.s;
+          </div></div>`) : html`<div class="tp-card mt-6">${empty(t('Tiada tempahan'), t('Tiada tempahan sepadan dengan No. Staf / No. Matrik dan emel ini.'))}</div>`}`.s;
       };
-      const load = async (btn) => busy(btn, async () => {
+      const load = async (s) => {
+        try { const r = await KD.api.call('tempahan.saya', { token: s.token }); ses = s; items = r.items; draw(r.emel); return true; } catch (err) {
+          if (A.expired(err)) { A.clear(); showForm(); toast(t('Sesi semakan telah tamat. Sila minta kod pengesahan baharu.'), 'error'); } else toastError(err);
+          return false;
+        }
+      };
+      f.addEventListener('submit', (e) => {
+        e.preventDefault();
         const p = { noStaf: f.elements.noStaf.value.trim(), emel: f.elements.emel.value.trim() };
         fieldErrors(f, null);
-        try { const r = await KD.api.call('tempahan.saya', p); creds = p; items = r.items; draw(); } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
+        if (!p.noStaf || !p.emel) { toast(t('Isi No. Staf / No. Matrik dan emel.'), 'error'); return; }
+        busy(qs('button[type="submit"]', f), async () => {
+          try { card.classList.add('hidden'); await A.start(out, p, load, showForm); } catch (err) { showForm(); if (!fieldErrors(f, err)) toastError(err); }
+        });
       });
-      f.addEventListener('submit', (e) => { e.preventDefault(); load(qs('button[type="submit"]', f)); });
+      /* Sesi sah dalam tab ini → terus papar */
+      const existing = A.get();
+      if (existing) load(existing);
+      on(out, 'click', '[data-keluar]', () => { A.clear(); items = []; showForm(); });
       on(out, 'click', '[data-slip]', (e, b) => {
         const v = items[Number(b.getAttribute('data-slip'))];
         P.printSlip({ refNo: v.refNo, statusLabel: v.statusLabel, nama: v.nama, noStaf: v.noStaf, noTelefon: v.noTelefon, ruang: v.ruang, blok: v.ruangBlok, aras: v.ruangAras, kod: v.ruangKod, pic: v.ruangPic,
@@ -453,10 +471,13 @@
         });
         qs('[data-ok]', dlg.el).addEventListener('click', () => busy(qs('[data-ok]', dlg.el), async () => {
           try {
-            const r = await KD.api.call('tempahan.batal', { refNo: v.refNo, noStaf: creds.noStaf, emel: creds.emel, sebab: qs('#tsb-sebab', dlg.el).value.trim() });
+            const r = await KD.api.call('tempahan.batal', { token: ses && ses.token, refNo: v.refNo, sebab: qs('#tsb-sebab', dlg.el).value.trim() });
             items = items.map((x) => (x.refNo === r.refNo ? r : x));
             dlg.close(); draw(); toast(t('Tempahan telah dibatalkan. Pengesahan dihantar ke emel anda.'));
-          } catch (err) { toastError(err); }
+          } catch (err) {
+            if (A.expired(err)) { dlg.close(); A.clear(); showForm(); }
+            toastError(err);
+          }
         }));
       });
     }
@@ -732,6 +753,8 @@
     'Klik tarikh untuk melihat jadual ruang hari itu.': 'Click a date to see that day’s room schedule.', 'Semua ruang': 'All rooms', 'Ditutup / bukan hari operasi': 'Closed / non-operating day',
     'Tempahan ditolak & dibatalkan tidak dipaparkan.': 'Rejected & cancelled bookings are hidden.', 'tempahan': 'bookings', 'lagi': 'more',
     'Masukkan No. Staf / No. Matrik dan emel yang digunakan semasa menempah.': 'Enter the staff/matric number and email you used when booking.', 'No. Staf / No. Matrik': 'Staff / Matric No.',
+    'Masukkan No. Staf / No. Matrik dan emel yang digunakan semasa menempah. Kod pengesahan akan dihantar ke emel tersebut.': 'Enter the staff/matric number and email used when booking. A verification code will be sent to that email.',
+    'Tamatkan sesi': 'End session', 'Isi No. Staf / No. Matrik dan emel.': 'Fill in the staff/matric number and email.',
     'Semak tempahan': 'Check bookings', 'Slip tempahan': 'Booking slip', 'Batalkan': 'Cancel', 'Tiada tempahan sepadan dengan No. Staf / No. Matrik dan emel ini.': 'No bookings match this staff/matric number and email.',
     'Semak kekosongan ruang': 'Check availability', 'Papan paparan': 'Live board', 'Menu': 'Menu', 'sedang digunakan': 'in use', 'akan datang': 'upcoming', 'ruang aktif': 'active rooms',
     'Masukkan bilangan orang dan tempoh; sistem mencadangkan ruang yang kosong.': 'Enter the group size and duration; the system suggests free rooms.',

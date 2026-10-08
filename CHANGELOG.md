@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [1.4.2] — 2026-10-08
+
+### Keselamatan
+- **Semak / batal tempahan & Tempahan saya kini memerlukan kod pengesahan emel (OTP).** No. Staf + emel (atau No. Rujukan) sahaja tidak lagi mencukupi untuk melihat atau membatalkan tempahan.
+  - Kod 6 digit dihantar ke emel **yang direkod pada tempahan** (bukan emel yang ditaip) — orang lain tidak dapat menerimanya.
+  - Kod tamat 10 minit, sekali guna, maksimum 5 cubaan, disimpan sebagai hash; had kadar 5 permintaan / 15 minit bagi setiap No. Staf.
+  - Jawapan seragam sama ada maklumat sepadan atau tidak (tidak mendedahkan kewujudan tempahan / staf).
+  - Selepas disahkan: sesi 30 minit (tab semasa sahaja) untuk melihat, cetak slip dan batal; butang "Tamatkan sesi".
+  - Pembatalan direkod dalam audit sebagai "disahkan kod emel"; pemohon & admin dimaklumkan seperti biasa.
+- **Pendaftaran akaun awam ditutup** (MIGRATION_004) dan pautan "Daftar baru" disembunyikan apabila pendaftaran ditutup. Super Admin boleh membukanya semula di Tetapan.
+
 ## [1.4.1] — 2026-10-07
 
 ### Diubah

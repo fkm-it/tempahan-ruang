@@ -124,8 +124,19 @@ await test('Borang awam: tempahan dicipta, email masuk outbox, kunci had kadar d
   assert(after > before, 'outbox email');
   const kv = (await sql`select count(*)::int as n from private.kv where k like 'kd1:rl:%'`)[0].n;
   assert(kv > 0, 'kv had kadar');
-  const semak = ok(await call(B, 'tempahan.semak', { refNo: r.refNo, noStaf: 'D1003' }));
-  assert(semak && (semak.refNo === r.refNo || semak.ref === r.refNo || JSON.stringify(semak).indexOf(r.refNo) >= 0), 'semak dari isolat lain');
+  /* Kod pengesahan emel (OTP): diminta di isolat A, disahkan di isolat B, sesi digunakan di isolat A (kv kongsi) */
+  assert(!(await call(B, 'tempahan.semak', { refNo: r.refNo, noStaf: 'D1003' })).success, 'tanpa kod: tiada akses');
+  ok(await call(A, 'tempahan.kod', { noStaf: 'D1003', refNo: r.refNo }));
+  const m = await sql`select payload from private.outbox where kind = 'mail' and payload->>'subject' like '%Kod pengesahan:%' order by id desc limit 1`;
+  const kod = /(\d{6})/.exec(m[0].payload.subject)[1];
+  const otp = (await sql`select count(*)::int as n from private.kv where k like 'kd1:otp:%'`)[0].n;
+  assert(otp > 0, 'kod disimpan dalam kv kongsi (hash)');
+  const ses = ok(await call(B, 'tempahan.sahKod', { noStaf: 'D1003', refNo: r.refNo, kod }));
+  assert(!(await call(A, 'tempahan.sahKod', { noStaf: 'D1003', refNo: r.refNo, kod })).success, 'kod sekali guna');
+  const semak = ok(await call(A, 'tempahan.semak', { token: ses.token, refNo: r.refNo }));
+  assert(semak.refNo === r.refNo, 'semak dari isolat lain dengan sesi');
+  const saya = ok(await call(B, 'tempahan.saya', { token: ses.token }));
+  assert(saya.items.some((x) => x.refNo === r.refNo), 'tempahan saya');
 });
 
 await test('Pertindihan ditolak (isolat lain, data segar)', async () => {

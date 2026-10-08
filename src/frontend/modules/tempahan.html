@@ -392,28 +392,96 @@
 
   // ================================================================== Semak / batal / cetak slip (pemohon, tanpa akaun)
 
+  /* ================================================================== Akses pemohon: kod pengesahan emel (OTP)
+   * Sesi (token 30 minit) disimpan dalam sessionStorage tab ini sahaja; dikongsi oleh Semak & Tempahan saya. */
+  const SES_KEY = KD.utils.nsKey('tpSesi');
+  const tpAkses = {
+    get() {
+      try { const s = JSON.parse(sessionStorage.getItem(SES_KEY) || 'null'); return s && s.exp > Date.now() ? s : null; } catch (e) { return null; }
+    },
+    set(r, who) {
+      const s = { token: r.token, emel: r.emel, who, exp: Date.now() + (Number(r.tamatMinit) || 30) * 60000 - 30000 };
+      try { sessionStorage.setItem(SES_KEY, JSON.stringify(s)); } catch (e) { /* abaikan */ }
+      return s;
+    },
+    clear() { try { sessionStorage.removeItem(SES_KEY); } catch (e) { /* abaikan */ } },
+    expired: (err) => !!err && err.code === 'FORBIDDEN',
+    /**
+     * Minta kod & papar langkah memasukkan kod dalam `box`. onOk(sesi) dipanggil selepas kod sah; onBack() kembali ke borang.
+     * @param {{noStaf:string, emel?:string, refNo?:string}} req
+     */
+    async start(box, req, onOk, onBack) {
+      await KD.api.call('tempahan.kod', req);
+      let wait = 60;
+      let timer = null;
+      box.innerHTML = html`<div class="panel mt-6 tp-otp" style="padding:var(--sp-5)">
+        <div class="row" style="gap:10px;align-items:flex-start">${icon('mail', 'i-lg')}<div><b>${t('Semak emel anda')}</b>
+          <p class="small muted mt-2">${t('Jika maklumat sepadan dengan tempahan, kod pengesahan 6 digit telah dihantar ke emel pemohon. Kod sah selama 10 minit.')}</p></div></div>
+        <form data-form="otp" class="mt-4" novalidate>
+          <div class="field"><label class="label" for="otp-kod">${t('Kod pengesahan')}</label>
+            <input class="input" id="otp-kod" name="kod" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" style="font-size:1.4rem;letter-spacing:.4em;text-align:center"></div>
+          <button class="btn btn-primary btn-block" type="submit">${icon('check')}${t('Sahkan')}</button>
+        </form>
+        <div class="row mt-4" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-ghost btn-sm" type="button" data-otp="resend" disabled>${t('Hantar semula kod')} <span data-otp-wait>(60)</span></button>
+          <button class="btn btn-ghost btn-sm" type="button" data-otp="back">${icon('chev-left', 'i-sm')}${t('Tukar maklumat')}</button>
+        </div>
+        <p class="xs muted mt-4">${t('Tiada emel? Semak folder Spam/Junk. Jangan kongsi kod ini dengan sesiapa.')}</p></div>`.s;
+      const f = qs('[data-form="otp"]', box);
+      const resend = qs('[data-otp="resend"]', box);
+      const tick = () => {
+        wait--;
+        const w = qs('[data-otp-wait]', box);
+        if (wait <= 0) { clearInterval(timer); resend.disabled = false; if (w) w.textContent = ''; } else if (w) w.textContent = '(' + wait + ')';
+      };
+      timer = setInterval(tick, 1000);
+      setTimeout(() => { try { f.elements.kod.focus(); } catch (e) { /* abaikan */ } }, 50);
+      f.elements.kod.addEventListener('input', () => { const v = f.elements.kod.value.replace(/[^0-9]/g, '').slice(0, 6); f.elements.kod.value = v; if (v.length === 6 && f.requestSubmit) f.requestSubmit(); });
+      f.addEventListener('submit', (e) => {
+        e.preventDefault();
+        busy(qs('button[type="submit"]', f), async () => {
+          fieldErrors(f, null);
+          const kod = f.elements.kod.value.trim();
+          if (!/^[0-9]{6}$/.test(kod)) { toast(t('Masukkan kod 6 digit.'), 'error'); return; }
+          try {
+            const r = await KD.api.call('tempahan.sahKod', Object.assign({ kod }, req));
+            clearInterval(timer);
+            onOk(tpAkses.set(r, req.noStaf));
+          } catch (err) { f.elements.kod.value = ''; if (!fieldErrors(f, err)) toastError(err); }
+        });
+      });
+      on(box, 'click', '[data-otp="resend"]', (e, b) => busy(b, async () => {
+        try { await KD.api.call('tempahan.kod', req); toast(t('Kod baharu telah dihantar.')); wait = 60; b.disabled = true; clearInterval(timer); timer = setInterval(tick, 1000); } catch (err) { toastError(err); }
+      }));
+      on(box, 'click', '[data-otp="back"]', () => { clearInterval(timer); onBack(); });
+    }
+  };
+  KD.tpAkses = tpAkses;
+
   KD.views.semakTempahan = {
     async render(el, params, query) {
       const m = KD.moduleOf('tempahan');
       const tones = {};
       ((m && m.statuses) || []).forEach((s) => { tones[s.value] = s.tone; });
       el.innerHTML = html`${top()}<main class="auth"><div class="auth-card" style="width:min(580px,100%)">
-        <div class="auth-card__head">${icon('search', 'i-lg')}<h2 class="mt-2">${t('Semak / batal tempahan')}</h2><p>${t('Masukkan No. Rujukan (dalam emel pengesahan) dan No. Staf anda.')}</p></div>
+        <div class="auth-card__head">${icon('search', 'i-lg')}<h2 class="mt-2">${t('Semak / batal tempahan')}</h2><p>${t('Masukkan No. Rujukan dan No. Staf anda. Kod pengesahan akan dihantar ke emel yang digunakan semasa menempah.')}</p></div>
         <form data-form="semak" novalidate>
           <div class="field"><label class="label" for="sk-ref">${t('No. rujukan')}</label><input class="input" id="sk-ref" name="refNo" required maxlength="30" value="${query.ref || ''}" placeholder="${t('cth.')} TP-2026-0001" autocapitalize="characters"></div>
           <div class="field"><label class="label" for="sk-staf">${t('No. Staf')}</label><input class="input" id="sk-staf" name="noStaf" required maxlength="20" inputmode="text" autocomplete="off"></div>
-          <button class="btn btn-primary btn-block mt-6" type="submit">${icon('search')}${t('Semak')}</button>
+          <button class="btn btn-primary btn-block mt-6" type="submit">${icon('mail')}${t('Hantar kod pengesahan')}</button>
         </form>
         <div data-result></div>
         <p class="xs muted mt-6" style="text-align:center"><a href="#/jadual">${t('Kalendar ketersediaan')}</a> · <a href="#/borang/tempahan">${t('Mohon tempahan baharu')}</a></p>
       </div></main>`.s;
       const form = qs('[data-form="semak"]', el);
       const out = qs('[data-result]', el);
-      let creds = null;
       let current = null;
+      let refNo = '';
 
+      const showForm = () => { form.classList.remove('hidden'); out.innerHTML = ''; };
       const show = (v) => {
         current = v;
+        form.classList.add('hidden');
         out.innerHTML = html`<div class="panel mt-6" style="padding:var(--sp-5)">
           <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><span class="rec-ref" style="margin:0">${v.refNo}</span>${toneBadge(t(v.statusLabel), tones[v.status])}</div>
           <dl class="jd-kv">
@@ -427,19 +495,35 @@
           </dl>
           ${printable(v.status) ? html`<button class="btn btn-primary btn-block mt-6" type="button" data-act="slip">${icon('download')}${t('Cetak / simpan slip')}</button>` : ''}
           ${v.bolehBatal ? html`<button class="btn btn-outline btn-block mt-3" type="button" data-act="batal" style="color:var(--danger)">${icon('x')}${t('Batalkan tempahan ini')}</button>` : ''}
+          <button class="btn btn-ghost btn-block mt-3" type="button" data-act="lain">${icon('search')}${t('Semak tempahan lain')}</button>
         </div>`.s;
       };
 
-      const semak = async (btn) => {
+      const viewWith = async (ses) => {
+        try { show(await KD.api.call('tempahan.semak', { token: ses.token, refNo })); return true; } catch (err) {
+          if (tpAkses.expired(err)) tpAkses.clear();
+          return false;
+        }
+      };
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
         const p = { refNo: form.elements.refNo.value.trim(), noStaf: form.elements.noStaf.value.trim() };
         fieldErrors(form, null);
         if (!p.refNo || !p.noStaf) { toast(t('Isi No. Rujukan dan No. Staf.'), 'error'); return; }
-        await busy(btn, async () => {
-          try { show(await KD.api.call('tempahan.semak', p)); creds = p; } catch (err) { out.innerHTML = ''; if (!fieldErrors(form, err)) toastError(err); }
+        refNo = p.refNo;
+        busy(qs('button[type="submit"]', form), async () => {
+          /* Sesi sah sedia ada (No. Staf sama) → terus papar tanpa kod baharu */
+          const ses = tpAkses.get();
+          if (ses && ses.who === p.noStaf && await viewWith(ses)) return;
+          try {
+            form.classList.add('hidden');
+            await tpAkses.start(out, p, async (s) => { if (!(await viewWith(s))) { toast(t('Tempahan tidak dijumpai.'), 'error'); showForm(); } }, showForm);
+          } catch (err) { showForm(); if (!fieldErrors(form, err)) toastError(err); }
         });
-      };
-      form.addEventListener('submit', (e) => { e.preventDefault(); semak(qs('button[type="submit"]', form)); });
+      });
 
+      on(out, 'click', '[data-act="lain"]', () => { form.elements.refNo.value = ''; showForm(); form.elements.refNo.focus(); });
       on(out, 'click', '[data-act="slip"]', () => {
         const v = current;
         if (!v) return;
@@ -451,13 +535,13 @@
       });
 
       on(out, 'click', '[data-act="batal"]', () => {
-        if (!creds) return;
+        const ses = tpAkses.get();
+        if (!current || !ses) { toast(t('Sesi semakan telah tamat. Sila minta kod pengesahan baharu.'), 'error'); showForm(); return; }
         const dlg = modal({
           title: t('Batalkan tempahan?'),
-          body: html`<p class="small">${t('Tempahan ini akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.')} <b>${creds.refNo}</b></p>
+          body: html`<p class="small">${t('Tempahan ini akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.')} <b>${current.refNo}</b></p>
             <form data-form="batal" novalidate>
-              <div class="field mt-4"><label class="label" for="bt-emel">${t('Emel staf anda (untuk pengesahan)')}</label><input class="input" id="bt-emel" name="emel" type="email" required autocomplete="email"></div>
-              <div class="field"><label class="label" for="bt-sebab">${t('Sebab (pilihan)')}</label><input class="input" id="bt-sebab" name="sebab" maxlength="300"></div>
+              <div class="field mt-4"><label class="label" for="bt-sebab">${t('Sebab (pilihan)')}</label><input class="input" id="bt-sebab" name="sebab" maxlength="300"></div>
             </form>`,
           foot: html`<button class="btn btn-outline" data-close>${t('Tidak')}</button><button class="btn btn-danger" data-ok>${icon('x')}${t('Ya, batalkan')}</button>`
         });
@@ -465,11 +549,14 @@
         const submit = async () => {
           await busy(qs('[data-ok]', dlg.el), async () => {
             try {
-              const v = await KD.api.call('tempahan.batal', Object.assign({}, creds, { emel: f.elements.emel.value.trim(), sebab: f.elements.sebab.value.trim() }));
+              const v = await KD.api.call('tempahan.batal', { token: ses.token, refNo: current.refNo, sebab: f.elements.sebab.value.trim() });
               dlg.close();
               show(v);
               toast(t('Tempahan telah dibatalkan. Pengesahan dihantar ke emel anda.'));
-            } catch (err) { if (!fieldErrors(f, err)) toastError(err); }
+            } catch (err) {
+              if (tpAkses.expired(err)) { tpAkses.clear(); dlg.close(); showForm(); }
+              if (!fieldErrors(f, err)) toastError(err);
+            }
           });
         };
         qs('[data-ok]', dlg.el).addEventListener('click', submit);
@@ -598,6 +685,12 @@
     'Tiada slot kosong selepas masa ini pada hari tersebut.': 'No free slot after this time on that day.', 'Slot ini telah ditempah.': 'This slot is already booked.',
     'Dewan Kuliah': 'Lecture Hall', 'Bilik Kuliah': 'Lecture Room', 'Makmal Komputer': 'Computer Lab', 'Studio': 'Studio', 'Bilik Seminar': 'Seminar Room', 'Bilik Mesyuarat': 'Meeting Room', 'Makmal': 'Laboratory',
     'Masukkan No. Rujukan (dalam emel pengesahan) dan No. Staf anda.': 'Enter your Reference No. (in the confirmation email) and your Staff No.',
+    'Masukkan No. Rujukan dan No. Staf anda. Kod pengesahan akan dihantar ke emel yang digunakan semasa menempah.': 'Enter your Reference No. and Staff No. A verification code will be sent to the email used when booking.',
+    'Hantar kod pengesahan': 'Send verification code', 'Semak emel anda': 'Check your email', 'Kod pengesahan': 'Verification code', 'Sahkan': 'Verify',
+    'Jika maklumat sepadan dengan tempahan, kod pengesahan 6 digit telah dihantar ke emel pemohon. Kod sah selama 10 minit.': 'If the details match a booking, a 6-digit verification code has been sent to the applicant\'s email. The code is valid for 10 minutes.',
+    'Hantar semula kod': 'Resend code', 'Tukar maklumat': 'Change details', 'Tiada emel? Semak folder Spam/Junk. Jangan kongsi kod ini dengan sesiapa.': 'No email? Check your Spam/Junk folder. Never share this code with anyone.',
+    'Masukkan kod 6 digit.': 'Enter the 6-digit code.', 'Kod baharu telah dihantar.': 'A new code has been sent.', 'Semak tempahan lain': 'Check another booking',
+    'Sesi semakan telah tamat. Sila minta kod pengesahan baharu.': 'Your session has expired. Please request a new verification code.', 'Tempahan tidak dijumpai.': 'Booking not found.',
     'No. rujukan': 'Reference No.', 'No. Rujukan': 'Reference No.', 'Semak': 'Check', 'Mohon tempahan baharu': 'New booking', 'Masa': 'Time', 'Peserta': 'Participants', 'Tujuan': 'Purpose',
     'Pemohon': 'Applicant', 'Catatan': 'Note', 'Cetak / simpan slip': 'Print / save slip', 'Batalkan tempahan ini': 'Cancel this booking', 'Isi No. Rujukan dan No. Staf.': 'Enter the Reference No. and Staff No.',
     'Batalkan tempahan?': 'Cancel booking?', 'Tempahan ini akan dibatalkan dan slot dibuka kepada orang lain. Tindakan ini tidak boleh diundur.': 'This booking will be cancelled and the slot released to others. This cannot be undone.',

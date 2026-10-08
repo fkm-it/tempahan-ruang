@@ -20,7 +20,7 @@ import { Buffer } from 'node:buffer';
 /** Sheet besar yang hanya dimuat apabila diperlukan; tulisan padanya (tambah baris) selamat digabung tanpa semakan konflik. */
 export const LAZY_SHEETS = ['AUDIT_LOGS', 'SYSTEM_LOGS', 'NOTIFICATIONS'];
 /** Kunci CacheService yang mesti dikongsi merentas permintaan (keselamatan). Selainnya cache per permintaan sahaja. */
-export const SHARED_KV = ['kd1:rl:', 'kd1:loginfail:', 'kd1:reset:', 'kd1:idem:'];
+export const SHARED_KV = ['kd1:rl:', 'kd1:loginfail:', 'kd1:reset:', 'kd1:idem:', 'kd1:otp:', 'kd1:tps:'];
 export const TIME_ZONE = 'Asia/Kuala_Lumpur';
 const APPEND_BASE = 1000000;
 

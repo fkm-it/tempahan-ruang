@@ -124,7 +124,7 @@
           <div class="field">${passwordField('password', 'Kata laluan', 'current-password')}</div>
           <label class="check mt-4"><input type="checkbox" name="remember" checked>Ingat saya pada peranti ini</label>
           <button class="btn btn-primary btn-lg btn-block mt-6" type="submit">${icon('lock')}Log Masuk</button>
-        </form>`, html`<a href="#/daftar">Daftar baru</a><a href="#/lupa-kata-laluan">Lupa kata laluan?</a>`).s;
+        </form>`, html`${cfg().ALLOW_REGISTRATION !== false || cfg().SETUP_PENDING ? html`<a href="#/daftar">Daftar baru</a>` : html`<span></span>`}<a href="#/lupa-kata-laluan">Lupa kata laluan?</a>`).s;
       bindPwToggle(el);
       on(el, 'submit', 'form', async (e, form) => {
         e.preventDefault();

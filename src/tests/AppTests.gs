@@ -50,6 +50,20 @@ const AppFixtures = {
     }, payload) });
   },
 
+  /** Peti emel tiruan (Node). */
+  mails: function () { return typeof __mails !== 'undefined' ? __mails : (globalThis.__mails || []); },
+
+  /** Minta kod emel (OTP) + sahkan → token sesi pemohon. @param {{noStaf, emel?, refNo?}} p */
+  sesi: function (p) {
+    const box = AppFixtures.mails();
+    const before = box.length;
+    TestAssert.apiOk(api({ action: 'tempahan.kod', payload: p }));
+    const m = box.slice(before).filter(function (x) { return /Kod pengesahan: \d{6}/.test(x.subject); }).pop();
+    if (!m) throw new Error('Kod pengesahan tidak dihantar');
+    const kod = /(\d{6})/.exec(m.subject)[1];
+    return TestAssert.apiOk(api({ action: 'tempahan.sahKod', payload: Object.assign({ kod: kod }, p) })).token;
+  },
+
   rowByRef: function (ref) { return Repo.of('TEMPAHAN').findOne(function (r) { return r.ref_no === ref; }); },
 
   emailOn: function (adm) { TestAssert.apiOk(TestHelpers.call(adm.token, 'admin.settings.update', { changes: { NOTIFY_EMAIL_ENABLED: true } })); }
@@ -146,24 +160,75 @@ const TestSuiteTempahan = {
       TestAssert.apiOk(TestHelpers.call(adm.token, 'crud.update', { module: 'tempahan', id: x.id, tarikh: AppFixtures.day(-2), tarikhTamat: AppFixtures.day(-2) }));
     }],
 
-    ['Semak & batal oleh pemohon (No. Rujukan + No. Staf + emel)', function (t) {
+    ['Semak & batal oleh pemohon: hanya selepas kod pengesahan emel (OTP)', function (t) {
       const room = AppFixtures.room();
       const staf = AppFixtures.staf();
       const r = TestAssert.apiOk(AppFixtures.pub({ noStaf: staf.no_staf, ruang: room.id, tarikh: AppFixtures.day(11), masaMula: '14:00', masaTamat: '16:00', tujuan: 'Bengkel' }));
-      TestAssert.apiFail(api({ action: 'tempahan.semak', payload: { refNo: r.refNo, noStaf: '99999' } }), ERROR_CODES.NOT_FOUND);
-      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { refNo: r.refNo.toLowerCase(), noStaf: staf.no_staf + '.0' } }));
+      /* Tanpa sesi: tiada akses langsung (No. Rujukan + No. Staf sahaja tidak mencukupi) */
+      TestAssert.apiFail(api({ action: 'tempahan.semak', payload: { refNo: r.refNo, noStaf: staf.no_staf } }), ERROR_CODES.VALIDATION_ERROR);
+      TestAssert.apiFail(api({ action: 'tempahan.semak', payload: { refNo: r.refNo, token: 'x'.repeat(43) } }), ERROR_CODES.FORBIDDEN);
+      TestAssert.apiFail(api({ action: 'tempahan.batal', payload: { refNo: r.refNo, noStaf: staf.no_staf, emel: staf.emel } }), ERROR_CODES.VALIDATION_ERROR);
+      /* Kod dihantar ke emel YANG DIREKOD (bukan emel yang ditaip) */
+      const box = AppFixtures.mails();
+      const b0 = box.length;
+      TestAssert.apiOk(api({ action: 'tempahan.kod', payload: { noStaf: staf.no_staf, refNo: r.refNo } }));
+      const sent = box.slice(b0).filter(function (x) { return /Kod pengesahan/.test(x.subject); });
+      t.eq(sent.length, 1);
+      t.eq(sent[0].to, staf.emel, 'kod ke emel tempahan');
+      /* Jawapan seragam bila tidak sepadan (tiada pendedahan) & tiada emel dihantar */
+      const b1 = box.length;
+      const fake = TestAssert.apiOk(api({ action: 'tempahan.kod', payload: { noStaf: '99999', emel: 'penyerang@luar.com' } }));
+      t.eq(fake.dihantar, true, 'jawapan sama');
+      t.eq(box.length, b1, 'tiada emel kepada penyerang');
+      const b2 = box.length;
+      TestAssert.apiOk(api({ action: 'tempahan.kod', payload: { noStaf: staf.no_staf, emel: 'penyerang@luar.com' } }));
+      t.eq(box.length, b2, 'emel lain untuk No. Staf sah → tiada kod');
+      /* Kod salah → ditolak; selepas 5 cubaan kod lama tidak sah lagi */
+      const kod = /(\d{6})/.exec(sent[0].subject)[1];
+      const salah = kod === '000000' ? '111111' : '000000';
+      TestAssert.apiFail(api({ action: 'tempahan.sahKod', payload: { noStaf: staf.no_staf, refNo: r.refNo, kod: salah } }), ERROR_CODES.VALIDATION_ERROR);
+      const tok = TestAssert.apiOk(api({ action: 'tempahan.sahKod', payload: { noStaf: staf.no_staf + '.0', refNo: r.refNo.toLowerCase(), kod: kod } }));
+      t.ok(SecurityUtils.isTokenFormat(tok.token) && tok.emel.indexOf('***@') === 1, 'token sesi + emel bertopeng');
+      TestAssert.apiFail(api({ action: 'tempahan.sahKod', payload: { noStaf: staf.no_staf, refNo: r.refNo, kod: kod } }), ERROR_CODES.VALIDATION_ERROR);
+      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { token: tok.token, refNo: r.refNo.toLowerCase() } }));
       t.eq(v.ruang, room.nama);
       t.eq(v.status, 'MENUNGGU');
       t.ok(v.bolehBatal);
       t.ok(v.emel.indexOf('***@') === 1 && v.emel !== staf.emel, 'emel disamarkan');
-      TestAssert.apiFail(api({ action: 'tempahan.batal', payload: { refNo: r.refNo, noStaf: staf.no_staf, emel: 'salah@test.local' } }), ERROR_CODES.NOT_FOUND);
-      const b = TestAssert.apiOk(api({ action: 'tempahan.batal', payload: { refNo: r.refNo, noStaf: staf.no_staf, emel: staf.emel.toUpperCase(), sebab: 'Program ditunda' } }));
+      /* Sesi orang lain tidak boleh menyentuh tempahan ini */
+      const lain = AppFixtures.staf();
+      const r2 = TestAssert.apiOk(AppFixtures.pub({ noStaf: lain.no_staf, ruang: room.id, tarikh: AppFixtures.day(12), masaMula: '14:00', masaTamat: '16:00' }));
+      const tokLain = AppFixtures.sesi({ noStaf: lain.no_staf, refNo: r2.refNo });
+      TestAssert.apiFail(api({ action: 'tempahan.semak', payload: { token: tokLain, refNo: r.refNo } }), ERROR_CODES.NOT_FOUND);
+      TestAssert.apiFail(api({ action: 'tempahan.batal', payload: { token: tokLain, refNo: r.refNo } }), ERROR_CODES.NOT_FOUND);
+      const b = TestAssert.apiOk(api({ action: 'tempahan.batal', payload: { token: tok.token, refNo: r.refNo, sebab: 'Program ditunda' } }));
       t.eq(b.status, 'DIBATALKAN');
       t.ok(/Program ditunda/.test(b.statusNote));
       t.ok(!b.bolehBatal);
-      TestAssert.apiFail(api({ action: 'tempahan.batal', payload: { refNo: r.refNo, noStaf: staf.no_staf, emel: staf.emel } }), ERROR_CODES.CONFLICT);
-      TestAssert.apiFail(api({ action: 'tempahan.semak', payload: { refNo: '', noStaf: '' } }), ERROR_CODES.VALIDATION_ERROR);
-    }],
+      TestAssert.apiFail(api({ action: 'tempahan.batal', payload: { token: tok.token, refNo: r.refNo } }), ERROR_CODES.CONFLICT);
+      TestAssert.apiFail(api({ action: 'tempahan.kod', payload: { noStaf: '' } }), ERROR_CODES.VALIDATION_ERROR);
+    }, { nodeOnly: true }],
+
+    ['Kod pengesahan: had 5 cubaan, had kadar permintaan kod', function (t) {
+      const room = AppFixtures.room();
+      const staf = AppFixtures.staf();
+      const r = TestAssert.apiOk(AppFixtures.pub({ noStaf: staf.no_staf, ruang: room.id, tarikh: AppFixtures.day(13), masaMula: '09:00', masaTamat: '10:00' }));
+      const box = AppFixtures.mails();
+      const b0 = box.length;
+      TestAssert.apiOk(api({ action: 'tempahan.kod', payload: { noStaf: staf.no_staf, emel: staf.emel.toUpperCase() } }));
+      const kod = /(\d{6})/.exec(box.slice(b0).filter(function (x) { return /Kod pengesahan/.test(x.subject); })[0].subject)[1];
+      const salah = kod === '000000' ? '111111' : '000000';
+      for (let i = 0; i < 5; i++) TestAssert.apiFail(api({ action: 'tempahan.sahKod', payload: { noStaf: staf.no_staf, emel: staf.emel, kod: salah } }), ERROR_CODES.VALIDATION_ERROR);
+      TestAssert.apiFail(api({ action: 'tempahan.sahKod', payload: { noStaf: staf.no_staf, emel: staf.emel, kod: kod } }), ERROR_CODES.VALIDATION_ERROR);
+      t.ok(true, 'kod betul ditolak selepas 5 cubaan salah');
+      /* Had kadar: 5 permintaan kod setiap 15 minit bagi No. Staf yang sama */
+      let limited = false;
+      for (let j = 0; j < 8 && !limited; j++) {
+        const x = api({ action: 'tempahan.kod', payload: { noStaf: staf.no_staf, refNo: r.refNo } });
+        limited = !x.success && x.code === ERROR_CODES.RATE_LIMITED;
+      }
+      t.ok(limited, 'had kadar dikenakan');
+    }, { nodeOnly: true }],
 
     ['Kalendar awam: tiada data peribadi; admin nampak butiran', function (t) {
       const room = AppFixtures.room({ nama: 'Dewan Jadual' });
@@ -274,7 +339,7 @@ const TestSuiteTempahan = {
         t.eq(m.length, 1, 'email pengesahan EN');
         t.ok(/Reference No\./.test(m[0].htmlBody) && /Automated email/.test(m[0].htmlBody));
       }
-      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { refNo: r.refNo, noStaf: staf.no_staf } }));
+      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { token: AppFixtures.sesi({ noStaf: staf.no_staf, refNo: r.refNo }), refNo: r.refNo } }));
       t.eq(v.bahasa, 'en');
       t.eq(v.noStaf, staf.no_staf);
     }],
@@ -359,7 +424,7 @@ const TestSuiteTempahan = {
       t.eq(b.status, 'DITOLAK'); t.eq(b.status_note, 'Ruang penuh'); t.eq(b.tarikh, '2026-07-11'); t.eq(b.masa_mula, '14:30'); t.eq(b.masa_tamat, '16:30');
       const r2 = LegacyImport.run(ss);
       t.eq(r2.ruang.diimport + r2.staf.diimport + r2.tempahan.diimport, 0, 'jalankan semula tidak menduakan');
-      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { refNo: 'TP-L' + suffix + '-AAAA', noStaf: '8' + suffix } }));
+      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { token: AppFixtures.sesi({ noStaf: '8' + suffix, refNo: 'TP-L' + suffix + '-AAAA' }), refNo: 'TP-L' + suffix + '-AAAA' } }));
       t.eq(v.statusLabel, 'Selesai');
       try { DriveApp.getFileById(ss.getId()).setTrashed(true); } catch (e) { /* mock */ }
     }]

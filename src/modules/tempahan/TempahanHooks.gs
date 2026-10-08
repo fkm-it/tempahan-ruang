@@ -257,7 +257,7 @@ const TempahanHooks = {
       (en ? 'Dear ' : 'Salam ') + row.nama + ',',
       en ? 'Your booking application has been received and is awaiting approval.' : 'Permohonan tempahan anda telah diterima dan sedang menunggu kelulusan.'
     ].concat(TempahanHooks.details(row), [
-      en ? 'To check the status or cancel, use the Reference No. above with your Staff/Matric No.' : 'Untuk menyemak status atau membatalkan, gunakan No. Rujukan di atas bersama No. Staf / No. Matrik anda.'
+      en ? 'To check the status or cancel, use the Reference No. above with your Staff/Matric No. A verification code will be sent to this email.' : 'Untuk menyemak status atau membatalkan, gunakan No. Rujukan di atas bersama No. Staf / No. Matrik anda. Kod pengesahan akan dihantar ke emel ini.'
     ]), row);
   },
 
@@ -574,23 +574,128 @@ const TempahanHooks = {
     return Object.assign({}, out, { hariIni: today, sekarang: TempahanHooks.nowHM() });
   },
 
+  // ================================================================== Akses pemohon: kod pengesahan emel (OTP)
+  /*
+   * Pemohon tiada akaun. Untuk MELIHAT atau MEMBATALKAN tempahan, pemohon mesti membuktikan pemilikan emel:
+   *   1. tempahan.kod  {noStaf, emel} atau {noStaf, refNo} → kod 6 digit dihantar ke emel YANG DIREKOD pada tempahan
+   *      (jawapan sentiasa sama — tidak mendedahkan sama ada maklumat sepadan).
+   *   2. tempahan.sahKod {…, kod} → token sesi (30 minit) terikat pada No. Staf + emel tersebut.
+   *   3. tempahan.saya / tempahan.semak / tempahan.batal {token, …} — hanya tempahan milik sesi itu.
+   * Kod: tamat 10 minit, maksimum 5 cubaan, sekali guna, disimpan sebagai hash. Had kadar setiap No. Staf & global.
+   */
+  KOD_TTL: 600,
+  KOD_CUBAAN: 5,
+  SESI_TTL: 1800,
+
+  kodKey: function (noStaf, emel) { return AppCache.PREFIX + 'otp:' + SecurityUtils.sha256Hex(StafHooks.norm(noStaf) + '|' + StringUtils.normalizeEmail(emel)).slice(0, 40); },
+  sesiKey: function (token) { return AppCache.PREFIX + 'tps:' + SecurityUtils.sha256Hex(String(token)).slice(0, 40); },
+
+  /** Emel sasaran kod: emel tempahan (refNo + No. Staf) atau emel dimasukkan jika ada tempahan sepadan; '' jika tiada. */
+  sasaranKod: function (p) {
+    const n = StafHooks.norm(p.noStaf);
+    if (!n) return '';
+    if (p.refNo) {
+      const ref = String(p.refNo).trim().toUpperCase();
+      const row = Repo.of('TEMPAHAN').findOne(function (r) { return r.state === RECORD_STATE.ACTIVE && String(r.ref_no).toUpperCase() === ref && StafHooks.norm(r.no_staf) === n; });
+      return row && row.emel ? StringUtils.normalizeEmail(row.emel) : '';
+    }
+    if (!p.emel) return '';
+    const ada = Repo.of('TEMPAHAN').findOne(function (r) { return r.state === RECORD_STATE.ACTIVE && StafHooks.norm(r.no_staf) === n && StringUtils.normalizeEmail(r.emel) === p.emel; });
+    return ada ? p.emel : '';
+  },
+
+  kodRules: function (extra) {
+    return Object.assign({
+      noStaf: TempahanHooks.stafRule(),
+      emel: { type: 'email', label: 'Emel' },
+      refNo: { type: 'string', max: 30, label: 'No. rujukan' }
+    }, extra || {});
+  },
+
+  /** Langkah 1: hantar kod ke emel pemohon (jawapan seragam). */
+  mintaKod: function (payload) {
+    const p = Validator.validate(payload, TempahanHooks.kodRules());
+    if (!p.emel && !p.refNo) throw Errors.validation('Masukkan emel atau No. Rujukan.', { emel: 'Wajib.' });
+    SecurityService.rateLimit('tempahan.kod.global', 'all');
+    SecurityService.rateLimit('tempahan.kod', StafHooks.norm(p.noStaf));
+    const emel = TempahanHooks.sasaranKod(p);
+    if (emel) {
+      SecurityService.rateLimit('tempahan.kod', 'e:' + emel);
+      const bytes = SecurityUtils.randomBytes(4);
+      const num = ((bytes[0] & 0x7f) * 16777216 + (bytes[1] & 0xff) * 65536 + (bytes[2] & 0xff) * 256 + (bytes[3] & 0xff)) % 1000000;
+      const kod = ('00000' + num).slice(-6);
+      const key = TempahanHooks.kodKey(p.noStaf, emel);
+      CacheService.getScriptCache().put(key, JSON.stringify({ h: SecurityUtils.sha256Hex(key + '|' + kod), t: 0 }), TempahanHooks.KOD_TTL);
+      const name = SettingsService.get('SYSTEM_NAME');
+      NotificationService.email(emel, 'Kod pengesahan: ' + kod, [
+        'Kod pengesahan anda untuk melihat / membatalkan tempahan ruang:',
+        kod,
+        'Kod ini sah selama 10 minit dan hanya boleh digunakan sekali.',
+        'Jika anda tidak meminta kod ini, abaikan emel ini. Tiada sesiapa boleh mengakses tempahan anda tanpa kod ini.',
+        'Jangan kongsi kod ini dengan sesiapa, termasuk kakitangan ' + name + '.'
+      ], { force: true, path: p.refNo ? '#/semak?ref=' + encodeURIComponent(p.refNo) : '#/tempahan-saya' });
+    }
+    return { dihantar: true, tamatMinit: Math.round(TempahanHooks.KOD_TTL / 60) };
+  },
+
+  /** Langkah 2: sahkan kod → token sesi. */
+  sahKod: function (payload) {
+    const p = Validator.validate(payload, TempahanHooks.kodRules({ kod: { type: 'string', required: true, max: 10, pattern: /^\s*\d{6}\s*$/, label: 'Kod' } }));
+    SecurityService.rateLimit('tempahan.kod.global', 'all');
+    const salah = function () { return Errors.validation('Kod tidak sah atau telah tamat tempoh. Minta kod baharu jika perlu.', { kod: 'Kod tidak sah.' }); };
+    const emel = TempahanHooks.sasaranKod(p);
+    if (!emel) throw salah();
+    const cache = CacheService.getScriptCache();
+    const key = TempahanHooks.kodKey(p.noStaf, emel);
+    let rec = null;
+    try { rec = JSON.parse(cache.get(key) || 'null'); } catch (e) { rec = null; }
+    if (!rec || !rec.h) throw salah();
+    rec.t = (rec.t || 0) + 1;
+    if (!SecurityUtils.constantTimeEquals(SecurityUtils.sha256Hex(key + '|' + String(p.kod).trim()), rec.h)) {
+      if (rec.t >= TempahanHooks.KOD_CUBAAN) cache.remove(key); else cache.put(key, JSON.stringify(rec), TempahanHooks.KOD_TTL);
+      throw salah();
+    }
+    cache.remove(key); /* sekali guna */
+    const token = SecurityUtils.randomToken();
+    cache.put(TempahanHooks.sesiKey(token), JSON.stringify({ n: StafHooks.norm(p.noStaf), e: emel }), TempahanHooks.SESI_TTL);
+    return { token: token, emel: TempahanHooks.maskEmail(emel), tamatMinit: Math.round(TempahanHooks.SESI_TTL / 60) };
+  },
+
+  /** Sesi pemohon daripada token; FORBIDDEN seragam jika tiada / tamat. */
+  sesi: function (token) {
+    if (!SecurityUtils.isTokenFormat(token)) throw Errors.forbidden('Sesi semakan telah tamat. Sila minta kod pengesahan baharu.');
+    let s = null;
+    try { s = JSON.parse(CacheService.getScriptCache().get(TempahanHooks.sesiKey(token)) || 'null'); } catch (e) { s = null; }
+    if (!s || !s.n || !s.e) throw Errors.forbidden('Sesi semakan telah tamat. Sila minta kod pengesahan baharu.');
+    return s;
+  },
+
+  milikSesi: function (s, r) { return r.state === RECORD_STATE.ACTIVE && StafHooks.norm(r.no_staf) === s.n && StringUtils.normalizeEmail(r.emel) === s.e; },
+
+  tokenRule: function () { return { type: 'string', required: true, max: 64, label: 'Sesi' }; },
+
+  /** Satu tempahan (milik sesi). */
   semak: function (payload) {
-    const p = Validator.validate(payload, { refNo: TempahanHooks.refRule(), noStaf: TempahanHooks.stafRule() });
+    const p = Validator.validate(payload, { token: TempahanHooks.tokenRule(), refNo: TempahanHooks.refRule() });
     SecurityService.rateLimit('tempahan.semak.global', 'all');
-    SecurityService.rateLimit('tempahan.semak', p.refNo.toUpperCase());
-    return TempahanHooks.publicView(TempahanHooks.findForApplicant(p.refNo, p.noStaf));
+    const s = TempahanHooks.sesi(p.token);
+    const ref = p.refNo.toUpperCase();
+    const row = Repo.of('TEMPAHAN').findOne(function (r) { return String(r.ref_no).toUpperCase() === ref && TempahanHooks.milikSesi(s, r); });
+    if (!row) throw Errors.notFound('Tempahan');
+    return TempahanHooks.publicView(row);
   },
 
   batal: function (payload) {
     const p = Validator.validate(payload, {
-      refNo: TempahanHooks.refRule(), noStaf: TempahanHooks.stafRule(),
-      emel: { type: 'email', required: true, label: 'Emel' },
+      token: TempahanHooks.tokenRule(), refNo: TempahanHooks.refRule(),
       sebab: { type: 'text', max: 300, label: 'Sebab' }
     });
     SecurityService.rateLimit('tempahan.semak.global', 'all');
     SecurityService.rateLimit('tempahan.batal', p.refNo.toUpperCase());
-    const row = TempahanHooks.findForApplicant(p.refNo, p.noStaf);
-    if (StringUtils.normalizeEmail(row.emel) !== p.emel) throw Errors.notFound('Tempahan dengan No. Rujukan dan No. Staf ini');
+    const s = TempahanHooks.sesi(p.token);
+    const ref = p.refNo.toUpperCase();
+    const row = Repo.of('TEMPAHAN').findOne(function (r) { return String(r.ref_no).toUpperCase() === ref && TempahanHooks.milikSesi(s, r); });
+    if (!row) throw Errors.notFound('Tempahan');
     if (!TempahanHooks.canCancel(row)) throw Errors.conflict('Tempahan ini tidak boleh dibatalkan lagi.');
     const prev = row.status;
     const now = DateUtils.nowIso();
@@ -600,7 +705,7 @@ const TempahanHooks = {
     });
     AppCache.remove('stats:admin');
     if (prev === 'DILULUSKAN') TugasanHooks.cancelFor(updated, 'Tempahan ' + row.ref_no + ' dibatalkan oleh pemohon.');
-    AuditService.log({ role: ROLES.PUBLIC }, AUDIT_ACTIONS.RECORD_STATUS, 'TEMPAHAN', row.id, prev + ' → DIBATALKAN · oleh pemohon');
+    AuditService.log({ role: ROLES.PUBLIC }, AUDIT_ACTIONS.RECORD_STATUS, 'TEMPAHAN', row.id, prev + ' → DIBATALKAN · oleh pemohon (disahkan kod emel)');
     NotificationService.notifyAdmins(NOTIF_TYPE.RECORD_STATUS, 'Tempahan dibatalkan: ' + row.ref_no,
       row.nama + ' membatalkan tempahan ' + TempahanHooks.ruangText(row) + ' (' + TempahanHooks.dateText(row) + ').', row.id, '#/admin/tempahan/' + row.id);
     TempahanHooks.notifyStatus(updated, prev);
@@ -687,16 +792,14 @@ const TempahanHooks = {
     return { dari: dari, hingga: hingga, tempoh: p.tempoh, jam: { mula: w.mula, tamat: w.tamat }, hari: hari };
   },
 
-  /** "Tempahan saya": semua tempahan pemohon — No. Staf/Matrik DAN emel mesti sepadan (tiada kebocoran: tiada padanan = senarai kosong). */
+  /** "Tempahan saya": semua tempahan milik sesi (No. Staf + emel yang disahkan dengan kod). */
   saya: function (payload) {
-    const p = Validator.validate(payload, { noStaf: TempahanHooks.stafRule(), emel: { type: 'email', required: true, label: 'Emel' } });
+    const p = Validator.validate(payload, { token: TempahanHooks.tokenRule() });
     SecurityService.rateLimit('tempahan.semak.global', 'all');
-    SecurityService.rateLimit('tempahan.semak', 'saya:' + StafHooks.norm(p.noStaf));
-    const n = StafHooks.norm(p.noStaf);
-    const rows = Repo.of('TEMPAHAN').all().filter(function (r) {
-      return r.state === RECORD_STATE.ACTIVE && StafHooks.norm(r.no_staf) === n && StringUtils.normalizeEmail(r.emel) === p.emel;
-    }).sort(function (a, b) { return a.tarikh < b.tarikh ? 1 : a.tarikh > b.tarikh ? -1 : (a.created_at < b.created_at ? 1 : -1); });
-    return { items: rows.slice(0, 50).map(TempahanHooks.publicView), jumlah: rows.length };
+    const s = TempahanHooks.sesi(p.token);
+    const rows = Repo.of('TEMPAHAN').all().filter(function (r) { return TempahanHooks.milikSesi(s, r); })
+      .sort(function (a, b) { return a.tarikh < b.tarikh ? 1 : a.tarikh > b.tarikh ? -1 : (a.created_at < b.created_at ? 1 : -1); });
+    return { items: rows.slice(0, 50).map(TempahanHooks.publicView), jumlah: rows.length, emel: TempahanHooks.maskEmail(s.e) };
   },
 
   jamOf: function (r) {
@@ -875,6 +978,8 @@ const TempahanHooks = {
     'tempahan.tetapan': { role: 'ADMIN', fn: function () { return TempahanHooks.tetapan(); } },
     'tempahan.tetapanSimpan': { role: 'ADMIN', fn: function (payload, ctx) { return TempahanHooks.tetapanSimpan(payload, ctx); } },
     'tempahan.jadual': { role: 'PUBLIC', fn: function (payload, ctx) { return TempahanHooks.jadual(payload, ctx); } },
+    'tempahan.kod': { role: 'PUBLIC', fn: function (payload) { return TempahanHooks.mintaKod(payload); } },
+    'tempahan.sahKod': { role: 'PUBLIC', fn: function (payload) { return TempahanHooks.sahKod(payload); } },
     'tempahan.semak': { role: 'PUBLIC', fn: function (payload) { return TempahanHooks.semak(payload); } },
     'tempahan.batal': { role: 'PUBLIC', fn: function (payload) { return TempahanHooks.batal(payload); } }
   }

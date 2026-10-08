@@ -227,7 +227,7 @@ const TestSuiteAliranV14 = {
         /* Pemohon membatalkan → tugasan dibatalkan */
         const b2 = AppFixtures3.mailsTo(p2.emel).length;
         const staf = Repo.of('TEMPAHAN').findById(row.id);
-        TestAssert.apiOk(api({ action: 'tempahan.batal', payload: { refNo: staf.ref_no, noStaf: staf.no_staf, emel: staf.emel } }));
+        TestAssert.apiOk(api({ action: 'tempahan.batal', payload: { token: AppFixtures.sesi({ noStaf: staf.no_staf, refNo: staf.ref_no }), refNo: staf.ref_no } }));
         t.eq(Repo.of('TUGASAN').findById(t2.id).status, 'DIBATALKAN', 'tugasan dibatalkan bersama tempahan');
         t.ok(/DIBATALKAN/.test(AppFixtures3.mailsTo(p2.emel).slice(b2)[0].subject), 'PIC dimaklumkan pembatalan');
         TestAssert.apiFail(api({ action: 'tugasan.selesai', payload: AppFixtures3.linkParts(TugasanHooks.pautan(Repo.of('TUGASAN').findById(t2.id))) }), ERROR_CODES.CONFLICT);

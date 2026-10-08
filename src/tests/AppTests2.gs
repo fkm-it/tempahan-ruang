@@ -76,7 +76,7 @@ const TestSuiteTempahanV2 = {
         t.eq(TestAssert.apiOk(api({ action: 'public.config' })).PELAJAR_DIBENARKAN, false, 'tetapan awam');
       });
       /* Semak & batal menggunakan No. Matrik + emel */
-      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { refNo: r.refNo, noStaf: 'A21MJ1234' } }));
+      const v = TestAssert.apiOk(api({ action: 'tempahan.semak', payload: { token: AppFixtures.sesi({ noStaf: 'A21MJ1234', refNo: r.refNo }), refNo: r.refNo } }));
       t.eq(v.nama, 'Ali bin Pelajar');
     }],
 
@@ -121,11 +121,12 @@ const TestSuiteTempahanV2 = {
       TestAssert.apiOk(AppFixtures.pub({ noStaf: staf.no_staf, ruang: room.id, tarikh: AppFixtures.day(8), masaMula: '09:00', masaTamat: '10:00' }));
       TestAssert.apiOk(AppFixtures.pub({ noStaf: staf.no_staf, ruang: room.id, tarikh: AppFixtures.day(9), masaMula: '09:00', masaTamat: '10:00' }));
       TestAssert.apiOk(AppFixtures.pub({ noStaf: lain.no_staf, ruang: room.id, tarikh: AppFixtures.day(10), masaMula: '09:00', masaTamat: '10:00' }));
-      const mine = TestAssert.apiOk(api({ action: 'tempahan.saya', payload: { noStaf: staf.no_staf, emel: staf.emel.toUpperCase() } }));
+      TestAssert.apiFail(api({ action: 'tempahan.saya', payload: { noStaf: staf.no_staf, emel: staf.emel } }), ERROR_CODES.VALIDATION_ERROR);
+      const mine = TestAssert.apiOk(api({ action: 'tempahan.saya', payload: { token: AppFixtures.sesi({ noStaf: staf.no_staf, emel: staf.emel.toUpperCase() }) } }));
       t.eq(mine.items.length, 2);
       t.ok(mine.items[0].tarikh >= mine.items[1].tarikh, 'terbaru dahulu');
       t.ok(mine.items.every(function (x) { return x.emel.indexOf('***') > 0; }), 'emel bertopeng');
-      t.eq(TestAssert.apiOk(api({ action: 'tempahan.saya', payload: { noStaf: staf.no_staf, emel: lain.emel } })).items.length, 0, 'emel lain → kosong');
+      t.eq(TestAssert.apiOk(api({ action: 'tempahan.saya', payload: { token: AppFixtures.sesi({ noStaf: lain.no_staf, emel: lain.emel }) } })).items.length, 1, 'sesi lain → tempahan sendiri sahaja');
     }],
 
     ['Analitik: KPI, jam terkumpul (tanpa ditolak/dibatalkan), trend 6 bulan, ruang & blok', function (t) {

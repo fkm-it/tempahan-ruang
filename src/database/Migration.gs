@@ -35,6 +35,11 @@ const Migration = {
     { id: 'MODULE_STAF_7A3C3D95', description: 'Modul Staf: sheet STAF & lajur', up: function () { return SheetManager.ensure('STAF'); } },
     // @generator:migrations:end
     // Migrasi tulisan tangan (data) — tambah di bawah dengan ID MIGRATION_00N.
+    {
+      id: 'MIGRATION_004',
+      description: 'Tutup pendaftaran akaun awam (v1.4.2) — Super Admin boleh membukanya semula di Tetapan',
+      up: function () { SettingsRepository.setMany({ ALLOW_REGISTRATION: 'FALSE' }, 'MIGRATION_004'); return { ALLOW_REGISTRATION: false }; }
+    }
   ],
 
   applied: function () {
